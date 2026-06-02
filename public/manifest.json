@@ -1,0 +1,18 @@
+{
+  "name": "CÍCLICA",
+  "short_name": "Cíclica",
+  "description": "Orquestador de Vida y Energía Cíclica",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf9f4",
+  "theme_color": "#2d2d2d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
