@@ -1,6 +1,9 @@
 # CÍCLICA 🌿
 > Bóveda Soberana de Vida y Energía • Local-First & Open Source.
 
+🌐 **Acceder a la aplicación web**: [ciclica.trtbl.dev](https://ciclica.trtbl.dev)  
+🔬 **Laboratorio de ideas**: [The Right to be Lazy](https://trtbl.substack.com)  
+
 CÍCLICA es un gestor de energía ejecutiva y ritmo de vida diseñado bajo principios de soberanía de datos y privacidad crítica. La aplicación calibra y sintoniza tu agenda diaria y tus arquetipos cognitivos de enfoque en base a tu biología natural (ciclo menstrual o lunar) de forma 100% desconectada y física en tu dispositivo.
 
 ---
