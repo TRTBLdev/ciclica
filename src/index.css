@@ -1,0 +1,222 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&family=Jost:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-base: var(--base-bg);
+  --color-base-dim: var(--base-bg-dim);
+  --color-primary: var(--primary-accent);
+  --color-accent: var(--accent-highlight);
+  --color-secondary: var(--secondary-accent);
+  --color-tertiary: var(--tertiary-accent);
+  --color-text-main: var(--text-main);
+  --color-text-dim: var(--text-dim);
+  --color-border-line: var(--border-line);
+
+  --font-sans: "Jost", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --border-radius-none: 0px;
+}
+
+:root {
+  --base-bg: #fbf9f4;
+  --base-bg-dim: #efede8;
+  --primary-accent: #a2b29f;
+  --accent-highlight: #73c2b8;
+  --secondary-accent: #b8a49a;
+  --tertiary-accent: #9ab0b8;
+  --text-main: #2d2d2d;
+  --text-dim: #5d5d5d;
+  --border-line: #e4e2dd;
+
+  /* Legacy aliases for direct inline CSS calls */
+  --color-base: var(--base-bg);
+  --color-base-dim: var(--base-bg-dim);
+  --color-primary: var(--primary-accent);
+  --color-accent: var(--accent-highlight);
+  --color-secondary: var(--secondary-accent);
+  --color-tertiary: var(--tertiary-accent);
+  --color-text-main: var(--text-main);
+  --color-text-dim: var(--text-dim);
+  --color-border-line: var(--border-line);
+}
+
+.theme-kyoto-dusk {
+  --base-bg: #181512;
+  --base-bg-dim: #231f1a;
+  --primary-accent: #d4af37;
+  --accent-highlight: #73c2b8;
+  --secondary-accent: #a89f95;
+  --tertiary-accent: #5c6b73;
+  --text-main: #f3eae1;
+  --text-dim: #a89f95;
+  --border-line: #2d2722;
+
+  --color-base: #181512;
+  --color-base-dim: #231f1a;
+  --color-primary: #d4af37;
+  --color-accent: #73c2b8;
+  --color-secondary: #a89f95;
+  --color-tertiary: #5c6b73;
+  --color-text-main: #f3eae1;
+  --color-text-dim: #a89f95;
+  --color-border-line: #2d2722;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-text-main);
+  font-family: var(--font-sans);
+  font-weight: 300; /* Default to thinner weight */
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+@layer utilities {
+  /* Jerarquía Tipográfica Global */
+  .text-title {
+    @apply text-2xl font-light tracking-tight text-text-main;
+  }
+  .text-subtitle {
+    @apply text-lg font-light tracking-tight text-text-main;
+  }
+  .text-item {
+    @apply text-base font-light text-text-main;
+  }
+  .text-body {
+    @apply text-sm font-light text-text-dim leading-relaxed;
+  }
+  .text-meta {
+    @apply text-xs font-light font-mono text-primary uppercase tracking-wide;
+  }
+  .text-label {
+    @apply text-sm font-light font-mono text-text-dim uppercase tracking-wider;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Premium Minimalist Silhouette Icon System - Hollow Outline Silhouettes */
+.silhouette-icon,
+.icon-silhouette {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.2px !important;
+}
+
+.silhouette-icon path,
+.silhouette-icon circle,
+.silhouette-icon rect,
+.silhouette-icon polygon,
+.silhouette-icon polyline,
+.silhouette-icon ellipse,
+.icon-silhouette path,
+.icon-silhouette circle,
+.icon-silhouette rect,
+.icon-silhouette polygon,
+.icon-silhouette polyline,
+.icon-silhouette ellipse {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.2px !important;
+}
+
+/* Premium Frosted Glass / Matte Plates styling */
+.glass-matte {
+  background-color: rgba(251, 249, 244, 0.25);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.015);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.theme-kyoto-dusk .glass-matte {
+  background-color: rgba(24, 21, 18, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    inset 0 1px 0px rgba(255, 255, 255, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.glass-matte:hover {
+  background-color: rgba(251, 249, 244, 0.4);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.55),
+    0 6px 16px rgba(0, 0, 0, 0.03);
+}
+
+.theme-kyoto-dusk .glass-matte:hover {
+  background-color: rgba(24, 21, 18, 0.45);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Premium Minimalist Scrollbars (3px ultra-thin) */
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-line);
+  border-radius: 9999px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-accent);
+}
+
+/* Scrollbar buttons as minimalist chevrons/lines aligned to the axis */
+::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a89f95' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M8 6l4-4 4 4'/%3E%3C/svg%3E");
+  background-size: 8px 8px;
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 12px;
+}
+
+::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a89f95' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M8 18l4 4 4-4'/%3E%3C/svg%3E");
+  background-size: 8px 8px;
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 12px;
+}
+
+::-webkit-scrollbar-button:single-button:horizontal:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a89f95' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h20M6 8l-4 4 4 4'/%3E%3C/svg%3E");
+  background-size: 8px 8px;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 12px;
+}
+
+::-webkit-scrollbar-button:single-button:horizontal:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a89f95' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h20M18 8l4 4-4 4'/%3E%3C/svg%3E");
+  background-size: 8px 8px;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 12px;
+}
+
+/* Firefox scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-line) transparent;
+}
