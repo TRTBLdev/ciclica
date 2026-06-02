@@ -390,7 +390,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         </div>
 
         {/* Content */}
-        <div className="flex-1 h-screen bg-base overflow-y-auto w-full">
+        <div className={cn(
+          "flex-1 h-screen bg-base overflow-y-auto w-full",
+          activeTimer && "pb-[200px] md:pb-0"
+        )}>
           {currentView === 'hoy' && (
             <HoyView 
               config={config} 
@@ -458,6 +461,20 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           )}
         </div>
       </div>
+
+      {activeTimer && (
+        <div className="md:hidden">
+          <FloatingTimer 
+            activeTimer={activeTimer}
+            tasks={tasks}
+            onPause={handlePauseTimer}
+            onResume={handleResumeTimer}
+            onStop={handleStopTimer}
+            onDiscard={handleDiscardTimer}
+            onStartTimer={handleStartTimer}
+          />
+        </div>
+      )}
 
       {showOnboarding && (
         <Onboarding 
