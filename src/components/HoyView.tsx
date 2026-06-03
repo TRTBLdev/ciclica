@@ -64,9 +64,11 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
       }
     }
     if (t.type === 'Rutina') {
-      // Show routine if it is scheduled for today, OR if any of its active child habits are scheduled for today.
-      const hasTodayHabits = tasks.some(sub => sub.parentId === t.id && sub.type === 'Hábito' && !sub.completed && isTodayOrBefore(sub.fechaPlanificada));
-      return isTodayOrBefore(t.fechaPlanificada) || (t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada)) || hasTodayHabits;
+      const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
+      if (childHabits.length > 0) {
+        return childHabits.some(sub => !sub.completed && isTodayOrBefore(sub.fechaPlanificada));
+      }
+      return isTodayOrBefore(t.fechaPlanificada) || (t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada));
     }
     if (t.type === 'Hábito') return isTodayOrBefore(t.fechaPlanificada);
     return t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada);
@@ -816,7 +818,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                       config={config} 
                       allTasks={tasks} 
                       history={history}
-                      onToggle={() => onToggleTask(t)} 
+                      onToggle={onToggleTask} 
                       onDelete={() => onDeleteTask(t.id)} 
                       onUpdate={onUpdateTask} 
                       onAddTask={onAddTask} 
@@ -857,7 +859,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                       config={config} 
                       allTasks={tasks} 
                       history={history}
-                      onToggle={() => onToggleTask(t)} 
+                      onToggle={onToggleTask} 
                       onDelete={() => onDeleteTask(t.id)} 
                       onUpdate={onUpdateTask} 
                       onAddTask={onAddTask} 
@@ -1066,7 +1068,7 @@ function TimelineRenderer({
                   config={config} 
                   allTasks={allTasks} 
                   history={history}
-                  onToggle={() => onToggleTask(t)} 
+                  onToggle={onToggleTask} 
                   onDelete={() => onDeleteTask(t.id)} 
                   onUpdate={onUpdateTask}
                   onAddTask={onAddTask}

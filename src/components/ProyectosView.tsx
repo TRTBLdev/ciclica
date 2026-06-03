@@ -252,7 +252,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 config={config} 
                 allTasks={tasks} 
                 history={history}
-                onToggle={() => onToggleTask(sub)} 
+                onToggle={onToggleTask} 
                 onDelete={() => onDeleteTask(sub.id)} 
                 onUpdate={onUpdateTask}
                 onAddTask={onAddTask}

@@ -596,7 +596,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         config={config} 
                         allTasks={tasks} 
                         history={history}
-                        onToggle={() => onToggleTask(sub)} 
+                        onToggle={onToggleTask} 
                         onDelete={() => onDeleteTask(sub.id)} 
                         onUpdate={onUpdateTask}
                         onAddTask={onAddTask}
@@ -659,7 +659,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                 config={config} 
                 allTasks={tasks} 
                 history={history}
-                onToggle={() => onToggleTask(habit)} 
+                onToggle={onToggleTask} 
                 onDelete={() => onDeleteTask(habit.id)} 
                 onUpdate={onUpdateTask}
                 onAddTask={onAddTask}

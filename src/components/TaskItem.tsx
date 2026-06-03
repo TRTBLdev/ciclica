@@ -9,7 +9,7 @@ interface Props {
   task: AppTask;
   config: Config | null;
   allTasks: AppTask[];
-  onToggle: () => void;
+  onToggle: (task: AppTask) => void;
   onDelete: () => void;
   onUpdate?: (id: string, updates: Partial<AppTask>) => void;
   onAddTask?: (task: Omit<AppTask, 'id'>) => void;
@@ -233,7 +233,7 @@ export default function TaskItem({
     >
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
-        <button onClick={onToggle} className="mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent hover:opacity-70 transition-opacity">
+        <button onClick={() => onToggle(task)} className="mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent hover:opacity-70 transition-opacity">
           {(task.type === 'Rutina' || task.type === 'Hábito') ? (
             task.completed ? <CheckCircle2 className="w-4 h-4 cursor-pointer text-text-main opacity-40" /> : <Circle className="w-4 h-4 cursor-pointer text-text-main" />
           ) : (
@@ -630,7 +630,7 @@ export default function TaskItem({
               config={config} 
               allTasks={allTasks} 
               history={history}
-              onToggle={() => onUpdate && onUpdate(sub.id, { completed: !sub.completed })} 
+              onToggle={onToggle} 
               onDelete={() => onDeleteTask && onDeleteTask(sub.id)} 
               onUpdate={onUpdate}
               onAddTask={onAddTask}

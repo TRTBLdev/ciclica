@@ -119,7 +119,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                             if (subtasksCount === 0) {
                               cellContent = <div className={cn("w-[18px] h-[18px] mx-auto rounded-none", count ? "bg-accent" : "bg-transparent")}></div>;
                             } else {
-                              const ratio = Math.min(subtasksCompleted / subtasksCount, 1);
+                              const ratio = count > 0 ? 1 : Math.min(subtasksCompleted / subtasksCount, 1);
                               if (ratio === 0) {
                                  cellContent = <div className="w-[18px] h-[18px] mx-auto rounded-none bg-transparent"></div>;
                               } else {

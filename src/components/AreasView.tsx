@@ -510,7 +510,7 @@ function AreaDetail({
                             config={config}
                             allTasks={tasks}
                             history={history}
-                            onToggle={() => onToggleTask(g)}
+                            onToggle={onToggleTask}
                             onDelete={() => onDeleteTask(g.id)}
                             onUpdate={onUpdateTask}
                             onAddTask={onAddTask}
@@ -664,7 +664,7 @@ function AreaDetail({
                        config={config}
                        allTasks={tasks}
                        history={history}
-                       onToggle={() => onToggleTask(hab)}
+                       onToggle={onToggleTask}
                        onDelete={() => onDeleteTask(hab.id)}
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}
@@ -704,7 +704,7 @@ function AreaDetail({
                        config={config}
                        allTasks={tasks}
                        history={history}
-                       onToggle={() => onToggleTask(t)}
+                       onToggle={onToggleTask}
                        onDelete={() => onDeleteTask(t.id)}
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}

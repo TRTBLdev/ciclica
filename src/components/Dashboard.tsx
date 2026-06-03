@@ -9,7 +9,7 @@ import ConfiguracionView from './ConfiguracionView';
 import FloatingTimer from './FloatingTimer';
 import Onboarding from './Onboarding';
 import { cn, calculateBiologicalPhase, migrateDatabase, isSameDay } from '../lib/utils';
-import { AppTask } from '../types';
+import { AppTask, HistoryRecord } from '../types';
 import { UserSession } from '../App';
 
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
@@ -31,7 +31,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, loading, addTask, updateTask, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData } = useData(user.uid);
+  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -151,70 +151,113 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
     const isCompleted = !task.completed;
-    
-    if (isCompleted) {
-      let duration = overrideDuration !== undefined ? overrideDuration : (task.duracion || 0);
-      if (task.type === 'Proyecto') {
-        const hasChildren = tasks.some(t => t.parentId === task.id);
-        if (hasChildren) duration = 0;
-      }
-      const sessionStart = overrideStartTime || new Date(new Date().getTime() - duration * 3600000).toISOString();
-      const sessionEnd = overrideEndTime || new Date().toISOString();
+    const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
+    const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
 
-      addHistory({
-        userId: user.uid,
-        taskId: task.id,
-        date: sessionEnd,
-        duration,
-        createdAt: new Date().toISOString(),
-        startTime: sessionStart,
-        endTime: sessionEnd
-      });
-    }
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-    if ((task.type === 'Hábito' || task.type === 'Rutina') && isCompleted) {
-      const nextDate = new Date();
-      let daysToAdd = task.frecuencia || 1;
-      if (task.frecuenciaUnidad === 'semanas') daysToAdd *= 7;
-      if (task.frecuenciaUnidad === 'meses') daysToAdd *= 30;
-      nextDate.setDate(nextDate.getDate() + daysToAdd);
+    const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
+      let nextPlan = new Date(plannedDateStr || new Date().toISOString());
+      let daysToAdd = freq || 1;
+      if (unit === 'semanas') daysToAdd *= 7;
+      if (unit === 'meses') daysToAdd *= 30;
       
-      if (task.type === 'Rutina') {
-        const childHabits = tasks.filter(t => t.parentId === task.id && t.type === 'Hábito');
-        childHabits.forEach(h => {
-          updateTask(h.id, { 
-            completed: false, 
-            fechaPlanificada: nextDate.toISOString() 
-          });
+      nextPlan.setDate(nextPlan.getDate() + daysToAdd);
+      while (nextPlan.getTime() < todayStart.getTime()) {
+        nextPlan.setDate(nextPlan.getDate() + daysToAdd);
+      }
+      return nextPlan.toISOString();
+    };
+
+    const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
+      if (isComp) {
+        let duration = dur !== undefined ? dur : (t.duracion || 0);
+        if (t.type === 'Proyecto') {
+          const hasChildren = tasks.some(sub => sub.parentId === t.id);
+          if (hasChildren) duration = 0;
+        }
+        const sessionStart = startT || new Date(new Date().getTime() - duration * 3600000).toISOString();
+        const sessionEnd = endT || new Date().toISOString();
+
+        historyToAdd.push({
+          userId: user.uid,
+          taskId: t.id,
+          date: sessionEnd,
+          duration,
+          createdAt: new Date().toISOString(),
+          startTime: sessionStart,
+          endTime: sessionEnd
         });
       }
 
-      updateTask(task.id, { 
-        completed: false, 
-        fechaPlanificada: nextDate.toISOString() 
-      });
-    } else if (task.type !== 'Pulso') {
-      updateTask(task.id, { completed: isCompleted, view: isCompleted ? '' : task.view });
-    }
-
-    // Auto-complete parent if all siblings are completed
-    if (isCompleted && task.parentId) {
-      const parent = tasks.find(p => p.id === task.parentId);
-      if (parent) {
-        if (parent.type === 'Rutina') {
-          const habits = tasks.filter(t => t.parentId === parent.id && t.type === 'Hábito');
-          const allHabitsDone = habits.every(h => h.id === task.id ? true : h.completed);
-          if (allHabitsDone) {
-            setTimeout(() => handleToggleTask(parent), 200);
+      if (t.type === 'Hábito' || t.type === 'Rutina') {
+        if (isComp) {
+          if (t.type === 'Rutina') {
+            const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
+            if (childHabits.length > 0) {
+              childHabits.forEach(ch => {
+                const isChDue = !ch.completed && (ch.fechaPlanificada ? new Date(ch.fechaPlanificada).getTime() <= todayStart.getTime() + 24 * 3600 * 1000 : true);
+                if (isChDue) {
+                  const chNextDate = getNextPlannedDate(ch.fechaPlanificada, ch.frecuencia || 1, ch.frecuenciaUnidad || 'días');
+                  tasksToUpdate.push({
+                    id: ch.id,
+                    updates: { completed: false, fechaPlanificada: chNextDate }
+                  });
+                  historyToAdd.push({
+                    userId: user.uid,
+                    taskId: ch.id,
+                    date: new Date().toISOString(),
+                    duration: 0,
+                    createdAt: new Date().toISOString()
+                  });
+                }
+              });
+              return;
+            }
           }
+
+          const nextPlannedStr = getNextPlannedDate(t.fechaPlanificada, t.frecuencia || 1, t.frecuenciaUnidad || 'días');
+          tasksToUpdate.push({
+            id: t.id,
+            updates: { completed: false, fechaPlanificada: nextPlannedStr }
+          });
         } else {
-          const siblings = tasks.filter(t => t.parentId === parent.id);
-          const allSiblingsDone = siblings.every(s => s.id === task.id ? true : s.completed);
-          if (allSiblingsDone && !parent.completed) {
-            setTimeout(() => handleToggleTask(parent), 200);
+          tasksToUpdate.push({
+            id: t.id,
+            updates: { completed: false, fechaPlanificada: new Date().toISOString() }
+          });
+        }
+      } else if (t.type !== 'Pulso') {
+        tasksToUpdate.push({
+          id: t.id,
+          updates: { completed: isComp, view: isComp ? '' : t.view }
+        });
+
+        if (isComp && t.parentId) {
+          const parent = tasks.find(p => p.id === t.parentId);
+          if (parent && parent.type !== 'Rutina' && parent.type !== 'Proyecto') {
+            const siblings = tasks.filter(s => s.parentId === parent.id);
+            const allSiblingsDone = siblings.every(s => {
+              if (s.id === t.id) return true;
+              const updated = tasksToUpdate.find(up => up.id === s.id);
+              return updated ? !!updated.updates.completed : s.completed;
+            });
+            if (allSiblingsDone && !parent.completed) {
+              processToggle(parent, true);
+            }
           }
         }
       }
+    };
+
+    processToggle(task, isCompleted, overrideDuration, overrideStartTime, overrideEndTime);
+
+    if (tasksToUpdate.length > 0) {
+      await updateTasks(tasksToUpdate);
+    }
+    for (const hist of historyToAdd) {
+      await addHistory(hist);
     }
   };
 

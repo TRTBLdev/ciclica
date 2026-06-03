@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppTask, Config, HistoryRecord } from '../types';
 import { 
   CheckCircle2, 
@@ -58,6 +58,8 @@ export default function CompletadasView({
   const [retroMarkCompleted, setRetroMarkCompleted] = useState(true);
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showSimple, setShowSimple] = useState(true);
+  const [showRecurring, setShowRecurring] = useState(true);
 
   const selectedTask = tasks.find(t => t.id === retroTaskId);
 
@@ -68,19 +70,88 @@ export default function CompletadasView({
     return textMatches;
   });
 
-  const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const [period, setPeriod] = useState<string>('todas');
 
-  const simpleExecs = sortedHistory.filter(h => {
-    const task = tasks.find(t => t.id === h.taskId);
-    if (!task) return true;
-    return task.type === 'Tarea' || task.type === 'Proyecto';
-  });
+  const sortedHistory = useMemo(() => {
+    return [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [history]);
 
-  const recurringExecs = sortedHistory.filter(h => {
-    const task = tasks.find(t => t.id === h.taskId);
-    if (!task) return false;
-    return task.type === 'Hábito' || task.type === 'Rutina';
-  });
+  const filteredHistoryByDate = useMemo(() => {
+    if (period === 'todas') return sortedHistory;
+
+    const now = new Date();
+    let start = new Date();
+    let end = new Date();
+
+    switch (period) {
+      case 'hoy': {
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+      case 'semana': {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        start = new Date(now.getTime());
+        start.setDate(diff);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+      case '7dias': {
+        start.setDate(now.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+      case 'mes': {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+      case '30dias': {
+        start.setDate(now.getDate() - 29);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+      case 'ciclo': {
+        if (config?.cycleConfig?.lastCycleStartDate) {
+          start = new Date(config.cycleConfig.lastCycleStartDate);
+        } else {
+          start.setDate(now.getDate() - 27);
+        }
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
+    }
+
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+
+    return sortedHistory.filter(h => {
+      const d = new Date(h.date).getTime();
+      return d >= startTime && d <= endTime;
+    });
+  }, [sortedHistory, period, config?.cycleConfig?.lastCycleStartDate]);
+
+  const simpleExecs = useMemo(() => {
+    return filteredHistoryByDate.filter(h => {
+      const task = tasks.find(t => t.id === h.taskId);
+      if (!task) return true;
+      return task.type === 'Tarea' || task.type === 'Proyecto';
+    });
+  }, [filteredHistoryByDate, tasks]);
+
+  const recurringExecs = useMemo(() => {
+    return filteredHistoryByDate.filter(h => {
+      const task = tasks.find(t => t.id === h.taskId);
+      if (!task) return false;
+      return task.type === 'Hábito' || task.type === 'Rutina';
+    });
+  }, [filteredHistoryByDate, tasks]);
 
   const toLocalInputFormat = (isoString?: string) => {
     if (!isoString) return '';
@@ -159,6 +230,19 @@ export default function CompletadasView({
               fechaPlanificada: new Date().toISOString() 
             });
           });
+        }
+      }
+
+      // Sumar de vuelta la duración al log de la rutina padre si existe
+      if (task.type === 'Hábito' && task.parentId) {
+        const parentT = tasks.find(p => p.id === task.parentId);
+        if (parentT && parentT.type === 'Rutina') {
+          const parentLog = history.find(hl => hl.taskId === parentT.id && isSameDay(hl.date, h.date));
+          if (parentLog && parentLog.duration !== undefined) {
+            const addedDur = h.duration || 0;
+            const newParentDur = parseFloat((parentLog.duration + addedDur).toFixed(2));
+            onUpdateHistory(parentLog.id, { duration: newParentDur });
+          }
         }
       }
     }
@@ -508,15 +592,20 @@ export default function CompletadasView({
                                 onAddHistory && (
                                   <button 
                                     onClick={() => {
+                                      const childDur = child.duracion || 0;
                                       onAddHistory({
                                         userId: h.userId,
                                         taskId: child.id,
                                         date: h.date,
-                                        duration: child.duracion || 0,
+                                        duration: childDur,
                                         createdAt: new Date().toISOString()
                                       });
                                       if (child.type === 'Tarea' || child.type === 'Pulso') {
                                         onUpdateTask(child.id, { completed: true, view: '' });
+                                      }
+                                      if (h.duration !== undefined && h.duration > 0) {
+                                        const newParentDur = Math.max(0, parseFloat((h.duration - childDur).toFixed(2)));
+                                        onUpdateHistory(h.id, { duration: newParentDur });
                                       }
                                     }}
                                     className="px-2.5 py-0.5 border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 text-text-main hover:bg-[var(--color-primary)]/20 transition-all text-xs font-mono font-medium cursor-pointer"
@@ -549,6 +638,24 @@ export default function CompletadasView({
         <div className="flex items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-text-main stroke-[2]" />
           <h2 className="text-title">Historial de Completadas</h2>
+        </div>
+        
+        {/* Date Filter Dropdown */}
+        <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
+          <select 
+            value={period} 
+            onChange={(e) => setPeriod(e.target.value)} 
+            className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
+          >
+            <option value="todas">Todo el Historial</option>
+            <option value="hoy">Hoy</option>
+            <option value="semana">Esta Semana</option>
+            <option value="7dias">Últimos 7 Días</option>
+            <option value="mes">Este Mes</option>
+            <option value="30dias">Últimos 30 Días</option>
+            <option value="ciclo">Este Ciclo</option>
+          </select>
+          <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
         </div>
       </div>
 
@@ -809,30 +916,40 @@ export default function CompletadasView({
         
         {/* SIMPLE ITEMS (TASKS/EVENTS) */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div className="flex items-center justify-between border-b border-border-line/40 pb-3">
+          <div 
+            onClick={() => setShowSimple(!showSimple)}
+            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+          >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Ítems Simples
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
                 {simpleExecs.length.toString().padStart(2, '0')}
               </span>
             </h3>
-            <span className="text-[10px] font-mono text-text-dim uppercase">Tareas y Proyectos</span>
+            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
+              Tareas y Proyectos {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </span>
           </div>
-          {renderHistoryList(simpleExecs, "Aún no has completado tareas simples.", false)}
+          {showSimple && renderHistoryList(simpleExecs, "Aún no has completado tareas simples.", false)}
         </div>
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div className="flex items-center justify-between border-b border-border-line/40 pb-3">
+          <div 
+            onClick={() => setShowRecurring(!showRecurring)}
+            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+          >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Ítems Recurrentes
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
                 {recurringExecs.length.toString().padStart(2, '0')}
               </span>
             </h3>
-            <span className="text-[10px] font-mono text-text-dim uppercase">Hábitos y Rutinas</span>
+            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
+              Hábitos y Rutinas {showRecurring ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </span>
           </div>
-          {renderHistoryList(recurringExecs, "Aún no se registran hábitos o rutinas ejecutadas.", true)}
+          {showRecurring && renderHistoryList(recurringExecs, "Aún no se registran hábitos o rutinas ejecutadas.", true)}
         </div>
 
       </div>

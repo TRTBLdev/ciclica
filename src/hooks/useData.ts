@@ -106,50 +106,126 @@ export function useData(userId: string) {
     setLoading(false);
   }, [effectiveUserId]);
 
+  const [initChecked, setInitChecked] = useState(false);
+
+  useEffect(() => {
+    if (loading || initChecked || tasks.length === 0) return;
+    setInitChecked(true);
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayTime = todayStart.getTime();
+
+    const getFrecuenciaInDays = (freq?: number, unit?: string) => {
+      const f = freq || 1;
+      const u = unit || 'días';
+      if (u === 'semanas') return f * 7;
+      if (u === 'meses') return f * 30;
+      return f;
+    };
+
+    let hasUpdates = false;
+    const updatedTasks = tasks.map(t => {
+      if ((t.type === 'Rutina' || t.type === 'Hábito') && !t.completed && t.fechaPlanificada) {
+        if (t.type === 'Rutina') {
+          const childHabitsCount = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito').length;
+          if (childHabitsCount > 0) return t; // Rutinas con hábitos se manejan virtualmente
+        }
+        
+        const freqDays = getFrecuenciaInDays(t.frecuencia, t.frecuenciaUnidad);
+        const plannedTime = new Date(t.fechaPlanificada).getTime();
+        const cycleMs = freqDays * 24 * 60 * 60 * 1000;
+
+        if (todayTime > plannedTime + cycleMs) {
+          hasUpdates = true;
+          let nextPlanned = new Date(t.fechaPlanificada);
+          while (nextPlanned.getTime() + cycleMs <= todayTime) {
+            nextPlanned.setDate(nextPlanned.getDate() + freqDays);
+          }
+          return { ...t, fechaPlanificada: nextPlanned.toISOString(), completed: false };
+        }
+      }
+      return t;
+    });
+
+    if (hasUpdates) {
+      setTasks(updatedTasks);
+      setLocal(`ciclica_local_tasks_${effectiveUserId}`, updatedTasks);
+    }
+  }, [loading, tasks, initChecked, effectiveUserId]);
+
   const updateConfig = async (updates: Partial<Config>) => {
-    const newConf = { ...config, ...updates, updatedAt: new Date().toISOString() } as Config;
-    setConfig(newConf);
-    setLocal(`ciclica_local_config_${effectiveUserId}`, newConf);
+    setConfig(prev => {
+      const next = prev ? { ...prev, ...updates, updatedAt: new Date().toISOString() } as Config : null;
+      if (next) setLocal(`ciclica_local_config_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const addTask = async (taskData: Omit<AppTask, 'id'>) => {
     const newId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const newTask = { id: newId, ...taskData, userId: effectiveUserId } as AppTask;
-    const newTasks = [...tasks, newTask];
-    setTasks(newTasks);
-    setLocal(`ciclica_local_tasks_${effectiveUserId}`, newTasks);
+    setTasks(prev => {
+      const next = [...prev, newTask];
+      setLocal(`ciclica_local_tasks_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const updateTask = async (taskId: string, updates: Partial<AppTask>) => {
-    const newTasks = tasks.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t);
-    setTasks(newTasks);
-    setLocal(`ciclica_local_tasks_${effectiveUserId}`, newTasks);
+    setTasks(prev => {
+      const next = prev.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t);
+      setLocal(`ciclica_local_tasks_${effectiveUserId}`, next);
+      return next;
+    });
+  };
+
+  const updateTasks = async (batchUpdates: { id: string; updates: Partial<AppTask> }[]) => {
+    setTasks(prev => {
+      const next = prev.map(t => {
+        const found = batchUpdates.find(upd => upd.id === t.id);
+        if (found) {
+          return { ...t, ...found.updates, updatedAt: new Date().toISOString() };
+        }
+        return t;
+      });
+      setLocal(`ciclica_local_tasks_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const addHistory = async (recordData: Omit<HistoryRecord, 'id'>) => {
     const newId = `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const newRec = { id: newId, ...recordData, userId: effectiveUserId } as HistoryRecord;
-    const newHist = [...history, newRec];
-    setHistory(newHist);
-    setLocal(`ciclica_local_history_${effectiveUserId}`, newHist);
+    setHistory(prev => {
+      const next = [...prev, newRec];
+      setLocal(`ciclica_local_history_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const deleteTask = async (taskId: string) => {
-    const newTasks = tasks.filter(t => t.id !== taskId);
-    setTasks(newTasks);
-    setLocal(`ciclica_local_tasks_${effectiveUserId}`, newTasks);
+    setTasks(prev => {
+      const next = prev.filter(t => t.id !== taskId);
+      setLocal(`ciclica_local_tasks_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const updateHistory = async (historyId: string, updates: Partial<HistoryRecord>) => {
-    const newHist = history.map(h => h.id === historyId ? { ...h, ...updates, updatedAt: new Date().toISOString() } : h);
-    setHistory(newHist);
-    setLocal(`ciclica_local_history_${effectiveUserId}`, newHist);
+    setHistory(prev => {
+      const next = prev.map(h => h.id === historyId ? { ...h, ...updates, updatedAt: new Date().toISOString() } : h);
+      setLocal(`ciclica_local_history_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const deleteHistory = async (historyId: string) => {
-    const newHist = history.filter(h => h.id !== historyId);
-    setHistory(newHist);
-    setLocal(`ciclica_local_history_${effectiveUserId}`, newHist);
+    setHistory(prev => {
+      const next = prev.filter(h => h.id !== historyId);
+      setLocal(`ciclica_local_history_${effectiveUserId}`, next);
+      return next;
+    });
   };
 
   const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config) => {
@@ -161,5 +237,5 @@ export function useData(userId: string) {
     setLocal(`ciclica_local_config_${effectiveUserId}`, importedConfig);
   };
 
-  return { config, tasks, history, loading, addTask, updateTask, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData };
+  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData };
 }
