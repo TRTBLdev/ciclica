@@ -171,15 +171,15 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     };
 
     const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
-      if (isComp) {
-        let duration = dur !== undefined ? dur : (t.duracion || 0);
-        if (t.type === 'Proyecto') {
-          const hasChildren = tasks.some(sub => sub.parentId === t.id);
-          if (hasChildren) duration = 0;
-        }
-        const sessionStart = startT || new Date(new Date().getTime() - duration * 3600000).toISOString();
-        const sessionEnd = endT || new Date().toISOString();
+      let duration = dur !== undefined ? dur : (t.duracion || 0);
+      if (t.type === 'Proyecto') {
+        const hasChildren = tasks.some(sub => sub.parentId === t.id);
+        if (hasChildren) duration = 0;
+      }
+      const sessionStart = startT || new Date(new Date().getTime() - duration * 3600000).toISOString();
+      const sessionEnd = endT || new Date().toISOString();
 
+      if (isComp) {
         historyToAdd.push({
           userId: user.uid,
           taskId: t.id,
@@ -207,7 +207,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   historyToAdd.push({
                     userId: user.uid,
                     taskId: ch.id,
-                    date: new Date().toISOString(),
+                    date: sessionEnd,
                     duration: 0,
                     createdAt: new Date().toISOString()
                   });

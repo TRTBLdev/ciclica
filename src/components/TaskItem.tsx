@@ -563,7 +563,7 @@ export default function TaskItem({
               🔴 Trackeando
             </span>
           ) : (
-            !task.completed && !isActualSubtask && onStartTimer && (
+            !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
                 className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase text-[#b45f06] hover:text-[#5d5d5d] transition-colors cursor-pointer leading-none"

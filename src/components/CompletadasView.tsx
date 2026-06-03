@@ -20,7 +20,7 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
-  onToggleTask: (task: AppTask) => void;
+  onToggleTask: (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => void;
   onDeleteTask: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
@@ -875,21 +875,21 @@ export default function CompletadasView({
                   if (onAddHistory) {
                     const startIso = new Date(retroStart).toISOString();
                     const endIso = new Date(retroEnd).toISOString();
-                    onAddHistory({
-                      userId: 'placeholder',
-                      taskId: retroTaskId,
-                      date: endIso,
-                      duration: Number(retroDuration),
-                      createdAt: new Date().toISOString(),
-                      startTime: startIso,
-                      endTime: endIso
-                    });
-
                     if (retroMarkCompleted) {
                       const t = tasks.find(x => x.id === retroTaskId);
-                      if (t && !t.completed && t.type !== 'Proyecto' && t.type !== 'Rutina') {
-                        onToggleTask(t);
+                      if (t) {
+                        onToggleTask(t, Number(retroDuration), startIso, endIso);
                       }
+                    } else {
+                      onAddHistory({
+                        userId: 'placeholder',
+                        taskId: retroTaskId,
+                        date: endIso,
+                        duration: Number(retroDuration),
+                        createdAt: new Date().toISOString(),
+                        startTime: startIso,
+                        endTime: endIso
+                      });
                     }
 
                     // Reset
