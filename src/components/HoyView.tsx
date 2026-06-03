@@ -143,7 +143,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   // Imminent period warning (1-2 days before estimated period start)
   let daysUntilPeriod: number | null = null;
   let showPeriodWarning = false;
-  if (config?.cycleConfig?.trackingType === 'menstrual' && config?.cycleConfig?.lastCycleStartDate) {
+  if (config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && config?.cycleConfig?.lastCycleStartDate) {
     const lastStart = new Date(config.cycleConfig.lastCycleStartDate);
     const length = config.cycleConfig.cycleLengthDays || 28;
     const nextStart = new Date(lastStart.getTime());
@@ -182,7 +182,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               {phaseDetails.label}
             </span>
             
-            {config?.cycleConfig?.trackingType === 'menstrual' && (
+            {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && (
               <button
                 type="button"
                 onClick={() => setShowFlowLogger(!showFlowLogger)}
@@ -220,7 +220,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
           <span className="text-[11px] text-text-dim italic max-w-sm mt-1 leading-snug">{phaseDetails.details}</span>
 
           {/* Menstrual Flow Logger — inline below header, above date */}
-          {config?.cycleConfig?.trackingType === 'menstrual' && showFlowLogger && (
+          {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && showFlowLogger && (
             <div className="w-full glass-matte p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in slide-in-from-top-2 duration-300 mt-3">
               <div className="flex flex-col gap-1 text-left">
                 <span className="text-xs font-bold text-text-main flex items-center gap-2 font-sans">

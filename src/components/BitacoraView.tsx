@@ -317,7 +317,9 @@ export default function BitacoraView({
             {[
               { id: 'heatmap', label: 'Heatmap', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
               { id: 'reportes', label: 'Reportes', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'archivo', label: 'Archivo de Ciclos', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+              ...(config?.cycleConfig?.menstruates !== false
+                ? [{ id: 'archivo', label: 'Archivo de Ciclos', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }]
+                : []),
               { id: 'completadas', label: 'Completadas', icon: <CheckCircle2 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
             ].map(t => {
               const isActive = activeTab === t.id;
@@ -380,7 +382,7 @@ export default function BitacoraView({
           </div>
         )}
 
-        {activeTab === 'archivo' && (
+        {activeTab === 'archivo' && config?.cycleConfig?.menstruates !== false && (
           <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto w-full text-left space-y-6">
             
             {/* Header + Stats of historical cycles */}

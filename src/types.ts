@@ -13,6 +13,8 @@ export interface UserCycleConfig {
   periodLengthDays?: number;   // Por defecto 5 (duración promedio del sangrado)
   currentManualPhase?: BiologicalPhase; // Para modo manual
   flowLogs?: Record<string, number>; // YYYY-MM-DD -> intensidad (0-3)
+  menstruates?: boolean;
+  enableLunarMirror?: boolean;
 }
 
 export interface Config {

@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { Compass, BookOpen } from 'lucide-react';
 import { Config, CycleTrackingType, BiologicalPhase } from '../types';
-import { cn, calculateBiologicalPhase } from '../lib/utils';
+import { cn, calculateBiologicalPhase, getLunarDetailsForDate, getLunarArchetype, getCyclePeriods, parseLocalDate } from '../lib/utils';
 import SyllabusView from './SyllabusView';
 
-const parseLocalDate = (dateStr: string) => {
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-  }
-  return new Date(dateStr);
-};
+
 
 interface Props {
   config: Config | null;
@@ -19,9 +13,10 @@ interface Props {
 }
 
 export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Props) {
-  const [activeTab, setActiveTab] = useState<'sincronizacion' | 'syllabus'>('sincronizacion');
+  const [activeTab, setActiveTab] = useState<'sincronizacion' | 'espejo' | 'syllabus'>('sincronizacion');
 
   const cycleType = config?.cycleConfig?.trackingType || 'none';
+  const effectiveCycleType = (config?.cycleConfig?.menstruates === false && cycleType === 'menstrual') ? 'lunar' : cycleType;
   const currentPhase = calculateBiologicalPhase(config);
 
   const getActiveCycleStats = () => {
@@ -114,11 +109,12 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
         <p className="text-sm text-text-dim max-w-2xl leading-relaxed">
           Sincronice su agenda y su nivel de energía ejecutiva en base a sus ciclos biológicos y ritmos naturales.
         </p>
-
-        {/* Top Navigation Tabs Bar */}
         <div className="flex gap-6 mt-6 font-mono text-xs uppercase tracking-widest font-bold border-t border-border-line/10 pt-4">
           {[
             { id: 'sincronizacion', label: 'Sincronización', icon: <Compass className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            ...(config?.cycleConfig?.menstruates !== false
+              ? [{ id: 'espejo', label: 'Espejo Lunar', icon: <Compass className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }]
+              : []),
             { id: 'syllabus', label: 'Syllabus', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
           ].map(t => {
             const isActive = activeTab === t.id;
@@ -147,11 +143,11 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
             {/* Flat Tabs Sincronización Selector */}
             <div className="flex gap-8 border-b border-border-line pb-4 font-mono text-xs uppercase tracking-widest font-bold">
               {[
-                { key: 'menstrual', label: '🩸 Menstrual' },
+                ...(config?.cycleConfig?.menstruates !== false ? [{ key: 'menstrual', label: '🩸 Menstrual' }] : []),
                 { key: 'lunar', label: '🌙 Lunar / Sinódico' },
                 { key: 'none', label: '🔄 Manual / Fijo' }
               ].map(t => {
-                const isActive = cycleType === t.key;
+                const isActive = effectiveCycleType === t.key;
                 return (
                   <button
                     key={t.key}
@@ -170,7 +166,7 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
             </div>
 
             {/* MENSTRUAL VIEW CONTENT */}
-            {cycleType === 'menstrual' && (
+            {effectiveCycleType === 'menstrual' && config?.cycleConfig?.menstruates !== false && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* Active Cycle Status Banner */}
                 {cycleStats ? (
@@ -363,6 +359,243 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
             <SyllabusView currentPhase={currentPhase} />
           </div>
         )}
+
+        {activeTab === 'espejo' && config?.cycleConfig?.menstruates !== false && (
+          <div className="animate-in fade-in duration-200">
+            <LunarMirrorPanel config={config} onUpdateConfig={onUpdateConfig} onNavigate={onNavigate} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LunarMirrorPanel({ config, onUpdateConfig, onNavigate }: { config: Config | null; onUpdateConfig: (c: Partial<Config>) => void; onNavigate: (view: any) => void }) {
+  const isEnabled = !!config?.cycleConfig?.enableLunarMirror;
+  
+  if (!isEnabled) {
+    return (
+      <div className="border border-border-line p-8 text-left space-y-6">
+        <div>
+          <span className="text-4xl block mb-2">🌙</span>
+          <h3 className="text-sm font-mono tracking-widest text-text-main font-bold uppercase mb-2">Espejo Lunar</h3>
+          <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
+            Conecta tu ciclo hormonal con el ciclo sinódico de la Luna. Al habilitar el Espejo Lunar, la aplicación correlacionará las fechas de inicio de tus ciclos con las fases de la luna para revelar tu arquetipo energético dominante y entregarte pautas de productividad adaptadas.
+          </p>
+        </div>
+
+        <div className="border-t border-border-line/45 pt-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+          <div className="text-left">
+            <span className="text-xs font-bold text-text-main block">¿Qué revela el Espejo Lunar?</span>
+            <span className="text-[10px] text-text-dim leading-relaxed font-sans mt-0.5 block">
+              • **Luna Blanca**: Menstruación en Luna Nueva. Foco en la creación externa, nutrición y proyectos.
+              <br />
+              • **Luna Roja**: Menstruación en Luna Llena. Foco en la intuición, creatividad y desarrollo interno.
+              <br />
+              • **Luna Rosa/Violeta**: Menstruación en transiciones (Creciente/Menguante) para fases de reajuste.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onUpdateConfig({
+              cycleConfig: {
+                ...config?.cycleConfig,
+                enableLunarMirror: true
+              }
+            })}
+            className="px-6 py-2.5 bg-[var(--color-text-main)] text-[var(--color-base)] hover:opacity-90 font-mono text-xs uppercase tracking-widest font-bold transition-all rounded-none cursor-pointer border-0"
+          >
+            Habilitar Espejo Lunar ➔
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const flowLogs = config?.cycleConfig?.flowLogs || {};
+  const periods = getCyclePeriods(flowLogs);
+
+  const periodLunarDetails = periods.map((p, idx) => {
+    const lDetails = getLunarDetailsForDate(p.startDate);
+    const arch = getLunarArchetype(lDetails.ratio);
+    return {
+      period: p,
+      index: idx + 1,
+      lunar: lDetails,
+      archetype: arch
+    };
+  }).reverse();
+
+  const activeCycle = periodLunarDetails[0];
+
+  let whiteMoonCount = 0;
+  let redMoonCount = 0;
+  let pinkMoonCount = 0;
+  let violetMoonCount = 0;
+  const totalCycles = periodLunarDetails.length;
+
+  periodLunarDetails.forEach(item => {
+    if (item.archetype.archetype === 'Luna Blanca') whiteMoonCount++;
+    else if (item.archetype.archetype === 'Luna Roja') redMoonCount++;
+    else if (item.archetype.archetype.startsWith('Luna Rosa')) pinkMoonCount++;
+    else violetMoonCount++;
+  });
+
+  const getPercentage = (count: number) => {
+    if (totalCycles === 0) return 0;
+    return Math.round((count / totalCycles) * 100);
+  };
+
+  let dominantArchetype = 'Ninguno';
+  let dominantDesc = 'Registra tus periodos para evaluar tu alineación dominante.';
+  let dominantColor = 'text-text-dim';
+  
+  if (totalCycles > 0) {
+    const max = Math.max(whiteMoonCount, redMoonCount, pinkMoonCount, violetMoonCount);
+    if (max === whiteMoonCount) {
+      dominantArchetype = 'Luna Blanca 🌑';
+      dominantDesc = 'Tus periodos tienden a iniciar con la Luna Nueva. Estás en sintonía con las fuerzas de manifestación externa, nutrición y renovación física. Tu energía está orientada a consolidar proyectos y cuidar de tu entorno.';
+      dominantColor = 'text-[#81b29a]';
+    } else if (max === redMoonCount) {
+      dominantArchetype = 'Luna Roja 🌕';
+      dominantDesc = 'Tus periodos tienden a iniciar con la Luna Llena. Estás en sintonía con el arquetipo de la Sabia o Hechicera. Tu energía menstrual se orienta a la introspección profunda, la creatividad salvaje, la enseñanza y el autoconocimiento.';
+      dominantColor = 'text-[#e07a5f]';
+    } else if (max === pinkMoonCount) {
+      dominantArchetype = 'Luna Rosa 🌓';
+      dominantDesc = 'Tus periodos tienden a iniciar con la Luna Creciente. Representa una alineación de transición y crecimiento activo. Estás en un periodo de expansión, sembrando nuevas intenciones y asumiendo responsabilidades dinámicas.';
+      dominantColor = 'text-[#d4af37]';
+    } else {
+      dominantArchetype = 'Luna Violeta 🌗';
+      dominantDesc = 'Tus periodos tienden a iniciar con la Luna Menguante. Representa una alineación de transición hacia adentro. Estás en una etapa idónea para la purga de proyectos obsoletos, limpieza física/emocional y descarte.';
+      dominantColor = 'text-[#73c2b8]';
+    }
+  }
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-200">
+      {totalCycles > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {activeCycle && (
+            <div className={cn("border rounded-none p-5 text-left flex flex-col justify-between space-y-4", activeCycle.archetype.borderColorClass, activeCycle.archetype.bgClass)}>
+              <div className="border-b border-border-line/40 pb-3">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-text-dim block">Ciclo Activo Actual</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xl text-text-main font-semibold font-sans">{activeCycle.archetype.archetype}</span>
+                  <span className="text-lg">{activeCycle.lunar.emoji}</span>
+                </div>
+                <span className="text-[10px] text-text-dim font-mono block mt-1">
+                  Inicio del ciclo: {new Date(activeCycle.period.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} ({activeCycle.lunar.phaseName})
+                </span>
+              </div>
+              <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
+                {activeCycle.archetype.archetypeDesc}
+              </p>
+            </div>
+          )}
+
+          <div className="border border-border-line rounded-none p-5 text-left flex flex-col justify-between space-y-4">
+            <div className="border-b border-border-line/60 pb-3">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-text-dim block">Alineación Predominante</span>
+              <span className={cn("text-xl font-semibold font-sans mt-1 block", dominantColor)}>
+                {dominantArchetype}
+              </span>
+            </div>
+            <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
+              {dominantDesc}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="border border-border-line p-8 text-center bg-transparent">
+          <span className="text-3xl block mb-2">🩸🌑</span>
+          <span className="text-xs font-mono text-text-dim leading-relaxed block">
+            Aún no has registrado ciclos menstruales en el historial. Ve a la pestaña de <span onClick={() => onNavigate('bitacora')} className="text-primary hover:underline font-bold cursor-pointer font-sans text-xs">Bitácora ➔ Archivo de Ciclos</span> para ingresar tus periodos anteriores y activar la comparativa lunar.
+          </span>
+        </div>
+      )}
+
+      {totalCycles > 0 && (
+        <div className="border border-border-line p-6 text-left space-y-4">
+          <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase border-b border-border-line/40 pb-2">Distribución de Alineación Lunar</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { name: '🌑 Luna Blanca (Nueva)', count: whiteMoonCount, percent: getPercentage(whiteMoonCount), color: 'bg-[#81b29a]' },
+              { name: '🌕 Luna Roja (Llena)', count: redMoonCount, percent: getPercentage(redMoonCount), color: 'bg-[#e07a5f]' },
+              { name: '🌓 Luna Rosa (Creciente)', count: pinkMoonCount, percent: getPercentage(pinkMoonCount), color: 'bg-[#d4af37]' },
+              { name: '🌗 Luna Violeta (Menguante)', count: violetMoonCount, percent: getPercentage(violetMoonCount), color: 'bg-[#73c2b8]' }
+            ].map(item => (
+              <div key={item.name} className="space-y-1">
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-text-main">{item.name}</span>
+                  <span className="text-text-dim font-bold">{item.count} ({item.percent}%)</span>
+                </div>
+                <div className="w-full h-2 bg-base-dim rounded-none overflow-hidden relative">
+                  <div style={{ width: `${item.percent}%` }} className={cn("h-full transition-all duration-300", item.color)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {totalCycles > 0 && (
+        <div className="border border-border-line rounded-none overflow-hidden text-left">
+          <div className="p-4 border-b border-border-line bg-base-dim/10">
+            <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase">Historial del Espejo Lunar</h4>
+          </div>
+          <div className="w-full overflow-x-auto scrollbar-thin">
+            <table className="w-full text-xs font-mono border-collapse">
+              <thead>
+                <tr className="bg-transparent border-b border-border-line">
+                  <th className="py-3 px-4 text-text-dim uppercase tracking-widest font-bold w-12 text-left">#</th>
+                  <th className="py-3 px-4 text-text-dim uppercase tracking-widest font-bold text-left">Fecha Inicio</th>
+                  <th className="py-3 px-4 text-text-dim uppercase tracking-widest font-bold text-left">Fase de la Luna</th>
+                  <th className="py-3 px-4 text-text-dim uppercase tracking-widest font-bold text-left">Alineación / Arquetipo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periodLunarDetails.map((item, idx) => {
+                  return (
+                    <tr key={idx} className="border-b border-border-line/30 last:border-0 hover:bg-base-dim/5 transition-colors">
+                      <td className="py-3 px-4 text-text-dim">{item.index}</td>
+                      <td className="py-3 px-4 text-text-main font-bold">
+                        {new Date(item.period.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </td>
+                      <td className="py-3 px-4 text-text-main">
+                        <span className="text-base mr-1.5">{item.lunar.emoji}</span>
+                        <span>{item.lunar.phaseName}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={cn("inline-block px-2.5 py-0.5 rounded-full border text-[10px] font-mono uppercase tracking-wider font-bold", item.archetype.colorClass, item.archetype.bgClass, item.archetype.borderColorClass)}>
+                          {item.archetype.archetype}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end pt-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm("¿Desactivar la vista del Espejo Lunar? Siempre puedes volver a habilitarla.")) {
+              onUpdateConfig({
+                cycleConfig: {
+                  ...config?.cycleConfig,
+                  enableLunarMirror: false
+                }
+              });
+            }
+          }}
+          className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-red-500 hover:underline cursor-pointer bg-transparent border-0 outline-none p-0"
+        >
+          ✕ Desactivar Espejo Lunar
+        </button>
       </div>
     </div>
   );

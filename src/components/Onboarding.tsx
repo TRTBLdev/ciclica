@@ -15,6 +15,7 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
   const [step, setStep] = useState(1);
   
   // Step 1 States
+  const [menstruates, setMenstruates] = useState<boolean>(true);
   const [trackingType, setTrackingType] = useState<CycleTrackingType>('menstrual');
   const [lastCycleStartDate, setLastCycleStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [cycleLength, setCycleLength] = useState(28);
@@ -34,7 +35,7 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
     if (step === 1) {
       // Generate initial flow logs (periodLength days of moderate flow) to populate the cycle history
       const initialFlowLogs: Record<string, number> = {};
-      if (trackingType === 'menstrual') {
+      if (trackingType === 'menstrual' && menstruates) {
         const parts = lastCycleStartDate.split('-');
         if (parts.length === 3) {
           const yr = Number(parts[0]);
@@ -55,11 +56,13 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
       onUpdateConfig({
         cycleConfig: {
           trackingType,
-          lastCycleStartDate: trackingType === 'menstrual' ? new Date(lastCycleStartDate).toISOString() : undefined,
-          cycleLengthDays: trackingType === 'menstrual' ? cycleLength : undefined,
-          periodLengthDays: trackingType === 'menstrual' ? periodLength : undefined,
+          menstruates,
+          lastCycleStartDate: (trackingType === 'menstrual' && menstruates) ? new Date(lastCycleStartDate).toISOString() : undefined,
+          cycleLengthDays: (trackingType === 'menstrual' && menstruates) ? cycleLength : undefined,
+          periodLengthDays: (trackingType === 'menstrual' && menstruates) ? periodLength : undefined,
           currentManualPhase: trackingType === 'none' ? manualPhase : undefined,
-          flowLogs: trackingType === 'menstrual' ? initialFlowLogs : undefined
+          flowLogs: (trackingType === 'menstrual' && menstruates) ? initialFlowLogs : undefined,
+          enableLunarMirror: false
         }
       });
       setStep(2); // Step 2 is now the Syllabus Premium page!
@@ -139,48 +142,83 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
               </p>
             </div>
 
-            <div className="flex flex-col gap-4 text-left">
-              <label className="text-[10px] uppercase tracking-wider font-mono text-primary font-bold">Selecciona tu brújula biológica:</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Menstruation question */}
+            <div className="flex flex-col gap-2.5 text-left border-b border-border-line/45 pb-4">
+              <label className="text-[10px] uppercase tracking-wider font-mono text-primary font-bold">¿Deseas llevar registro de tu ciclo menstrual / menstrúas?</label>
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setTrackingType('menstrual')}
+                  onClick={() => {
+                    setMenstruates(true);
+                    setTrackingType('menstrual');
+                  }}
                   className={cn(
-                    "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer",
-                    trackingType === 'menstrual' ? "border-[var(--color-text-main)] bg-base" : "border-border-line hover:bg-[var(--color-border-line)]/20"
+                    "py-2.5 px-4 rounded-xl border text-center transition-all cursor-pointer font-sans text-xs font-bold bg-transparent",
+                    menstruates ? "border-[var(--color-text-main)] text-text-main bg-base-dim/15" : "border-border-line text-text-dim hover:bg-[var(--color-border-line)]/20"
                   )}
                 >
-                  <span className="text-xs font-bold text-text-main">Ciclo Menstrual</span>
-                  <span className="text-[10px] text-text-dim">Ajuste por fases hormonales.</span>
+                  Sí, llevar registro
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenstruates(false);
+                    setTrackingType('lunar');
+                  }}
+                  className={cn(
+                    "py-2.5 px-4 rounded-xl border text-center transition-all cursor-pointer font-sans text-xs font-bold bg-transparent",
+                    !menstruates ? "border-[var(--color-text-main)] text-text-main bg-base-dim/15" : "border-border-line text-text-dim hover:bg-[var(--color-border-line)]/20"
+                  )}
+                >
+                  No, prefiero sincronizar con la luna/manual
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 text-left">
+              <label className="text-[10px] uppercase tracking-wider font-mono text-primary font-bold">Selecciona tu brújula biológica:</label>
+              <div className={cn("grid gap-3", menstruates ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+                {menstruates && (
+                  <button
+                    type="button"
+                    onClick={() => setTrackingType('menstrual')}
+                    className={cn(
+                      "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer bg-transparent",
+                      trackingType === 'menstrual' ? "border-[var(--color-text-main)] bg-base-dim/10" : "border-border-line hover:bg-[var(--color-border-line)]/20"
+                    )}
+                  >
+                    <span className="text-xs font-bold text-text-main">🩸 Ciclo Menstrual</span>
+                    <span className="text-[10px] text-text-dim">Ajuste por fases hormonales y barra de energía ejecutiva variable.</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={() => setTrackingType('lunar')}
                   className={cn(
-                    "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer",
-                    trackingType === 'lunar' ? "border-[var(--color-text-main)] bg-base" : "border-border-line hover:bg-[var(--color-border-line)]/20"
+                    "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer bg-transparent",
+                    trackingType === 'lunar' ? "border-[var(--color-text-main)] bg-base-dim/10" : "border-border-line hover:bg-[var(--color-border-line)]/20"
                   )}
                 >
-                  <span className="text-xs font-bold text-text-main">Ciclo Lunar</span>
-                  <span className="text-[10px] text-text-dim">Inclusivo (Espejo analógico).</span>
+                  <span className="text-xs font-bold text-text-main">🌙 Ciclo Lunar</span>
+                  <span className="text-[10px] text-text-dim">Inclusivo. Ajuste por fases del ciclo sinódico lunar real.</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTrackingType('none')}
                   className={cn(
-                    "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer",
-                    trackingType === 'none' ? "border-[var(--color-text-main)] bg-base" : "border-border-line hover:bg-[var(--color-border-line)]/20"
+                    "p-4 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer bg-transparent",
+                    trackingType === 'none' ? "border-[var(--color-text-main)] bg-base-dim/10" : "border-border-line hover:bg-[var(--color-border-line)]/20"
                   )}
                 >
-                  <span className="text-xs font-bold text-text-main">Manual / Ninguno</span>
-                  <span className="text-[10px] text-text-dim">Límite personalizable.</span>
+                  <span className="text-xs font-bold text-text-main">🔄 Manual / Ninguno</span>
+                  <span className="text-[10px] text-text-dim">Fijar tu arquetipo energético manualmente día a día.</span>
                 </button>
               </div>
 
               {/* Conditional Inputs */}
-              {trackingType === 'menstrual' && (
+              {trackingType === 'menstrual' && menstruates && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-base/50 border border-border-line rounded-xl animate-in slide-in-from-top-2 duration-200">
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Último inicio periodo:</label>

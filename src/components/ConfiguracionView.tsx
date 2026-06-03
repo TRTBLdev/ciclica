@@ -123,6 +123,82 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
           </div>
         </div>
 
+        {/* SECTION 1.5: SINTONIZACIÓN Y CICLOS BIOLÓGICOS */}
+        <div className="border-b border-border-line/30 pb-10">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
+            🧬 SINTONIZACIÓN Y CICLOS BIOLÓGICOS
+          </h3>
+          <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
+            Calibre la forma en que la aplicación calcula sus niveles de energía ejecutiva diaria y qué herramientas cíclicas están habilitadas.
+          </p>
+
+          <div className="flex flex-col gap-6 bg-base-dim/10 border border-border-line p-5 rounded-none text-left">
+            {/* Control Menstruación */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-left max-w-md">
+                <span className="text-xs font-bold text-text-main font-sans block">Registro de Ciclo Menstrual</span>
+                <span className="text-[10px] text-text-dim leading-relaxed font-sans font-light mt-0.5 block">
+                  Si menstrúa, active esta opción para calibrar su energía según su ciclo hormonal. Si la desactiva, se ocultará el registro de sangrado, las alertas de periodo y el archivo de ciclos.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentVal = config?.cycleConfig?.menstruates !== false;
+                  onUpdateConfig({
+                    cycleConfig: {
+                      ...config?.cycleConfig,
+                      menstruates: !currentVal,
+                      trackingType: !currentVal ? 'lunar' : (config?.cycleConfig?.trackingType === 'menstrual' ? 'menstrual' : (config?.cycleConfig?.trackingType || 'menstrual')),
+                      enableLunarMirror: !currentVal ? false : (config?.cycleConfig?.enableLunarMirror || false)
+                    }
+                  });
+                }}
+                className={cn(
+                  "px-4 py-2 text-xs font-mono font-bold uppercase transition-all rounded-none cursor-pointer border bg-transparent",
+                  config?.cycleConfig?.menstruates !== false
+                    ? "border-[var(--color-text-main)] text-text-main bg-base-dim/15"
+                    : "border-border-line text-text-dim hover:text-text-main hover:bg-base-dim/5"
+                )}
+              >
+                {config?.cycleConfig?.menstruates !== false ? 'Activo (Sí)' : 'Inactivo (No)'}
+              </button>
+            </div>
+
+            {/* Control Espejo Lunar (solo si menstrua) */}
+            {config?.cycleConfig?.menstruates !== false && (
+              <div className="border-t border-border-line/40 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-200">
+                <div className="text-left max-w-md">
+                  <span className="text-xs font-bold text-text-main font-sans block">Espejo Lunar</span>
+                  <span className="text-[10px] text-text-dim leading-relaxed font-sans font-light mt-0.5 block">
+                    Activa la pestaña de análisis cruzado en Sintonía para evaluar la relación de tu ciclo hormonal con las fases de la luna.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentVal = !!config?.cycleConfig?.enableLunarMirror;
+                    onUpdateConfig({
+                      cycleConfig: {
+                        ...config?.cycleConfig,
+                        enableLunarMirror: !currentVal
+                      }
+                    });
+                  }}
+                  className={cn(
+                    "px-4 py-2 text-xs font-mono font-bold uppercase transition-all rounded-none cursor-pointer border bg-transparent",
+                    config?.cycleConfig?.enableLunarMirror
+                      ? "border-[var(--color-text-main)] text-text-main bg-base-dim/15"
+                      : "border-border-line text-text-dim hover:text-text-main hover:bg-base-dim/5"
+                  )}
+                >
+                  {config?.cycleConfig?.enableLunarMirror ? 'Habilitado' : 'Deshabilitado'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* SECTION 2: DATOS LOCALES Y BÓVEDA */}
         <div className="border-b border-border-line/30 pb-10">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
