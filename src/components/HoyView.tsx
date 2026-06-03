@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Separator, TaskType } from '../types';
-import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, calculateBiologicalPhase, getEnergyEngineDetails, getAreaColorClasses } from '../lib/utils';
+import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, calculateBiologicalPhase, getEnergyEngineDetails, getAreaColorClasses, getLunarDetailsForDate } from '../lib/utils';
 import TaskItem from './TaskItem';
 
 interface Props {
@@ -23,6 +23,8 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
   const ENERGY_LIMIT = phaseDetails.limit;
+  
+  const todayLunar = getLunarDetailsForDate(new Date());
 
   const [qcText, setQcText] = useState('');
   const [qcView, setQcView] = useState('Hoy');
@@ -181,6 +183,13 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
             <span className={cn("text-[10px] tracking-wider font-mono uppercase px-2.5 py-0.5 rounded-full border", phaseDetails.borderColor, phaseDetails.pillBg)}>
               {phaseDetails.label}
             </span>
+
+            {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.enableLunarMirror && (
+              <span className="text-[10px] tracking-wider font-mono uppercase px-2.5 py-0.5 rounded-full border border-border-line/60 bg-base-dim/10 text-text-main flex items-center gap-1 font-semibold">
+                <span>{todayLunar.emoji}</span>
+                <span>{todayLunar.phaseName}</span>
+              </span>
+            )}
             
             {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && (
               <button
