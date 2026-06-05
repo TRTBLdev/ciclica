@@ -590,128 +590,6 @@ export default function TaskItem({
     >
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
-        <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
-          {/* Chevron */}
-          {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask)) && (
-            <button 
-              onClick={() => setIsExpanded(!isExpanded)} 
-              className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
-              title={isExpanded ? "Ocultar subtareas" : (task.type === 'Rutina' ? "Ver hábitos" : "Ver/Añadir subtareas")}
-            >
-              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-          )}
-
-          {/* 3 dots options */}
-          <div className="relative flex items-center justify-center">
-            <button 
-              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
-              className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
-              title="Opciones"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
-
-            {isMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
-                <div className="absolute left-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
-                  {onUpdate && (
-                    <>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                      >
-                        <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                        Editar
-                      </button>
-                      <button 
-                        onClick={handleMoveUp}
-                        disabled={isFirstItem}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                      >
-                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-                        Mover arriba
-                      </button>
-                      <button 
-                        onClick={handleMoveDown}
-                        disabled={isLastItem}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                      >
-                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                        Mover abajo
-                      </button>
-                    </>
-                  )}
-                  {task.parentId && onUpdate && (
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation();
-                        const parentT = allTasks.find(t => t.id === task.parentId);
-                        const newParentId = (parentT && parentT.type !== 'Proyecto') ? (parentT.parentId || '') : '';
-                        onUpdate(task.id, { parentId: newParentId });
-                        setIsMenuOpen(false);
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                    >
-                      <ArrowUpFromLine className="w-3 h-3 text-text-dim" />
-                      Subir de nivel
-                    </button>
-                  )}
-                  {onNavigateToLocation && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onNavigateToLocation(); setIsMenuOpen(false); }} 
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                    >
-                      <ArrowUpRight className="w-3 h-3 text-text-dim" />
-                      Ir a ubicación
-                    </button>
-                  )}
-                  <div className="h-[1px] bg-border-line/40 my-1"></div>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsMenuOpen(false);
-                      if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente "${task.text}"?`)) {
-                        onDelete();
-                      }
-                    }} 
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                  >
-                    <X className="w-3 h-3 text-red-500" />
-                    Eliminar
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Reordering Arrows */}
-          {showMoveArrows && (
-            <div className="flex flex-col gap-0.5 items-center">
-              <button 
-                onClick={handleMoveUp}
-                disabled={isFirstItem}
-                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
-                title="Mover arriba"
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={handleMoveDown}
-                disabled={isLastItem}
-                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
-                title="Mover abajo"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
         <button 
           onClick={() => onToggle(task)} 
           onMouseEnter={() => setIsCheckboxHovered(true)}
@@ -924,6 +802,7 @@ export default function TaskItem({
                   </>
                 );
               })()}
+            </div>
             {/* Prerequisite search list */}
             {editType === 'Tarea' && editParentId && allTasks.find(p => p.id === editParentId && p.type === 'Proyecto') && (
               <div className="flex flex-col gap-1 text-left w-full sm:w-80 mt-2 pb-1 relative z-30 select-none">
@@ -967,7 +846,6 @@ export default function TaskItem({
                 </div>
               </div>
             )}
-            </div>
             <div className="flex items-center gap-6 mt-3">
               <button onClick={handleSave} className="text-text-main text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity cursor-pointer hover:underline">
                 + Guardar
@@ -978,150 +856,268 @@ export default function TaskItem({
             </div>
           </div>
         ) : (
-        <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
-            <p 
-              onClick={() => {
-                if (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
-                  onStartTimer(task.id);
-                }
-              }}
-              className={cn(
-                "text-base flex-1 min-w-0 break-words", 
-                isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
-                (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) && "cursor-pointer hover:text-primary transition-colors"
-              )}
-              title={(!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
-            >
-              {task.text}
-            </p>
-            {onUpdate && (
-              <button onClick={() => setIsEditing(true)} className="opacity-100 md:opacity-0 group-hover:opacity-100 ml-1 text-[#a2b29f] hover:text-[#5d5d5d] transition-opacity p-1">
-                <Edit2 className="w-3 h-3" />
-              </button>
-            )}
-            {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
-          </div>
-        )}
-        
-        <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">
-          {(task.type === 'Tarea' || task.type === 'Proyecto') && <div>{prioBadge()}</div>}
-          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displayCategory && (
-            <span 
-              onClick={(e) => {
-                if (onNavigate) {
-                  e.stopPropagation();
-                  onNavigate('areas', displayCategory);
-                }
-              }}
-              className={cn(
-                "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
-                onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
-                getAreaColorClasses(color)
-              )}
-              title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
-            >
-              {displayCategory}
-            </span>
-          )}
-          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displaySubCategory && (
-            <span 
-              onClick={(e) => {
-                if (onNavigate) {
-                  e.stopPropagation();
-                  onNavigate('areas', displayCategory);
-                }
-              }}
-              className={cn(
-                "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
-                onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
-                getAreaColorClasses(color)
-              )}
-              title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
-            >
-              {displaySubCategory}
-            </span>
-          )}
-          {task.type === 'Hábito' && (
-            <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Cumplimiento en los últimos 30 días">
-              🌱 {(() => {
-                const percent = getHabitCompletionPercentage();
-                return percent !== null ? `${percent}%` : '0%';
-              })()} de Cumplimiento {task.frecuencia ? `(Meta: ${task.frecuencia}x/${task.frecuenciaUnidad})` : ''}
-            </span>
-          )}
-          {task.hora && <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none">{task.hora}</span>}
-          {(task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks) ? (
-            (plannedHours > 0 || trackedHours > 0) && (
-              <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Acumulado real vs planeado">
-                {trackedHours.toFixed(2)}h real / {plannedHours.toFixed(1)}h plan
-              </span>
-            )
-          ) : (
-            (plannedHours > 0 || trackedHours > 0) && (
-              <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Progreso real vs estimado">
-                {trackedHours > 0 ? `${trackedHours.toFixed(2)}h real ` : ''}{plannedHours > 0 ? `(Est: ${plannedHours}h)` : ''}
-              </span>
-            )
-          )}
-          {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
-          {isFutureDate(task.fechaPlanificada) && !isHabit && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
-          
-          {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
-            <span 
-              onClick={(e) => {
-                if (onNavigate) {
-                  e.stopPropagation();
-                  onNavigate('proyectos', parentTask.id);
-                }
-              }}
-              className={cn(
-                "flex items-center h-5 gap-1 text-[10px] text-text-dim font-mono leading-none",
-                onNavigate && "cursor-pointer hover:text-text-main transition-colors"
-              )} 
-              title={onNavigate ? `Pertenece a: ${parentTask.text}. Haz clic para ver en Proyectos.` : `Pertenece a: ${parentTask.text}`}
-            >
-              <Folder className="w-2.5 h-2.5 text-yellow-500 fill-transparent stroke-[2]" /> {parentTask.text}
-            </span>
-          )}
-          
-          {!isSubtask && isActualSubtask && parentTask && parentTask.type !== 'Proyecto' && (
-             <span 
-               onClick={(e) => {
-                 if (onNavigate) {
-                   e.stopPropagation();
-                   onNavigate(parentTask.type === 'Rutina' ? 'rutinas' : 'proyectos', parentTask.id);
-                 }
-               }}
-               className={cn(
-                 "flex items-center h-5 gap-1 text-[10px] font-mono text-text-dim leading-none",
-                 onNavigate && "cursor-pointer hover:text-text-main transition-colors"
-               )} 
-               title={onNavigate ? `Subtarea de: ${parentTask.text}. Haz clic para ver.` : `Subtarea de: ${parentTask.text}`}
-             >
-              ↳ {parentTask.type === 'Rutina' ? '🔁' : '📁'} {parentTask.text}
-            </span>
-          )}
-          
-          {/* Active tracker badge or start tracker button */}
-          {activeTimer?.taskId === task.id ? (
-            <span className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#b45f06] border border-[#e4e2dd] bg-[#fce5cd] px-2 rounded-full animate-pulse leading-none">
-              🔴 Trackeando
-            </span>
-          ) : (
-            !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
-                className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase text-[#b45f06] hover:text-[#5d5d5d] transition-colors cursor-pointer leading-none"
-                title="Iniciar temporizador en tiempo real"
+          <>
+            <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
+              <p 
+                onClick={() => {
+                  if (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
+                    onStartTimer(task.id);
+                  }
+                }}
+                className={cn(
+                  "text-base flex-1 min-w-0 break-words", 
+                  isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
+                  (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) && "cursor-pointer hover:text-primary transition-colors"
+                )}
+                title={(!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
-                <Play className="w-2.5 h-2.5" /> Iniciar tracker
+                {task.text}
+              </p>
+              {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
+            </div>
+            
+            <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">
+              {(task.type === 'Tarea' || task.type === 'Proyecto') && <div>{prioBadge()}</div>}
+              {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displayCategory && (
+                <span 
+                  onClick={(e) => {
+                    if (onNavigate) {
+                      e.stopPropagation();
+                      onNavigate('areas', displayCategory);
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
+                    onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
+                    getAreaColorClasses(color)
+                  )}
+                  title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
+                >
+                  {displayCategory}
+                </span>
+              )}
+              {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displaySubCategory && (
+                <span 
+                  onClick={(e) => {
+                    if (onNavigate) {
+                      e.stopPropagation();
+                      onNavigate('areas', displayCategory);
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
+                    onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
+                    getAreaColorClasses(color)
+                  )}
+                  title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
+                >
+                  {displaySubCategory}
+                </span>
+              )}
+              {task.type === 'Hábito' && (
+                <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Cumplimiento en los últimos 30 días">
+                  🌱 {(() => {
+                    const percent = getHabitCompletionPercentage();
+                    return percent !== null ? `${percent}%` : '0%';
+                  })()} de Cumplimiento {task.frecuencia ? `(Meta: ${task.frecuencia}x/${task.frecuenciaUnidad})` : ''}
+                </span>
+              )}
+              {task.hora && <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none">{task.hora}</span>}
+              {(task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks) ? (
+                (plannedHours > 0 || trackedHours > 0) && (
+                  <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Acumulado real vs planeado">
+                    {trackedHours.toFixed(2)}h real / {plannedHours.toFixed(1)}h plan
+                  </span>
+                )
+              ) : (
+                (plannedHours > 0 || trackedHours > 0) && (
+                  <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Progreso real vs estimado">
+                    {trackedHours > 0 ? `${trackedHours.toFixed(2)}h real ` : ''}{plannedHours > 0 ? `(Est: ${plannedHours}h)` : ''}
+                  </span>
+                )
+              )}
+              {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
+              {isFutureDate(task.fechaPlanificada) && !isHabit && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
+              
+              {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
+                <span 
+                  onClick={(e) => {
+                    if (onNavigate) {
+                      e.stopPropagation();
+                      onNavigate('proyectos', parentTask.id);
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center h-5 gap-1 text-[10px] text-text-dim font-mono leading-none",
+                    onNavigate && "cursor-pointer hover:text-text-main transition-colors"
+                  )} 
+                  title={onNavigate ? `Pertenece a: ${parentTask.text}. Haz clic para ver en Proyectos.` : `Pertenece a: ${parentTask.text}`}
+                >
+                  <Folder className="w-2.5 h-2.5 text-yellow-500 fill-transparent stroke-[2]" /> {parentTask.text}
+                </span>
+              )}
+              
+              {!isSubtask && isActualSubtask && parentTask && parentTask.type !== 'Proyecto' && (
+                 <span 
+                   onClick={(e) => {
+                     if (onNavigate) {
+                       e.stopPropagation();
+                       onNavigate(parentTask.type === 'Rutina' ? 'rutinas' : 'proyectos', parentTask.id);
+                     }
+                   }}
+                   className={cn(
+                     "flex items-center h-5 gap-1 text-[10px] font-mono text-text-dim leading-none",
+                     onNavigate && "cursor-pointer hover:text-text-main transition-colors"
+                   )} 
+                   title={onNavigate ? `Subtarea de: ${parentTask.text}. Haz clic para ver.` : `Subtarea de: ${parentTask.text}`}
+                 >
+                  ↳ {parentTask.type === 'Rutina' ? '🔁' : '📁'} {parentTask.text}
+                </span>
+              )}
+              
+              {/* Active tracker badge or start tracker button */}
+              {activeTimer?.taskId === task.id ? (
+                <span className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#b45f06] border border-[#e4e2dd] bg-[#fce5cd] px-2 rounded-full animate-pulse leading-none">
+                  🔴 Trackeando
+                </span>
+              ) : (
+                !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
+                    className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase text-[#b45f06] hover:text-[#5d5d5d] transition-colors cursor-pointer leading-none"
+                    title="Iniciar temporizador en tiempo real"
+                  >
+                    <Play className="w-2.5 h-2.5" /> Iniciar tracker
+                  </button>
+                )
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+        <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
+          {/* Chevron */}
+          {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask)) && (
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)} 
+              className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
+              title={isExpanded ? "Ocultar subtareas" : (task.type === 'Rutina' ? "Ver hábitos" : "Ver/Añadir subtareas")}
+            >
+              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
+          {/* 3 dots options */}
+          <div className="relative flex items-center justify-center">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+              className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
+              title="Opciones"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+
+            {isMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
+                <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                  {onUpdate && (
+                    <>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                      >
+                        <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Editar
+                      </button>
+                      <button 
+                        onClick={handleMoveUp}
+                        disabled={isFirstItem}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                        Mover arriba
+                      </button>
+                      <button 
+                        onClick={handleMoveDown}
+                        disabled={isLastItem}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        Mover abajo
+                      </button>
+                    </>
+                  )}
+                  {task.parentId && onUpdate && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation();
+                        const parentT = allTasks.find(t => t.id === task.parentId);
+                        const newParentId = (parentT && parentT.type !== 'Proyecto') ? (parentT.parentId || '') : '';
+                        onUpdate(task.id, { parentId: newParentId });
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <ArrowUpFromLine className="w-3 h-3 text-text-dim" />
+                      Subir de nivel
+                    </button>
+                  )}
+                  {onNavigateToLocation && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onNavigateToLocation(); setIsMenuOpen(false); }} 
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <ArrowUpRight className="w-3 h-3 text-text-dim" />
+                      Ir a ubicación
+                    </button>
+                  )}
+                  <div className="h-[1px] bg-border-line/40 my-1"></div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente "${task.text}"?`)) {
+                        onDelete();
+                      }
+                    }} 
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                  >
+                    <X className="w-3 h-3 text-red-500" />
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Reordering Arrows */}
+          {showMoveArrows && (
+            <div className="flex flex-col gap-0.5 items-center">
+              <button 
+                onClick={handleMoveUp}
+                disabled={isFirstItem}
+                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                title="Mover arriba"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
               </button>
-            )
+              <button 
+                onClick={handleMoveDown}
+                disabled={isLastItem}
+                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                title="Mover abajo"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
-      </div>
-      
-      {/* Removed completion toggle div from here to move it to the left side */}
       </div>
 
       {isExpanded && (

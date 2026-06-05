@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus, X, Edit2, Trash2, Save } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus, X, Edit2, Trash2, Save, ArrowUp, ArrowDown } from 'lucide-react';
 import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import GanttChart from './GanttChart';
@@ -45,6 +45,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [expandedProjs, setExpandedProjs] = useState<string[]>([]);
   const [showGantt, setShowGantt] = useState(false);
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
+  const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
@@ -183,6 +184,61 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     setEditingProjId(proj.id);
   };
 
+  const getProjSiblings = (proj: AppTask) => {
+    const siblingsList = tasks.filter(t => t.type === 'Proyecto');
+    const pending = siblingsList.filter(t => !t.completed);
+    const completed = siblingsList.filter(t => t.completed);
+
+    const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const withOrders = baseline.map((t, idx) => ({
+      ...t,
+      order: t.order !== undefined ? t.order : (idx + 1) * 1000
+    }));
+    const sortedPending = withOrders.sort((a, b) => a.order - b.order);
+
+    const sortedCompleted = [...completed].sort((a, b) => {
+      const aTime = a.lastExecutedAt ? new Date(a.lastExecutedAt).getTime() : new Date(a.createdAt).getTime();
+      const bTime = b.lastExecutedAt ? new Date(b.lastExecutedAt).getTime() : new Date(b.createdAt).getTime();
+      return aTime - bTime;
+    });
+
+    return [...sortedPending, ...sortedCompleted];
+  };
+
+  const handleMoveProjUp = (proj: AppTask) => {
+    const siblings = getProjSiblings(proj);
+    const idx = siblings.findIndex(s => s.id === proj.id);
+    if (idx <= 0) return;
+
+    const targetIdx = idx - 1;
+    let newOrder = 1000;
+    if (targetIdx === 0) {
+      newOrder = siblings[0].order - 1000;
+    } else {
+      const prevOrder = siblings[targetIdx - 1].order;
+      const nextOrder = siblings[targetIdx].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+    onUpdateTask(proj.id, { order: newOrder });
+  };
+
+  const handleMoveProjDown = (proj: AppTask) => {
+    const siblings = getProjSiblings(proj);
+    const idx = siblings.findIndex(s => s.id === proj.id);
+    if (idx === -1 || idx === siblings.length - 1) return;
+
+    const targetIdx = idx + 1;
+    let newOrder = 1000;
+    if (targetIdx === siblings.length - 1) {
+      newOrder = siblings[siblings.length - 1].order + 1000;
+    } else {
+      const prevOrder = siblings[targetIdx].order;
+      const nextOrder = siblings[targetIdx + 1].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+    onUpdateTask(proj.id, { order: newOrder });
+  };
+
   const handleSaveEdit = () => {
     if (!editProjForm.text.trim() || !editProjForm.category || !editingProjId) return;
     
@@ -274,60 +330,152 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     }
 
     const isExpanded = expandedProjs.includes(proj.id);
+    const idx = projList.findIndex(p => p.id === proj.id);
+    const isFirstItem = idx <= 0;
+    const isLastItem = idx === -1 || idx === projList.length - 1;
 
     return (
       <div key={proj.id} id={`task-item-${proj.id}`} className={cn("relative p-4 transition-all group border-b last:border-b-0 border-border-line/40", proj.completed && "grayscale")}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 pb-1 gap-3 text-left">
-          <div className="flex items-center gap-3">
-            <button onClick={() => onToggleTask(proj)} className="focus:outline-none hover:scale-105 transition-transform bg-transparent border-0 cursor-pointer">
-               {proj.completed ? <CheckCircle className="text-text-main opacity-40 w-5 h-5" /> : <Folder className={cn("w-5 h-5", getAreaTextClasses(pColor))} />}
-            </button>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className={cn("text-base font-medium text-text-main", proj.completed ? "line-through opacity-60 font-light" : "")}>
-                  {proj.text}
-                </h3>
-                <div className="flex gap-1.5 ml-1">
-                  <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full", getAreaColorClasses(pColor))}>
-                    {proj.category}
+        
+        <div className="flex items-start gap-3 md:gap-4 w-full">
+          {/* Toggle button showing project type icon */}
+          <button onClick={() => onToggleTask(proj)} className="mt-1 flex-shrink-0 focus:outline-none hover:scale-105 transition-transform bg-transparent border-0 cursor-pointer flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40">
+             {proj.completed ? (
+               <CheckCircle className="text-emerald-600 dark:text-emerald-500 w-4 h-4" />
+             ) : (
+               <span className="text-text-main/70 group-hover:text-text-main transition-colors flex items-center justify-center shrink-0">
+                 <Folder className={cn("w-3.5 h-3.5", getAreaTextClasses(pColor))} />
+               </span>
+             )}
+          </button>
+
+          {/* Middle content: text, badges, progress bar */}
+          <div className="flex-1 min-w-0 text-left">
+            <div className="flex items-center gap-3 flex-wrap mb-1">
+              <h3 className={cn("text-base font-medium text-text-main", proj.completed ? "line-through opacity-60 font-light" : "")}>
+                {proj.text}
+              </h3>
+              <div className="flex gap-1.5">
+                <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full leading-none flex items-center", getAreaColorClasses(pColor))}>
+                  {proj.category}
+                </span>
+                {proj.subCategory && (
+                  <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full bg-transparent opacity-85 leading-none flex items-center", getAreaColorClasses(pColor))}>
+                    {proj.subCategory}
                   </span>
-                  {proj.subCategory && (
-                    <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full bg-transparent opacity-85", getAreaColorClasses(pColor))}>
-                      {proj.subCategory}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <p className="text-[10px] text-text-dim font-mono uppercase tracking-wider mt-1.5">
-                {proj.priority} • {subtasks.length} Tareas 
-                {projDuration > 0 && <span className="ml-1.5 font-bold">• ⏱ {projDuration.toFixed(1)}h</span>}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4 justify-between md:justify-end w-full md:w-auto">
-            <div className="text-right flex flex-col items-end flex-grow md:flex-grow-0">
-              <span className="text-[10px] font-mono font-bold text-text-dim">{progress}%</span>
-              <div className="w-full md:w-28 h-[2px] bg-[var(--color-border-line)]/50 rounded-full mt-1.5 overflow-hidden">
-                <div className={cn("h-full transition-all", getAreaProgressClasses(pColor))} style={{ width: `${progress}%` }}></div>
+                )}
               </div>
             </div>
             
-            <div className="flex gap-1">
-              <button 
-                title={isExpanded ? "Ocultar Tareas" : "Ver Tareas"} 
-                onClick={() => toggleProject(proj.id)} 
-                className="p-1.5 text-text-dim hover:text-text-main transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0"
-              >
-                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
-              <button title="Editar Proyecto" onClick={() => startEdit(proj)} className="p-1.5 text-text-dim hover:text-text-main transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0">
-                 <Edit2 className="w-4 h-4" />
-              </button>
-              <button title="Eliminar Proyecto" onClick={() => onDeleteTask(proj.id)} className="p-1.5 text-text-dim hover:text-red-500 transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0">
-                 <X className="w-4 h-4" />
-              </button>
+            <p className="text-[10px] text-text-dim font-mono uppercase tracking-wider mb-2">
+              {proj.priority} • {subtasks.length} Tareas 
+              {projDuration > 0 && <span className="ml-1.5 font-bold">• ⏱ {projDuration.toFixed(1)}h</span>}
+            </p>
+
+            <div className="flex items-center gap-3 w-full max-w-xs">
+              <span className="text-[10px] font-mono font-bold text-text-dim leading-none">{progress}%</span>
+              <div className="flex-1 h-[2px] bg-[var(--color-border-line)]/50 rounded-full overflow-hidden">
+                <div className={cn("h-full transition-all", getAreaProgressClasses(pColor))} style={{ width: `${progress}%` }}></div>
+              </div>
             </div>
+          </div>
+
+          {/* Controls Column (on the right) */}
+          <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
+            {/* Chevron */}
+            <button 
+              title={isExpanded ? "Ocultar Tareas" : "Ver Tareas"} 
+              onClick={() => toggleProject(proj.id)} 
+              className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+            >
+               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* 3-dots Options */}
+            <div className="relative flex items-center justify-center">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setOpenMenuProjId(openMenuProjId === proj.id ? null : proj.id); }}
+                className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
+                title="Opciones"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="19" r="1" />
+                </svg>
+              </button>
+
+              {openMenuProjId === proj.id && (
+                <>
+                  <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuProjId(null)} />
+                  <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); startEdit(proj); setOpenMenuProjId(null); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      Editar
+                    </button>
+                    {sortBy === 'manual' && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleMoveProjUp(proj); setOpenMenuProjId(null); }}
+                          disabled={isFirstItem}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                          Mover arriba
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleMoveProjDown(proj); setOpenMenuProjId(null); }}
+                          disabled={isLastItem}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                          Mover abajo
+                        </button>
+                      </>
+                    )}
+                    <div className="h-[1px] bg-border-line/40 my-1"></div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuProjId(null);
+                        if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente el proyecto "${proj.text}" y todas sus tareas?`)) {
+                          onDeleteTask(proj.id);
+                        }
+                      }} 
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <X className="w-3 h-3 text-red-500" />
+                      Eliminar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Reordering Arrows */}
+            {sortBy === 'manual' && (
+              <div className="flex flex-col gap-0.5 items-center">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleMoveProjUp(proj); }}
+                  disabled={isFirstItem}
+                  className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                  title="Mover arriba"
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleMoveProjDown(proj); }}
+                  disabled={isLastItem}
+                  className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                  title="Mover abajo"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

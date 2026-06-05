@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import TaskItem from './TaskItem';
-import { RotateCw, Plus, ChevronDown, ChevronUp, Edit2, Trash2, Save, Repeat, Activity, Sliders, X } from 'lucide-react';
+import { RotateCw, Plus, ChevronDown, ChevronUp, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, getAreaColorClasses, isSameDay, isFutureDate } from '../lib/utils';
 
 interface Props {
@@ -49,6 +49,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   const [editPulsoForm, setEditPulsoForm] = useState({ text: '', targetCount: 1, unitLabel: 'veces', polaridad: 'Reforzar', category: '', subCategory: '' });
 
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name'>('manual');
+  const [openMenuRoutineId, setOpenMenuRoutineId] = useState<string | null>(null);
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
@@ -141,6 +142,61 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
       frecuenciaUnidad: routine.frecuenciaUnidad || 'días'
     });
     setEditingRoutineId(routine.id);
+  };
+
+  const getRoutineSiblings = (routine: AppTask) => {
+    const siblingsList = tasks.filter(t => t.type === 'Rutina');
+    const pending = siblingsList.filter(t => !t.completed);
+    const completed = siblingsList.filter(t => t.completed);
+
+    const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const withOrders = baseline.map((t, idx) => ({
+      ...t,
+      order: t.order !== undefined ? t.order : (idx + 1) * 1000
+    }));
+    const sortedPending = withOrders.sort((a, b) => a.order - b.order);
+
+    const sortedCompleted = [...completed].sort((a, b) => {
+      const aTime = a.lastExecutedAt ? new Date(a.lastExecutedAt).getTime() : new Date(a.createdAt).getTime();
+      const bTime = b.lastExecutedAt ? new Date(b.lastExecutedAt).getTime() : new Date(b.createdAt).getTime();
+      return aTime - bTime;
+    });
+
+    return [...sortedPending, ...sortedCompleted];
+  };
+
+  const handleMoveRoutineUp = (routine: AppTask) => {
+    const siblings = getRoutineSiblings(routine);
+    const idx = siblings.findIndex(s => s.id === routine.id);
+    if (idx <= 0) return;
+
+    const targetIdx = idx - 1;
+    let newOrder = 1000;
+    if (targetIdx === 0) {
+      newOrder = siblings[0].order - 1000;
+    } else {
+      const prevOrder = siblings[targetIdx - 1].order;
+      const nextOrder = siblings[targetIdx].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+    onUpdateTask(routine.id, { order: newOrder });
+  };
+
+  const handleMoveRoutineDown = (routine: AppTask) => {
+    const siblings = getRoutineSiblings(routine);
+    const idx = siblings.findIndex(s => s.id === routine.id);
+    if (idx === -1 || idx === siblings.length - 1) return;
+
+    const targetIdx = idx + 1;
+    let newOrder = 1000;
+    if (targetIdx === siblings.length - 1) {
+      newOrder = siblings[siblings.length - 1].order + 1000;
+    } else {
+      const prevOrder = siblings[targetIdx].order;
+      const nextOrder = siblings[targetIdx + 1].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+    onUpdateTask(routine.id, { order: newOrder });
   };
 
   const handleSaveEdit = () => {
@@ -581,63 +637,151 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
               );
             }
 
+            const idx = routines.findIndex(r => r.id === routine.id);
+            const isFirstItem = idx <= 0;
+            const isLastItem = idx === -1 || idx === routines.length - 1;
+
             return (
               <div key={routine.id} id={`task-item-${routine.id}`} className="relative py-5 flex flex-col mb-4 border-b last:border-b-0 border-border-line/40 group transition-all">
-                <div className="flex flex-col md:flex-row md:items-start justify-between mb-3 gap-3">
-                  <div 
-                    className="flex-1 cursor-pointer flex items-start gap-3" 
-                    onClick={() => toggleExpand(routine.id)}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <h3 className="text-subtitle font-normal leading-tight group-hover:text-accent transition-colors truncate">
-                          {routine.text}
-                        </h3>
-                        {routine.category && (
-                          <span className={cn("text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-dashed", 
-                            getAreaColorClasses(typeof (config?.areas?.[routine.category || ''] || 'slate') === 'string' ? config?.areas?.[routine.category || ''] as string || 'slate' : (config?.areas?.[routine.category || ''] as any)?.color || 'slate')
-                          )}>
-                            {routine.category}
-                          </span>
-                        )}
-                        {routine.subCategory && (
-                          <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-dashed border-border-line/50 text-text-dim">
-                            {routine.subCategory}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-3 text-[10px] font-mono text-text-dim/80 mt-1.5 flex-wrap items-center lowercase tracking-wider">
-                        <span>{subtasks.length} hábitos</span>
-                        {routineDuration > 0 && <span className="text-text-dim font-mono">⏱ {routineDuration}h</span>}
-                        {routine.fechaPlanificada && (
-                           <span className="text-text-dim font-mono">
-                             📅 {routine.fechaPlanificada.substring(0, 10)}
-                           </span>
-                        )}
-                        {routine.hora && <span className="text-text-dim font-mono">🕒 {routine.hora}</span>}
-                        {routine.frecuencia && (
-                          <span className="text-text-dim font-mono">
-                            🔄 cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
-                          </span>
-                        )}
-                      </div>
+                <div className="flex items-start gap-3 md:gap-4 w-full">
+                  {/* Left Repeat Icon */}
+                  <div className="mt-1 flex-shrink-0 flex items-center justify-center w-5 h-5">
+                    <Repeat className="w-4 h-4 text-text-main/70" />
+                  </div>
+
+                  {/* Middle Content */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="flex gap-2 items-center flex-wrap mb-1">
+                      <h3 className="text-subtitle font-normal leading-tight group-hover:text-accent transition-colors truncate">
+                        {routine.text}
+                      </h3>
+                      {routine.category && (
+                        <span className={cn("text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-dashed leading-none flex items-center", 
+                          getAreaColorClasses(typeof (config?.areas?.[routine.category || ''] || 'slate') === 'string' ? config?.areas?.[routine.category || ''] as string || 'slate' : (config?.areas?.[routine.category || ''] as any)?.color || 'slate')
+                        )}>
+                          {routine.category}
+                        </span>
+                      )}
+                      {routine.subCategory && (
+                        <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none flex items-center">
+                          {routine.subCategory}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3 text-[10px] font-mono text-text-dim/80 mt-1.5 flex-wrap items-center lowercase tracking-wider mb-2">
+                      <span>{subtasks.length} hábitos</span>
+                      {routineDuration > 0 && <span className="text-text-dim font-mono">⏱ {routineDuration}h</span>}
+                      {routine.fechaPlanificada && (
+                         <span className="text-text-dim font-mono">
+                           📅 {routine.fechaPlanificada.substring(0, 10)}
+                         </span>
+                      )}
+                      {routine.hora && <span className="text-text-dim font-mono">🕒 {routine.hora}</span>}
+                      {routine.frecuencia && (
+                        <span className="text-text-dim font-mono">
+                          🔄 cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-1 justify-end">
+
+                  {/* Controls Column (on the right) */}
+                  <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
+                    {/* Chevron */}
                     <button 
                       title={isExpanded ? "Ocultar Hábitos" : "Ver Hábitos"} 
                       onClick={() => toggleExpand(routine.id)} 
-                      className="p-1.5 text-text-dim hover:text-text-main transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0"
+                      className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
                     >
-                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                       {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </button>
-                    <button title="Editar Rutina" onClick={() => startEdit(routine)} className="p-1.5 text-text-dim hover:text-primary transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0">
-                       <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button title="Eliminar Rutina" onClick={() => { if(confirm('¿Eliminar rutina?')) onDeleteTask(routine.id); }} className="p-1.5 text-text-dim hover:text-red-500 transition-colors md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer bg-transparent border-0">
-                       <X className="w-4 h-4" />
-                    </button>
+
+                    {/* 3-dots Options */}
+                    <div className="relative flex items-center justify-center">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuRoutineId(openMenuRoutineId === routine.id ? null : routine.id); }}
+                        className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
+                        title="Opciones"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="12" cy="5" r="1" />
+                          <circle cx="12" cy="19" r="1" />
+                        </svg>
+                      </button>
+
+                      {openMenuRoutineId === routine.id && (
+                        <>
+                          <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuRoutineId(null)} />
+                          <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); startEdit(routine); setOpenMenuRoutineId(null); }}
+                              className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                            >
+                              <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                              Editar
+                            </button>
+                            {sortBy === 'manual' && (
+                              <>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleMoveRoutineUp(routine); setOpenMenuRoutineId(null); }}
+                                  disabled={isFirstItem}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                  Mover arriba
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleMoveRoutineDown(routine); setOpenMenuRoutineId(null); }}
+                                  disabled={isLastItem}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                  Mover abajo
+                                </button>
+                              </>
+                            )}
+                            <div className="h-[1px] bg-border-line/40 my-1"></div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuRoutineId(null);
+                                if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente la rutina "${routine.text}" y todos sus hábitos?`)) {
+                                  onDeleteTask(routine.id);
+                                }
+                              }} 
+                              className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                            >
+                              <X className="w-3 h-3 text-red-500" />
+                              Eliminar
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Reordering Arrows */}
+                    {sortBy === 'manual' && (
+                      <div className="flex flex-col gap-0.5 items-center">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleMoveRoutineUp(routine); }}
+                          disabled={isFirstItem}
+                          className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                          title="Mover arriba"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleMoveRoutineDown(routine); }}
+                          disabled={isLastItem}
+                          className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                          title="Mover abajo"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
