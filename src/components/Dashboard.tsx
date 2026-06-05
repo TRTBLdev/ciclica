@@ -8,7 +8,7 @@ import BitacoraView from './BitacoraView';
 import ConfiguracionView from './ConfiguracionView';
 import FloatingTimer from './FloatingTimer';
 import Onboarding from './Onboarding';
-import { cn, calculateBiologicalPhase, migrateDatabase, isSameDay } from '../lib/utils';
+import { cn, calculateBiologicalPhase, migrateDatabase, isSameDay, isFutureDate } from '../lib/utils';
 import { AppTask, HistoryRecord } from '../types';
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
@@ -161,7 +161,9 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }
 
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
-    const isCompleted = !task.completed;
+    const isCompleted = task.type === 'Hábito'
+      ? !isFutureDate(task.fechaPlanificada)
+      : !task.completed;
     const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
     const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
 
@@ -208,7 +210,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
             if (childHabits.length > 0) {
               childHabits.forEach(ch => {
-                const isChDue = !ch.completed && (ch.fechaPlanificada ? new Date(ch.fechaPlanificada).getTime() <= todayStart.getTime() + 24 * 3600 * 1000 : true);
+                const isChDue = !isFutureDate(ch.fechaPlanificada);
                 if (isChDue) {
                   const chNextDate = getNextPlannedDate(ch.fechaPlanificada, ch.frecuencia || 1, ch.frecuenciaUnidad || 'días');
                   tasksToUpdate.push({

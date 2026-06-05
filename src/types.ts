@@ -60,6 +60,7 @@ export interface AppTask {
   targetCount?: number; // Meta diaria cuantitativa (ej. 8)
   unitLabel?: string; // Ej. "vasos", "veces", "pastillas"
   lastExecutedAt?: string; // Último check real
+  order?: number; // Posición de ordenación para subtareas/hábitos
   createdAt: string;
   updatedAt?: string;
 }
