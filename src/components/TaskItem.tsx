@@ -687,7 +687,19 @@ export default function TaskItem({
           </div>
         ) : (
         <div className="flex items-center gap-3 flex-wrap mb-2 text-left">
-            <p className={cn("text-base", task.completed ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal")}>
+            <p 
+              onClick={() => {
+                if (!task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
+                  onStartTimer(task.id);
+                }
+              }}
+              className={cn(
+                "text-base", 
+                task.completed ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
+                (!task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) && "cursor-pointer hover:text-primary transition-colors"
+              )}
+              title={(!task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
+            >
               {task.text}
             </p>
             {onUpdate && (

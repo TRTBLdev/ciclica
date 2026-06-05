@@ -1020,15 +1020,28 @@ function TimelineRenderer({
     } else if (t.isRecord) {
       const areaConfig = config?.areas?.[t.category || ''];
       const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
+      const canStartTimer = t.originalRecord?.taskId && onStartTimer && activeTimer?.taskId !== t.originalRecord.taskId;
 
       renderedItems.push(
-        <div key={t.id} className="relative flex items-center justify-between py-2.5 border-b border-border-line/20 pl-4 pr-3 group hover:bg-base-dim/10 transition-colors text-left select-none my-1 animate-in fade-in duration-200">
+        <div 
+          key={t.id} 
+          onClick={() => {
+            if (canStartTimer) {
+              onStartTimer(t.originalRecord.taskId);
+            }
+          }}
+          className={cn(
+            "relative flex items-center justify-between py-2.5 border-b border-border-line/20 pl-4 pr-3 group hover:bg-base-dim/10 transition-colors text-left select-none my-1 animate-in fade-in duration-200",
+            canStartTimer && "cursor-pointer"
+          )}
+          title={canStartTimer ? "Hacer clic para iniciar tracker de nuevo ⏱️" : undefined}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-xs font-mono font-bold text-text-dim shrink-0">{t.hora}</span>
             <span className="text-[9px] uppercase font-mono tracking-widest text-[#73c2b8] border border-[#73c2b8]/30 px-2 py-0.5 rounded-full leading-none flex items-center gap-1 shrink-0 bg-transparent">
               <Clock className="w-2.5 h-2.5 text-[#73c2b8]" /> log
             </span>
-            <span className="text-xs font-light text-text-main line-through opacity-65 truncate" title={`${t.text} (${t.type})`}>
+            <span className={cn("text-xs font-light text-text-main line-through opacity-65 truncate", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
               {t.text}
             </span>
             {t.category && (
