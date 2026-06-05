@@ -325,6 +325,7 @@ export default function TaskItem({
   const [newTaskText, setNewTaskText] = useState('');
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
 
   // Drag and drop states for subtasks list
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -581,11 +582,28 @@ export default function TaskItem({
             <GripIcon />
           </div>
         )}
-        <button onClick={() => onToggle(task)} className="mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent hover:opacity-70 transition-opacity">
-          {(task.type === 'Rutina' || task.type === 'Hábito') ? (
-            isCompletedVisual ? <CheckCircle2 className="w-4 h-4 cursor-pointer text-emerald-600 dark:text-emerald-500" /> : <Circle className="w-4 h-4 cursor-pointer text-text-main" />
+        <button 
+          onClick={() => onToggle(task)} 
+          onMouseEnter={() => setIsCheckboxHovered(true)}
+          onMouseLeave={() => setIsCheckboxHovered(false)}
+          className="mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent transition-all duration-200 flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40 cursor-pointer"
+        >
+          {isCompletedVisual ? (
+            (task.type === 'Rutina' || task.type === 'Hábito') ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
+            ) : (
+              <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
+            )
+          ) : isCheckboxHovered ? (
+            (task.type === 'Rutina' || task.type === 'Hábito') ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600/60 dark:text-emerald-500/60" />
+            ) : (
+              <CheckSquare className="w-4 h-4 text-emerald-600/60 dark:text-emerald-500/60" />
+            )
           ) : (
-            isCompletedVisual ? <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-500" /> : <Square className="w-4 h-4 text-text-main" />
+            <span className="text-text-main/70 group-hover:text-text-main transition-colors flex items-center justify-center shrink-0">
+              {getTypeIcon(task.type)}
+            </span>
           )}
         </button>
         
@@ -831,9 +849,6 @@ export default function TaskItem({
           </div>
         ) : (
         <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
-            <span className="shrink-0 text-text-dim/50">
-              {getTypeIcon(task.type)}
-            </span>
             <p 
               onClick={() => {
                 if (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
