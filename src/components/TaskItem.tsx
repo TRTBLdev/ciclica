@@ -1,8 +1,210 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import { isFutureDate } from '../lib/utils';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight } from 'lucide-react';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight } from 'lucide-react';
 import { cn, getAreaColorClasses, calculateBiologicalPhase } from '../lib/utils';
+
+
+// Helper to detect cycles in parent selection
+const isDescendant = (childId: string, parentId: string, tasksList: AppTask[]): boolean => {
+  let current = tasksList.find(t => t.id === childId);
+  while (current && current.parentId) {
+    if (current.parentId === parentId) return true;
+    current = tasksList.find(t => t.id === current.parentId);
+  }
+  return false;
+};
+
+interface ParentSelectorProps {
+  editType: TaskType;
+  parentId: string;
+  allTasks: AppTask[];
+  taskId: string;
+  onChange: (id: string) => void;
+}
+
+function ParentSelectorDropdown({ editType, parentId, allTasks, taskId, onChange }: ParentSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+
+  const toggleNode = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
+  };
+
+  const currentSelectionText = React.useMemo(() => {
+    if (!parentId) return 'Top-Level (Sin Padre)';
+    const parent = allTasks.find(t => t.id === parentId);
+    if (!parent) return 'Top-Level (Sin Padre)';
+    return parent.type === 'Proyecto' ? `📁 ${parent.text}` : `📝 ${parent.text}`;
+  }, [parentId, allTasks]);
+
+  const activeRoutines = allTasks.filter(t => t.type === 'Rutina' && !t.completed);
+  const activeProjects = allTasks.filter(t => t.type === 'Proyecto' && !t.completed);
+
+  // Top level active tasks
+  const topLevelTasks = allTasks.filter(t => 
+    t.type === 'Tarea' && 
+    !t.parentId && 
+    t.id !== taskId && 
+    !t.completed
+  );
+
+  const searchLower = search.toLowerCase().trim();
+
+  // Recursive match check for tree filtering
+  const hasMatchingDescendant = (nodeId: string): boolean => {
+    const children = allTasks.filter(t => t.parentId === nodeId && t.id !== taskId && !t.completed);
+    return children.some(c => c.text.toLowerCase().includes(searchLower) || hasMatchingDescendant(c.id));
+  };
+
+  const shouldShowNode = (node: AppTask): boolean => {
+    if (!searchLower) return true;
+    const matchesSelf = node.text.toLowerCase().includes(searchLower);
+    return matchesSelf || hasMatchingDescendant(node.id);
+  };
+
+  // Auto-expand nodes that match or contain matching descendants during search
+  React.useEffect(() => {
+    if (searchLower) {
+      const newExpanded: Record<string, boolean> = {};
+      allTasks.forEach(t => {
+        if (hasMatchingDescendant(t.id)) {
+          newExpanded[t.id] = true;
+        }
+      });
+      setExpandedNodes(newExpanded);
+    }
+  }, [search, allTasks]);
+
+  const renderNode = (item: AppTask, depth: number) => {
+    if (!shouldShowNode(item)) return null;
+
+    const children = allTasks.filter(t => t.parentId === item.id && t.id !== taskId && !isDescendant(t.id, taskId, allTasks) && !t.completed);
+    const hasChildren = children.length > 0;
+    const isExpanded = !!expandedNodes[item.id];
+
+    return (
+      <div key={item.id} className="flex flex-col">
+        <div 
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          className={cn(
+            "flex items-center justify-between py-1.5 pr-2 rounded-lg hover:bg-base-dim/40 cursor-pointer text-xs text-text-main group",
+            parentId === item.id && "bg-[#a2b29f]/20 font-bold"
+          )}
+          onClick={() => {
+            onChange(item.id);
+            setIsOpen(false);
+          }}
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="text-[10px]">{item.type === 'Proyecto' ? '📁' : '📝'}</span>
+            <span className="truncate">{item.text}</span>
+          </div>
+          {hasChildren && (
+            <button 
+              type="button"
+              onClick={(e) => toggleNode(item.id, e)}
+              className="p-1 hover:bg-base-dim/50 rounded text-text-dim hover:text-text-main transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center"
+            >
+              {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+        {hasChildren && (isExpanded || !!searchLower) && (
+          <div className="flex flex-col">
+            {children.map(child => renderNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative w-full sm:w-[180px] select-none text-left z-35">
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-base border border-border-line rounded-full cursor-pointer text-xs font-bold text-text-main hover:border-[#a2b29f] transition-all max-w-[180px]"
+      >
+        <span className="truncate mr-2">{currentSelectionText}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-text-dim flex-shrink-0" />
+      </div>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsOpen(false)} />
+          
+          <div className="absolute top-full left-0 mt-2 z-50 bg-base border border-border-line shadow-lg max-h-60 w-[240px] overflow-y-auto flex flex-col p-2 rounded-2xl glass-matte">
+            <div className="relative flex items-center mb-2 px-1">
+              <Search className="absolute left-3 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+              <input 
+                type="text"
+                placeholder="Buscar parent..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-base-dim/20 border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] text-text-main font-sans"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex flex-col gap-1 overflow-y-auto pr-1">
+              <div 
+                className={cn(
+                  "px-2 py-1.5 rounded-lg hover:bg-base-dim/40 cursor-pointer text-xs font-bold text-text-main",
+                  !parentId && "bg-[#a2b29f]/20"
+                )}
+                onClick={() => {
+                  onChange('');
+                  setIsOpen(false);
+                }}
+              >
+                ⚪ Top-Level (General)
+              </div>
+
+              {editType === 'Hábito' ? (
+                <div className="flex flex-col gap-0.5 mt-1 border-t border-border-line/10 pt-1">
+                  <div className="text-[9px] font-mono uppercase text-text-dim px-2 mb-1">Rutinas</div>
+                  {activeRoutines.map(r => (
+                    <div 
+                      key={r.id}
+                      className={cn(
+                        "px-2 py-1.5 rounded-lg hover:bg-base-dim/40 cursor-pointer text-xs text-text-main truncate",
+                        parentId === r.id && "bg-[#a2b29f]/20 font-bold"
+                      )}
+                      onClick={() => {
+                        onChange(r.id);
+                        setIsOpen(false);
+                      }}
+                    >
+                      🔁 {r.text}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 mt-1 border-t border-border-line/10 pt-1">
+                  {activeProjects.length > 0 && (
+                    <div className="flex flex-col">
+                      <div className="text-[9px] font-mono uppercase text-text-dim px-2 mb-1">Proyectos</div>
+                      {activeProjects.map(proj => renderNode(proj, 0))}
+                    </div>
+                  )}
+
+                  {topLevelTasks.length > 0 && (
+                    <div className="flex flex-col border-t border-border-line/10 mt-1.5 pt-1.5">
+                      <div className="text-[9px] font-mono uppercase text-text-dim px-2 mb-1">Otras Tareas</div>
+                      {topLevelTasks.map(task => renderNode(task, 0))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   key?: React.Key;
@@ -23,6 +225,7 @@ interface Props {
 }
 
 export default function TaskItem({ 
+
   task, 
   config, 
   allTasks, 
@@ -228,7 +431,7 @@ export default function TaskItem({
         "relative group flex flex-col p-4 transition-all duration-200",
         task.completed && !isEditing ? "grayscale" : "",
         locked ? "opacity-60 pointer-events-none grayscale" : "",
-        isSubtask ? "ml-8 mt-1 relative before:content-[''] before:absolute before:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : ""
+        isSubtask ? "ml-2 md:ml-4 mt-1 relative before:content-[''] before:absolute before:-left-3 md:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : ""
       )}
     >
       
@@ -247,7 +450,7 @@ export default function TaskItem({
             <input 
               autoFocus
               type="text" 
-              className="w-full px-4 py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+              className="w-full px-2.5 md:px-4 py-1 md:py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
               value={editText}
               onChange={e => setEditText(e.target.value)}
               onKeyDown={e => {
@@ -388,36 +591,15 @@ export default function TaskItem({
                         )}
 
                         {editType !== 'Rutina' && editType !== 'Proyecto' && (
-                          <div className="flex items-center gap-1 bg-transparent rounded-md pl-2 pr-1 relative" title="Relación Padre (Convertir en Subtarea)">
+                          <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-1 relative" title="Relación Padre (Convertir en Subtarea)">
                             <span className="text-xs text-text-dim font-mono uppercase">Padre:</span>
-                            <select 
-                              className="appearance-none py-1.5 bg-base text-text-main text-xs font-bold border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none max-w-[140px] truncate cursor-pointer pr-6" 
-                              value={editParentId} 
-                              onChange={e => setEditParentId(e.target.value)}
-                            >
-                              <option value="">Top-Level</option>
-                              {editType === 'Hábito' ? (
-                                <optgroup label="Rutinas">
-                                  {activeRoutines.map(r => (
-                                    <option key={r.id} value={r.id}>{r.text}</option>
-                                  ))}
-                                </optgroup>
-                              ) : (
-                                <>
-                                  <optgroup label="Proyectos">
-                                    {activeProjects.map(p => (
-                                      <option key={p.id} value={p.id}>{p.text}</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label="Otras Tareas">
-                                    {allTasks.filter(t => t.type === 'Tarea' && t.id !== task.id && t.parentId !== task.id && !t.completed).map(t => (
-                                      <option key={t.id} value={t.id}>↳ {t.text}</option>
-                                    ))}
-                                  </optgroup>
-                                </>
-                              )}
-                            </select>
-                            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+                            <ParentSelectorDropdown 
+                              editType={editType}
+                              parentId={editParentId}
+                              allTasks={allTasks}
+                              taskId={task.id}
+                              onChange={setEditParentId}
+                            />
                           </div>
                         )}
 
@@ -622,7 +804,7 @@ export default function TaskItem({
       </div>
 
       {isExpanded && (
-        <div className="w-full mt-3 pl-8 flex flex-col gap-2 relative before:content-[''] before:absolute before:left-3.5 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
+        <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-2 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
           {subtasks.map(sub => (
             <TaskItem 
               key={sub.id} 

@@ -349,12 +349,7 @@ function AreaDetail({
 
     onUpdateAreas(newAreas);
     setIsEditing(false);
-    
-    if (cleanName !== areaName) {
-      onBack(); // Go back if renamed to avoid viewing the old key
-    } else {
-      window.location.reload(); // Quick refresh to update state cleanly
-    }
+    onBack(); // Return to areas list
   };
 
   return (

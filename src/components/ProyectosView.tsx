@@ -5,6 +5,19 @@ import TaskItem from './TaskItem';
 import GanttChart from './GanttChart';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses } from '../lib/utils';
 
+// Helper to find parent project of any task recursively
+const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
+  let current = allTasks.find(t => t.id === taskId);
+  while (current) {
+    if (current.type === 'Proyecto') {
+      return current;
+    }
+    if (!current.parentId) break;
+    current = allTasks.find(t => t.id === current.parentId);
+  }
+  return null;
+};
+
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -85,6 +98,25 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
   const activeProjs = projects.filter(p => !p.completed);
   const compProjs = projects.filter(p => p.completed);
+
+  // Standalone tasks (Tareas Simples)
+  let standaloneTasks = tasks.filter(t => {
+    if (t.type !== 'Tarea') return false;
+    const proj = getProjectForTask(t.id, tasks);
+    if (proj) return false;
+    if (t.parentId) {
+      const parent = tasks.find(p => p.id === t.parentId);
+      if (parent && parent.type === 'Tarea') return false;
+    }
+    return true;
+  });
+
+  if (filter !== 'Todas') {
+    standaloneTasks = standaloneTasks.filter(t => t.category === filter);
+  }
+
+  const activeStandaloneTasks = standaloneTasks.filter(t => !t.completed);
+  const completedStandaloneTasks = standaloneTasks.filter(t => t.completed);
 
   const startEdit = (proj: AppTask) => {
     setEditProjForm({ 
@@ -424,6 +456,33 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </div>
       </div>
 
+      {/* Tareas Simples list */}
+      <div className="mb-6">
+        <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 text-left">Tareas Simples</h3>
+        <div className="border-t border-border-line/40 flex flex-col">
+          {activeStandaloneTasks.length ? (
+            activeStandaloneTasks.map(t => (
+              <TaskItem
+                key={t.id}
+                task={t}
+                config={config}
+                allTasks={tasks}
+                history={history}
+                onToggle={onToggleTask}
+                onDelete={() => onDeleteTask(t.id)}
+                onUpdate={onUpdateTask}
+                onAddTask={onAddTask}
+                onDeleteTask={onDeleteTask}
+                activeTimer={activeTimer}
+                onStartTimer={onStartTimer}
+              />
+            ))
+          ) : (
+            <p className="text-xs text-text-dim p-6 text-left font-mono italic">No hay tareas simples activas.</p>
+          )}
+        </div>
+      </div>
+
       {/* Completados list */}
       <div className="border-t border-border-line pt-6">
         <button onClick={() => setShowCompleted(!showCompleted)} className="flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 hover:text-text-main transition-colors focus:outline-none w-full text-left bg-transparent border-0 cursor-pointer">
@@ -433,8 +492,36 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           Completados
         </button>
         {showCompleted && (
-          <div className="border-t border-border-line/40 flex flex-col">
-            {compProjs.length ? renderProjBlock(compProjs) : <p className="text-xs text-text-dim p-6 text-left font-mono italic">No hay proyectos completados.</p>}
+          <div className="flex flex-col gap-6">
+            <div>
+              <h4 className="text-[10px] font-mono font-semibold tracking-wider text-text-dim uppercase mb-2 text-left">Proyectos Completados</h4>
+              <div className="border-t border-border-line/40 flex flex-col">
+                {compProjs.length ? renderProjBlock(compProjs) : <p className="text-xs text-text-dim p-4 text-left font-mono italic">No hay proyectos completados.</p>}
+              </div>
+            </div>
+            {completedStandaloneTasks.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-mono font-semibold tracking-wider text-text-dim uppercase mb-2 text-left">Tareas Simples Completadas</h4>
+                <div className="border-t border-border-line/40 flex flex-col">
+                  {completedStandaloneTasks.map(t => (
+                    <TaskItem
+                      key={t.id}
+                      task={t}
+                      config={config}
+                      allTasks={tasks}
+                      history={history}
+                      onToggle={onToggleTask}
+                      onDelete={() => onDeleteTask(t.id)}
+                      onUpdate={onUpdateTask}
+                      onAddTask={onAddTask}
+                      onDeleteTask={onDeleteTask}
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -80,6 +80,16 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     });
   };
 
+  const handleUpdateTimerStartTime = (newStartTimeIso: string) => {
+    if (!activeTimer) return;
+    setActiveTimer({
+      ...activeTimer,
+      sessionStart: newStartTimeIso,
+      startTime: newStartTimeIso,
+      elapsedSeconds: 0
+    });
+  };
+
   const handlePauseTimer = () => {
     if (!activeTimer) return;
     const now = new Date().getTime();
@@ -387,6 +397,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             onStop={handleStopTimer}
             onDiscard={handleDiscardTimer}
             onStartTimer={handleStartTimer}
+            onUpdateStartTime={handleUpdateTimerStartTime}
           />
         </div>
       </div>
@@ -515,6 +526,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             onStop={handleStopTimer}
             onDiscard={handleDiscardTimer}
             onStartTimer={handleStartTimer}
+            onUpdateStartTime={handleUpdateTimerStartTime}
           />
         </div>
       )}

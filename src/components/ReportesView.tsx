@@ -22,6 +22,19 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+// Helper to find parent project of any task recursively
+const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
+  let current = allTasks.find(t => t.id === taskId);
+  while (current) {
+    if (current.type === 'Proyecto') {
+      return current;
+    }
+    if (!current.parentId) break;
+    current = allTasks.find(t => t.id === current.parentId);
+  }
+  return null;
+};
+
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -34,6 +47,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
   const [period, setPeriod] = useState<PeriodType>('7dias');
   const [areaFilter, setAreaFilter] = useState('Todas');
   const [showOccupancy, setShowOccupancy] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   
   // Set default customizable dates to: start = 7 days ago, end = today
   const [customStart, setCustomStart] = useState(() => {
@@ -156,35 +170,107 @@ export default function ReportesView({ config, tasks, history }: Props) {
     return dates;
   }, [periodRange]);
 
+  interface OccupancyNode {
+    id: string;
+    text: string;
+    type: string;
+    area: string;
+    totalHours: number;
+    logsByDay: Record<string, number>;
+    children: OccupancyNode[];
+  }
+
   // Rows of activities that logged time in the period
   const occupancyRows = useMemo(() => {
-    const groups: Record<string, { taskId: string; taskText: string; taskType: string; area: string; logsByDay: Record<string, number>; totalHours: number }> = {};
-    
+    const projectNodes: Record<string, OccupancyNode> = {};
+    const standaloneNodes: Record<string, OccupancyNode> = {};
+
     filteredHistory.forEach(h => {
       const dayKey = new Date(h.date).toISOString().substring(0, 10);
-      const task = tasks.find(t => t.id === h.taskId);
-      const taskText = task ? task.text : '(Elemento Eliminado)';
-      const taskType = task ? task.type : 'Tarea';
-      const area = task ? (task.category || 'Sin Área') : 'Sin Área';
+      const originalTask = tasks.find(t => t.id === h.taskId);
+      const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
       const duration = h.duration || 0;
-      
-      if (!groups[h.taskId]) {
-        groups[h.taskId] = {
-          taskId: h.taskId,
-          taskText,
-          taskType,
-          area,
-          logsByDay: {},
-          totalHours: 0
-        };
+
+      if (projectTask) {
+        // It's part of a project! Group under project node.
+        if (!projectNodes[projectTask.id]) {
+          projectNodes[projectTask.id] = {
+            id: projectTask.id,
+            text: projectTask.text,
+            type: 'Proyecto',
+            area: projectTask.category || 'Sin Área',
+            totalHours: 0,
+            logsByDay: {},
+            children: []
+          };
+        }
+
+        projectNodes[projectTask.id].totalHours += duration;
+        projectNodes[projectTask.id].logsByDay[dayKey] = (projectNodes[projectTask.id].logsByDay[dayKey] || 0) + duration;
+
+        if (originalTask && originalTask.id !== projectTask.id) {
+          let childNode = projectNodes[projectTask.id].children.find(c => c.id === originalTask.id);
+          if (!childNode) {
+            childNode = {
+              id: originalTask.id,
+              text: originalTask.text,
+              type: originalTask.type,
+              area: originalTask.category || projectTask.category || 'Sin Área',
+              totalHours: 0,
+              logsByDay: {},
+              children: []
+            };
+            projectNodes[projectTask.id].children.push(childNode);
+          }
+          childNode.totalHours += duration;
+          childNode.logsByDay[dayKey] = (childNode.logsByDay[dayKey] || 0) + duration;
+        }
+      } else {
+        // Standalone item
+        const taskId = originalTask ? originalTask.id : h.taskId;
+        const text = originalTask ? originalTask.text : '(Elemento Eliminado)';
+        const type = originalTask ? originalTask.type : 'Tarea';
+        const area = originalTask ? (originalTask.category || 'Sin Área') : 'Sin Área';
+
+        if (!standaloneNodes[taskId]) {
+          standaloneNodes[taskId] = {
+            id: taskId,
+            text,
+            type,
+            area,
+            totalHours: 0,
+            logsByDay: {},
+            children: []
+          };
+        }
+        standaloneNodes[taskId].totalHours += duration;
+        standaloneNodes[taskId].logsByDay[dayKey] = (standaloneNodes[taskId].logsByDay[dayKey] || 0) + duration;
       }
-      
-      groups[h.taskId].logsByDay[dayKey] = (groups[h.taskId].logsByDay[dayKey] || 0) + duration;
-      groups[h.taskId].totalHours += duration;
     });
-    
-    return Object.values(groups).sort((a, b) => b.totalHours - a.totalHours);
+
+    const sortedProjects = Object.values(projectNodes).map(p => {
+      p.children.sort((a, b) => b.totalHours - a.totalHours);
+      return p;
+    }).sort((a, b) => b.totalHours - a.totalHours);
+
+    const sortedStandalone = Object.values(standaloneNodes).sort((a, b) => b.totalHours - a.totalHours);
+
+    return [...sortedProjects, ...sortedStandalone];
   }, [filteredHistory, tasks]);
+
+  // Flatten the hierarchy to visible rows based on project expand/collapse state
+  const visibleOccupancyRows = useMemo(() => {
+    const rows: { node: OccupancyNode; isChild: boolean; parentId?: string }[] = [];
+    occupancyRows.forEach(projNode => {
+      rows.push({ node: projNode, isChild: false });
+      if (projNode.type === 'Proyecto' && expandedProjects[projNode.id]) {
+        projNode.children.forEach(child => {
+          rows.push({ node: child, isChild: true, parentId: projNode.id });
+        });
+      }
+    });
+    return rows;
+  }, [occupancyRows, expandedProjects]);
 
   interface StatsResult {
     totalHours: number;
@@ -206,7 +292,9 @@ export default function ReportesView({ config, tasks, history }: Props) {
   const stats = useMemo<StatsResult>(() => {
     let totalDuration = 0;
     const historyCount = filteredHistory.filter(h => {
-      const task = tasks.find(t => t.id === h.taskId);
+      const originalTask = tasks.find(t => t.id === h.taskId);
+      const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
+      const task = projectTask || originalTask;
       return task ? (task.type === 'Tarea' || task.type === 'Proyecto') : false;
     }).length;
     
@@ -240,7 +328,11 @@ export default function ReportesView({ config, tasks, history }: Props) {
       const localDateStr = new Date(h.date).toLocaleDateString('es-ES');
       activeDaysSet.add(localDateStr);
 
-      const task = tasks.find(t => t.id === h.taskId);
+      const originalTask = tasks.find(t => t.id === h.taskId);
+      const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
+      const task = projectTask || originalTask;
+      const effectiveType = projectTask ? 'Proyecto' : (originalTask ? originalTask.type : 'Tarea');
+
       if (task) {
         // Area
         const area = task.category || 'Sin Área';
@@ -251,9 +343,9 @@ export default function ReportesView({ config, tasks, history }: Props) {
         taskCounts[task.text] = (taskCounts[task.text] || 0) + 1;
 
         // Type
-        if (task.type in typeCounts) {
-          typeCounts[task.type] += 1;
-          typeHours[task.type] += duration;
+        if (effectiveType in typeCounts) {
+          typeCounts[effectiveType] += 1;
+          typeHours[effectiveType] += duration;
         }
       } else {
         areaHours['Sin Área'] = (areaHours['Sin Área'] || 0) + duration;
@@ -398,7 +490,8 @@ Intervalo: ${rangeStr}
 🌐 ÁREAS DE ENFOQUE (Horas Acumuladas):`;
 
     (Object.entries(stats.areaHours) as [string, number][]).forEach(([area, hrs]) => {
-      text += `\n• ${area}: ${hrs.toFixed(1)}h`;
+      const count = stats.areaCounts[area] || 0;
+      text += `\n• ${area}: ${hrs.toFixed(1)}h (${count} ejecuciones)`;
     });
 
     text += `\n\nGenerado de forma local y privada en el Sistema Integral de Gestión Operativa (Obsidian-Style Vault).`;
@@ -429,10 +522,11 @@ Intervalo: ${rangeStr}
 - **Proyectos:** ${stats.typeHours['Proyecto'] || 0}h (${stats.typeCounts['Proyecto'] || 0} veces)
 - **Pulsos Diarios (Cuantitativos):** ${stats.typeHours['Pulso'] || 0}h (${stats.typeCounts['Pulso'] || 0} veces)
 
-## 🌐 ÁREAS DE ENFOQUE (Horas Acumuladas)`;
+## 🌐 ÁREAS DE ENFOQUE (Horas Acumuladas y Ejecuciones)`;
 
     Object.entries(stats.areaHours).forEach(([area, hrs]) => {
-      text += `\n- **${area}:** ${(hrs as number).toFixed(1)}h`;
+      const count = stats.areaCounts[area] || 0;
+      text += `\n- **${area}:** ${(hrs as number).toFixed(1)}h (${count} ejecuciones)`;
     });
 
     text += `\n\n## 🗃️ CONSULTA DATAVIEW PARA OBSIDIAN
@@ -962,18 +1056,43 @@ SORT date DESC
                 ACTIVIDADES / TAREAS
               </div>
               <div className="flex flex-col">
-                {occupancyRows.map(row => (
-                  <div key={row.taskId} className="h-10 border-b border-border-line/20 px-3 flex flex-col justify-center gap-0.5 hover:bg-base-dim/30 cursor-default">
-                    <span className="text-xs font-medium text-text-main truncate" title={row.taskText}>
-                      {row.taskType === 'Tarea' ? '📝 ' : row.taskType === 'Proyecto' ? '📁 ' : row.taskType === 'Rutina' ? '🔁 ' : row.taskType === 'Hábito' ? '🌱 ' : '💓 '}
-                      {row.taskText}
-                    </span>
-                    <span className="text-[8px] font-mono uppercase text-text-dim tracking-normal">
-                      {row.area} • {row.totalHours.toFixed(1)}h tot
-                    </span>
-                  </div>
-                ))}
-                {occupancyRows.length === 0 && (
+                {visibleOccupancyRows.map(({ node: row, isChild, parentId }) => {
+                  const hasChildren = row.type === 'Proyecto' && row.children.length > 0;
+                  const isExpanded = !!expandedProjects[row.id];
+
+                  return (
+                    <div 
+                      key={isChild ? `child-${parentId}-${row.id}` : row.id} 
+                      className={cn(
+                        "h-10 border-b border-border-line/20 px-3 flex items-center justify-between gap-1 hover:bg-base-dim/30 cursor-default",
+                        isChild && "pl-6 bg-base-dim/5"
+                      )}
+                    >
+                      <div className="flex flex-col justify-center gap-0.5 min-w-0 flex-1 text-left">
+                        <span className="text-xs font-medium text-text-main truncate" title={row.text}>
+                          {isChild ? '↳ ' : ''}
+                          {row.type === 'Tarea' ? '📝 ' : row.type === 'Proyecto' ? '📁 ' : row.type === 'Rutina' ? '🔁 ' : row.type === 'Hábito' ? '🌱 ' : '💓 '}
+                          {row.text}
+                        </span>
+                        <span className="text-[8px] font-mono uppercase text-text-dim tracking-normal">
+                          {row.area} • {row.totalHours.toFixed(1)}h tot
+                        </span>
+                      </div>
+                      
+                      {hasChildren && (
+                        <button
+                          onClick={() => {
+                            setExpandedProjects(prev => ({ ...prev, [row.id]: !prev[row.id] }));
+                          }}
+                          className="p-1 hover:bg-base-dim/50 rounded text-text-dim hover:text-text-main transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center shrink-0"
+                        >
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {visibleOccupancyRows.length === 0 && (
                   <div className="text-[10px] font-mono text-text-dim uppercase italic py-8 text-center">No hay registros</div>
                 )}
               </div>
@@ -998,8 +1117,14 @@ SORT date DESC
 
                 {/* Body tracks */}
                 <div className="flex flex-col w-full">
-                  {occupancyRows.map(row => (
-                    <div key={row.taskId} className="h-10 border-b border-border-line/20 w-full flex relative hover:bg-base-dim/10">
+                  {visibleOccupancyRows.map(({ node: row, isChild, parentId }) => (
+                    <div 
+                      key={isChild ? `child-track-${parentId}-${row.id}` : row.id} 
+                      className={cn(
+                        "h-10 border-b border-border-line/20 w-full flex relative hover:bg-base-dim/10",
+                        isChild && "bg-base-dim/5"
+                      )}
+                    >
                       {daysInRange.map((date, idx) => {
                         const dayKey = date.toISOString().substring(0, 10);
                         const hours = row.logsByDay[dayKey] || 0;
@@ -1028,7 +1153,7 @@ SORT date DESC
                         return (
                           <div 
                             key={idx}
-                            className="w-[64px] flex-shrink-0 h-full flex items-center justify-center relative"
+                            className="w-[64px] flex-shrink-0 h-full flex items-center justify-center relative border-r border-border-line/10 last:border-r-0"
                           >
                             {hours > 0 ? (
                               <div className="w-full px-1 flex justify-center">

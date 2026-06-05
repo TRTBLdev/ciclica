@@ -88,6 +88,10 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     return isViewBacklog || isViewEmpty || isFutureScheduled;
   });
 
+  const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
+  const hoursWorkedToday = todayRecords.reduce((acc, h) => acc + (h.duration || 0), 0);
+  const remainingLimit = Math.max(0, ENERGY_LIMIT - hoursWorkedToday);
+
   let totalEnergy = 0;
   const timedTasks: any[] = [];
   const untimedTasks: AppTask[] = [];
@@ -106,8 +110,8 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     }
   });
 
-  const energyPercent = Math.min((totalEnergy / ENERGY_LIMIT) * 100, 100);
-  const energyColor = totalEnergy > ENERGY_LIMIT ? 'bg-red-500' : 'bg-amber-400';
+  const energyPercent = remainingLimit > 0 ? Math.min((totalEnergy / remainingLimit) * 100, 100) : (totalEnergy > 0 ? 100 : 0);
+  const energyColor = totalEnergy > remainingLimit ? 'bg-red-500' : 'bg-amber-400';
 
   // Map today's history records to timed items in the timeline
   const getRecordTime = (dateStr: string) => {
@@ -119,7 +123,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     }
   };
 
-  const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
+  // todayRecords was moved up
   const mappedRecords = todayRecords.map(rec => {
     const task = tasks.find(t => t.id === rec.taskId);
     return {
@@ -289,7 +293,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
           <div className="flex justify-between items-end w-full pb-2 mb-1">
             <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono">Energía Ejecutiva</span>
             <span className="text-xs text-text-main font-bold">
-              {totalEnergy.toFixed(1)}h <span className="text-[#a2b29f] font-normal">/ {ENERGY_LIMIT}h</span>
+              {totalEnergy.toFixed(1)}h <span className="text-[#a2b29f] font-normal" title={`Límite inicial: ${ENERGY_LIMIT}h (Invertido hoy: ${hoursWorkedToday.toFixed(1)}h)`}>/ {remainingLimit.toFixed(1)}h</span>
             </span>
           </div>
           <div className="w-full h-[3px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden">
