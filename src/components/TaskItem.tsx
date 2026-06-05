@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import { isFutureDate } from '../lib/utils';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight } from 'lucide-react';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, getAreaColorClasses, calculateBiologicalPhase } from '../lib/utils';
 
 
@@ -277,10 +277,7 @@ interface Props {
   history?: HistoryRecord[];
   onNavigateToLocation?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
-  onDragStart?: (e: React.DragEvent, id: string) => void;
-  onDragOver?: (e: React.DragEvent, id: string) => void;
-  onDrop?: (e: React.DragEvent, id: string) => void;
-  draggedOverId?: string | null;
+  showMoveArrows?: boolean;
 }
 
 export default function TaskItem({ 
@@ -299,10 +296,7 @@ export default function TaskItem({
   history,
   onNavigateToLocation,
   onNavigate,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  draggedOverId
+  showMoveArrows = false
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(task.text);
@@ -327,60 +321,75 @@ export default function TaskItem({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
 
-  // Drag and drop states for subtasks list
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [subDraggedOverId, setSubDraggedOverId] = useState<string | null>(null);
+  // Helper to find visual sibling items (same parent, same type)
+  const getSiblings = () => {
+    const parentId = task.parentId || '';
+    const siblingsList = allTasks.filter(t => (t.parentId || '') === parentId && t.type === task.type);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDraggedId(id);
-    e.dataTransfer.setData('text/plain', id);
+    const pending = siblingsList.filter(t => !(t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed));
+    const completed = siblingsList.filter(t => (t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed));
+
+    const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const withOrders = baseline.map((t, idx) => ({
+      ...t,
+      order: t.order !== undefined ? t.order : (idx + 1) * 1000
+    }));
+    const sortedPending = withOrders.sort((a, b) => a.order - b.order);
+
+    const sortedCompleted = [...completed].sort((a, b) => {
+      const aTime = a.lastExecutedAt ? new Date(a.lastExecutedAt).getTime() : new Date(a.createdAt).getTime();
+      const bTime = b.lastExecutedAt ? new Date(b.lastExecutedAt).getTime() : new Date(b.createdAt).getTime();
+      return aTime - bTime;
+    });
+
+    return [...sortedPending, ...sortedCompleted];
   };
 
-  const handleDragOver = (e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    if (id !== subDraggedOverId) {
-      setSubDraggedOverId(id);
-    }
-  };
+  const siblings = getSiblings();
+  const idx = siblings.findIndex(s => s.id === task.id);
+  const isFirstItem = idx <= 0;
+  const isLastItem = idx === -1 || idx === siblings.length - 1;
 
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const sourceId = draggedId || e.dataTransfer.getData('text/plain');
-    if (!sourceId || sourceId === targetId) {
-      setDraggedId(null);
-      setSubDraggedOverId(null);
-      return;
-    }
+  const handleMoveUp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    if (!onUpdate) return;
 
-    const itemsWithOrders = getSubtasksWithOrders();
-    const sourceIndex = itemsWithOrders.findIndex(item => item.id === sourceId);
-    const targetIndex = itemsWithOrders.findIndex(item => item.id === targetId);
+    if (idx <= 0) return; // Already at the top
 
-    if (sourceIndex === -1 || targetIndex === -1) return;
-
-    const reorderedList = [...itemsWithOrders];
-    const [draggedItem] = reorderedList.splice(sourceIndex, 1);
-    reorderedList.splice(targetIndex, 0, draggedItem);
-
-    const newIndex = targetIndex;
+    const targetIdx = idx - 1;
     let newOrder = 1000;
 
-    if (newIndex === 0) {
-      newOrder = reorderedList[1].order - 1000;
-    } else if (newIndex === reorderedList.length - 1) {
-      newOrder = reorderedList[reorderedList.length - 2].order + 1000;
+    if (targetIdx === 0) {
+      newOrder = siblings[0].order - 1000;
     } else {
-      const prevOrder = reorderedList[newIndex - 1].order;
-      const nextOrder = reorderedList[newIndex + 1].order;
+      const prevOrder = siblings[targetIdx - 1].order;
+      const nextOrder = siblings[targetIdx].order;
       newOrder = (prevOrder + nextOrder) / 2;
     }
 
-    if (onUpdate) {
-      onUpdate(sourceId, { order: newOrder });
+    onUpdate(task.id, { order: newOrder });
+  };
+
+  const handleMoveDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    if (!onUpdate) return;
+
+    if (idx === -1 || idx === siblings.length - 1) return; // Already at the bottom
+
+    const targetIdx = idx + 1;
+    let newOrder = 1000;
+
+    if (targetIdx === siblings.length - 1) {
+      newOrder = siblings[siblings.length - 1].order + 1000;
+    } else {
+      const prevOrder = siblings[targetIdx].order;
+      const nextOrder = siblings[targetIdx + 1].order;
+      newOrder = (prevOrder + nextOrder) / 2;
     }
 
-    setDraggedId(null);
-    setSubDraggedOverId(null);
+    onUpdate(task.id, { order: newOrder });
   };
 
   React.useEffect(() => {
@@ -572,25 +581,137 @@ export default function TaskItem({
   return (
     <div 
       id={`task-item-${task.id}`}
-      draggable={!!onDragStart}
-      onDragStart={(e) => onDragStart && onDragStart(e, task.id)}
-      onDragOver={(e) => onDragOver && onDragOver(e, task.id)}
-      onDrop={(e) => onDrop && onDrop(e, task.id)}
       className={cn(
         "relative group flex flex-col p-4 transition-all duration-200",
         isCompletedVisual && !isEditing ? "grayscale" : "",
         locked ? "opacity-60 pointer-events-none grayscale" : "",
-        isSubtask ? "ml-2 md:ml-4 mt-1 relative before:content-[''] before:absolute before:-left-3 md:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : "",
-        draggedOverId === task.id && "border-t-2 border-primary pt-2 animate-pulse"
+        isSubtask ? "ml-2 md:ml-4 mt-1 relative before:content-[''] before:absolute before:-left-3 md:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : ""
       )}
     >
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
-        {onDragStart && (
-          <div className="mt-1 shrink-0 cursor-grab active:cursor-grabbing hover:bg-base-dim/50 p-0.5 rounded">
-            <GripIcon />
+        <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
+          {/* Chevron */}
+          {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask)) && (
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)} 
+              className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
+              title={isExpanded ? "Ocultar subtareas" : (task.type === 'Rutina' ? "Ver hábitos" : "Ver/Añadir subtareas")}
+            >
+              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
+          {/* 3 dots options */}
+          <div className="relative flex items-center justify-center">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+              className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
+              title="Opciones"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+
+            {isMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
+                <div className="absolute left-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                  {onUpdate && (
+                    <>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                      >
+                        <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Editar
+                      </button>
+                      <button 
+                        onClick={handleMoveUp}
+                        disabled={isFirstItem}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                        Mover arriba
+                      </button>
+                      <button 
+                        onClick={handleMoveDown}
+                        disabled={isLastItem}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        Mover abajo
+                      </button>
+                    </>
+                  )}
+                  {task.parentId && onUpdate && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation();
+                        const parentT = allTasks.find(t => t.id === task.parentId);
+                        const newParentId = (parentT && parentT.type !== 'Proyecto') ? (parentT.parentId || '') : '';
+                        onUpdate(task.id, { parentId: newParentId });
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <ArrowUpFromLine className="w-3 h-3 text-text-dim" />
+                      Subir de nivel
+                    </button>
+                  )}
+                  {onNavigateToLocation && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onNavigateToLocation(); setIsMenuOpen(false); }} 
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <ArrowUpRight className="w-3 h-3 text-text-dim" />
+                      Ir a ubicación
+                    </button>
+                  )}
+                  <div className="h-[1px] bg-border-line/40 my-1"></div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente "${task.text}"?`)) {
+                        onDelete();
+                      }
+                    }} 
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                  >
+                    <X className="w-3 h-3 text-red-500" />
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          {/* Reordering Arrows */}
+          {showMoveArrows && (
+            <div className="flex flex-col gap-0.5 items-center">
+              <button 
+                onClick={handleMoveUp}
+                disabled={isFirstItem}
+                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                title="Mover arriba"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button 
+                onClick={handleMoveDown}
+                disabled={isLastItem}
+                className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+                title="Mover abajo"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
         <button 
           onClick={() => onToggle(task)} 
           onMouseEnter={() => setIsCheckboxHovered(true)}
@@ -1001,87 +1122,6 @@ export default function TaskItem({
       </div>
       
       {/* Removed completion toggle div from here to move it to the left side */}
-
-      <div className="flex items-center justify-end gap-1 ml-2 mt-1 md:mt-0 self-start relative z-40">
-        {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask)) && (
-          <button 
-            onClick={() => setIsExpanded(!isExpanded)} 
-            className="text-[#a2b29f] hover:text-[#2d2d2d] p-1 cursor-pointer bg-transparent border-0" 
-            title={isExpanded ? "Ocultar subtareas" : (task.type === 'Rutina' ? "Ver hábitos" : "Ver/Añadir subtareas")}
-          >
-            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        )}
-
-        <div className="relative">
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
-            className="text-[#a2b29f] hover:text-text-main p-1 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50"
-            title="Opciones"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="12" cy="5" r="1" />
-              <circle cx="12" cy="19" r="1" />
-            </svg>
-          </button>
-
-          {isMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
-              <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left">
-                {onUpdate && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                  >
-                    <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    Editar
-                  </button>
-                )}
-                {task.parentId && onUpdate && (
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation();
-                      const parentT = allTasks.find(t => t.id === task.parentId);
-                      const newParentId = (parentT && parentT.type !== 'Proyecto') ? (parentT.parentId || '') : '';
-                      onUpdate(task.id, { parentId: newParentId });
-                      setIsMenuOpen(false);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                  >
-                    <ArrowUpFromLine className="w-3 h-3 text-text-dim" />
-                    Subir de nivel
-                  </button>
-                )}
-                {onNavigateToLocation && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onNavigateToLocation(); setIsMenuOpen(false); }} 
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                  >
-                    <ArrowUpRight className="w-3 h-3 text-text-dim" />
-                    Ir a ubicación
-                  </button>
-                )}
-                <div className="h-[1px] bg-border-line/40 my-1"></div>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsMenuOpen(false);
-                    if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente "${task.text}"?`)) {
-                      onDelete();
-                    }
-                  }} 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                >
-                  <X className="w-3 h-3 text-red-500" />
-                  Eliminar
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
       </div>
 
       {isExpanded && (
@@ -1100,10 +1140,7 @@ export default function TaskItem({
               onDeleteTask={onDeleteTask}
               isSubtask 
               hideAreaCategory={sub.type !== 'Hábito'}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              draggedOverId={subDraggedOverId}
+              showMoveArrows={showMoveArrows}
             />
           ))}
           {(!isHabit && task.type !== 'Rutina' && onAddTask) && (

@@ -97,71 +97,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     return [...sortedPending, ...sortedCompleted];
   };
 
-  // Drag and drop states for tasks under projects
-  const [subDraggedId, setSubDraggedId] = useState<string | null>(null);
-  const [subDraggedOverId, setSubDraggedOverId] = useState<string | null>(null);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setSubDraggedId(id);
-    e.dataTransfer.setData('text/plain', id);
-  };
 
-  const handleDragOver = (e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    if (id !== subDraggedOverId) {
-      setSubDraggedOverId(id);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: string, parentId: string) => {
-    e.preventDefault();
-    const sourceId = subDraggedId || e.dataTransfer.getData('text/plain');
-    if (!sourceId || sourceId === targetId) {
-      setSubDraggedId(null);
-      setSubDraggedOverId(null);
-      return;
-    }
-
-    const siblings = tasks.filter(t => t.parentId === parentId);
-    const sortedSiblings = [...siblings].sort((a, b) => {
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-
-    const itemsWithOrders = sortedSiblings.map((t, idx) => ({
-      ...t,
-      order: t.order !== undefined ? t.order : (idx + 1) * 1000
-    }));
-
-    const sourceIndex = itemsWithOrders.findIndex(item => item.id === sourceId);
-    const targetIndex = itemsWithOrders.findIndex(item => item.id === targetId);
-
-    if (sourceIndex === -1 || targetIndex === -1) return;
-
-    const reorderedList = [...itemsWithOrders];
-    const [draggedItem] = reorderedList.splice(sourceIndex, 1);
-    reorderedList.splice(targetIndex, 0, draggedItem);
-
-    const newIndex = targetIndex;
-    let newOrder = 1000;
-
-    if (newIndex === 0) {
-      newOrder = reorderedList[1].order - 1000;
-    } else if (newIndex === reorderedList.length - 1) {
-      newOrder = reorderedList[reorderedList.length - 2].order + 1000;
-    } else {
-      const prevOrder = reorderedList[newIndex - 1].order;
-      const nextOrder = reorderedList[newIndex + 1].order;
-      newOrder = (prevOrder + nextOrder) / 2;
-    }
-
-    onUpdateTask(sourceId, { order: newOrder });
-
-    setSubDraggedId(null);
-    setSubDraggedOverId(null);
-  };
 
   const filteredTasksForGantt = useMemo(() => {
     if (filter === 'Todas') return tasks;
@@ -412,10 +349,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 hideAreaCategory
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
-                onDragStart={sortBy === 'manual' ? handleDragStart : undefined}
-                onDragOver={sortBy === 'manual' ? handleDragOver : undefined}
-                onDrop={sortBy === 'manual' ? (e) => handleDrop(e, sub.id, proj.id) : undefined}
-                draggedOverId={sortBy === 'manual' ? subDraggedOverId : undefined}
+                showMoveArrows={sortBy === 'manual'}
               />
             ))}
 
@@ -613,6 +547,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 onDeleteTask={onDeleteTask}
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
+                showMoveArrows={sortBy === 'manual'}
               />
             ))
           ) : (
@@ -655,6 +590,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       onDeleteTask={onDeleteTask}
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
+                      showMoveArrows={sortBy === 'manual'}
                     />
                   ))}
                 </div>

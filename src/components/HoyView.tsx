@@ -290,14 +290,23 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
         </div>
 
         <div className="w-full lg:w-80 flex flex-col justify-end">
-          <div className="flex justify-between items-end w-full pb-2 mb-1">
+          <div className="flex justify-between items-end w-full pb-1 mb-0.5">
             <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono">Energía Ejecutiva</span>
             <span className="text-xs text-text-main font-bold">
-              {totalEnergy.toFixed(1)}h <span className="text-[#a2b29f] font-normal" title={`Límite inicial: ${ENERGY_LIMIT}h (Invertido hoy: ${hoursWorkedToday.toFixed(1)}h)`}>/ {remainingLimit.toFixed(1)}h</span>
+              {totalEnergy.toFixed(1)}h plan <span className="text-[#a2b29f] font-normal" title={`Límite restante disponible: ${remainingLimit.toFixed(1)}h`}>/ {remainingLimit.toFixed(1)}h disp</span>
             </span>
           </div>
-          <div className="w-full h-[3px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden">
+          <div className="w-full h-[3px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1.5">
             <div className={cn("absolute top-0 left-0 h-full transition-all duration-300", phaseDetails.bg)} style={{ width: `${energyPercent}%` }}></div>
+          </div>
+          <div className="flex justify-between text-[9px] tracking-wide text-text-dim/80 font-mono">
+            <span>Trabajado: <span className="font-bold text-text-main">{hoursWorkedToday.toFixed(1)}h</span></span>
+            <span>Límite: <span className="font-bold text-text-main">{ENERGY_LIMIT.toFixed(1)}h</span></span>
+            {totalEnergy > remainingLimit ? (
+              <span className="text-red-500 font-bold" title={`Te has pasado de tu límite por ${(totalEnergy - remainingLimit).toFixed(1)}h`}>Excedido: +{(totalEnergy - remainingLimit).toFixed(1)}h ⚠️</span>
+            ) : (
+              <span>Libre: <span className="font-bold text-text-main">{(remainingLimit - totalEnergy).toFixed(1)}h</span></span>
+            )}
           </div>
         </div>
       </div>
