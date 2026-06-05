@@ -41,16 +41,20 @@ export default function EstrategiaView({
   // Automatically switch tab if there is a focusTaskId that matches a specific type
   useEffect(() => {
     if (focusTaskId) {
-      const targetTask = tasks.find(t => t.id === focusTaskId);
-      if (targetTask) {
-        if (targetTask.type === 'Rutina' || (targetTask.parentId && tasks.find(p => p.id === targetTask.parentId)?.type === 'Rutina')) {
-          setActiveTab('rutinas');
-        } else {
-          setActiveTab('proyectos');
+      if (config?.areas && config.areas[focusTaskId]) {
+        setActiveTab('areas');
+      } else {
+        const targetTask = tasks.find(t => t.id === focusTaskId);
+        if (targetTask) {
+          if (targetTask.type === 'Rutina' || (targetTask.parentId && tasks.find(p => p.id === targetTask.parentId)?.type === 'Rutina')) {
+            setActiveTab('rutinas');
+          } else {
+            setActiveTab('proyectos');
+          }
         }
       }
     }
-  }, [focusTaskId, tasks]);
+  }, [focusTaskId, tasks, config]);
 
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base text-left">
@@ -108,6 +112,7 @@ export default function EstrategiaView({
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               onNavigate={onNavigate}
+              focusTaskId={focusTaskId}
             />
           </div>
         )}

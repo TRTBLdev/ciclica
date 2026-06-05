@@ -15,6 +15,7 @@ import {
   Plus 
 } from 'lucide-react';
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
+import { useToast } from './ToastProvider';
 
 interface Props {
   config: Config | null;
@@ -40,6 +41,7 @@ export default function CompletadasView({
   onDeleteHistory,
   onAddHistory
 }: Props) {
+  const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
@@ -204,8 +206,10 @@ export default function CompletadasView({
         startTime: finalStartISO,
         endTime: finalEndISO
       });
+      showToast("Registro histórico actualizado con éxito", "success");
     } catch (e) {
       console.error(e);
+      showToast("Error al actualizar el registro", "error");
     }
     setEditingId(null);
   };
@@ -247,6 +251,7 @@ export default function CompletadasView({
       }
     }
     onDeleteHistory(h.id);
+    showToast("Registro eliminado con éxito", "success");
   };
 
   const toggleExpand = (id: string) => {
@@ -428,7 +433,12 @@ export default function CompletadasView({
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
-                        onClick={() => handleDeleteLog(h)}
+                        onClick={() => {
+                          const label = task ? `"${task.text}"` : 'este registro';
+                          if (window.confirm(`¿Estás segura de eliminar la sesión de ejecución de ${label}? (Esto marcará la tarea/hábito como incompleta)`)) {
+                            handleDeleteLog(h);
+                          }
+                        }}
                         className="p-1.5 text-text-dim hover:text-red-500 transition-colors cursor-pointer bg-transparent border-0"
                         title={task?.type === 'Tarea' ? "Revertir cumplimiento de esta tarea y reactivarla" : "Eliminar registro log"}
                       >
@@ -580,8 +590,12 @@ export default function CompletadasView({
                                       <Edit2 className="w-3.5 h-3.5" />
                                     </button>
                                     <button 
-                                      onClick={() => handleDeleteLog(childLog!)}
-                                      className="p-1 text-text-dim hover:text-red-500 transition-colors cursor-pointer bg-transparent border-0"
+                                      onClick={() => {
+                                        if (window.confirm(`¿Estás segura de eliminar la sesión de ejecución de "${child.text}"? (Esto la marcará como incompleta)`)) {
+                                          handleDeleteLog(childLog!);
+                                        }
+                                      }}
+                                      className="p-1.5 text-text-dim hover:text-red-500 transition-colors cursor-pointer bg-transparent border-0"
                                       title="Deshacer cumplimiento de este sub-ítem"
                                     >
                                       <X className="w-3.5 h-3.5" />
@@ -607,6 +621,7 @@ export default function CompletadasView({
                                         const newParentDur = Math.max(0, parseFloat((h.duration - childDur).toFixed(2)));
                                         onUpdateHistory(h.id, { duration: newParentDur });
                                       }
+                                      showToast("Ejecución de sub-ítem registrada con éxito", "success");
                                     }}
                                     className="px-2.5 py-0.5 border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 text-text-main hover:bg-[var(--color-primary)]/20 transition-all text-xs font-mono font-medium cursor-pointer"
                                     title="Registrar ejecución a este bloque"
@@ -891,6 +906,8 @@ export default function CompletadasView({
                         endTime: endIso
                       });
                     }
+
+                    showToast("Sesión retrospectiva registrada con éxito", "success");
 
                     // Reset
                     setRetroTaskId('');

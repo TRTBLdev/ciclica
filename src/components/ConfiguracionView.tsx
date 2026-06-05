@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Settings, Download, Upload, LogOut, Trash2, Check } from 'lucide-react';
 import { Config } from '../types';
 import { cn } from '../lib/utils';
+import { useToast } from './ToastProvider';
 
 interface Props {
   config: Config | null;
@@ -29,6 +30,8 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     URL.revokeObjectURL(url);
   };
 
+  const { showToast } = useToast();
+
   const handleImportVault = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -39,15 +42,17 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
         if (imported.tasks || imported.history || imported.config) {
           importLocalData(imported.tasks || [], imported.history || [], imported.config || {});
           setImportStatus('success');
-          alert("¡Cíclica Vault importado con éxito!");
-          window.location.reload();
+          showToast("¡Cíclica Vault importado con éxito!", "success");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         } else {
           setImportStatus('error');
-          alert("El archivo no tiene el formato correcto de Cíclica.");
+          showToast("El archivo no tiene el formato correcto de Cíclica.", "error");
         }
       } catch (err) {
         setImportStatus('error');
-        alert("Error al leer el archivo JSON.");
+        showToast("Error al leer el archivo JSON.", "error");
       }
     };
     reader.readAsText(file);

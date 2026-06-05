@@ -222,10 +222,10 @@ interface Props {
   onStartTimer?: (taskId: string) => void;
   history?: HistoryRecord[];
   onNavigateToLocation?: () => void;
+  onNavigate?: (view: string, taskId?: string) => void;
 }
 
 export default function TaskItem({ 
-
   task, 
   config, 
   allTasks, 
@@ -239,7 +239,8 @@ export default function TaskItem({
   activeTimer,
   onStartTimer,
   history,
-  onNavigateToLocation
+  onNavigateToLocation,
+  onNavigate
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(task.text);
@@ -700,8 +701,42 @@ export default function TaskItem({
         
         <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">
           {(task.type === 'Tarea' || task.type === 'Proyecto') && <div>{prioBadge()}</div>}
-          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displayCategory && <span className={cn("flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none", getAreaColorClasses(color))}>{displayCategory}</span>}
-          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displaySubCategory && <span className={cn("flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none", getAreaColorClasses(color))}>{displaySubCategory}</span>}
+          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displayCategory && (
+            <span 
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.stopPropagation();
+                  onNavigate('areas', displayCategory);
+                }
+              }}
+              className={cn(
+                "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
+                onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
+                getAreaColorClasses(color)
+              )}
+              title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
+            >
+              {displayCategory}
+            </span>
+          )}
+          {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displaySubCategory && (
+            <span 
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.stopPropagation();
+                  onNavigate('areas', displayCategory);
+                }
+              }}
+              className={cn(
+                "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
+                onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
+                getAreaColorClasses(color)
+              )}
+              title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
+            >
+              {displaySubCategory}
+            </span>
+          )}
           {task.type === 'Hábito' && (
             <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Cumplimiento en los últimos 30 días">
               🌱 {(() => {
@@ -728,13 +763,37 @@ export default function TaskItem({
           {isFutureDate(task.fechaPlanificada) && !isHabit && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
           
           {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
-            <span className="flex items-center h-5 gap-1 text-[10px] text-text-dim font-mono leading-none" title={`Pertenece a: ${parentTask.text}`}>
+            <span 
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.stopPropagation();
+                  onNavigate('proyectos', parentTask.id);
+                }
+              }}
+              className={cn(
+                "flex items-center h-5 gap-1 text-[10px] text-text-dim font-mono leading-none",
+                onNavigate && "cursor-pointer hover:text-text-main transition-colors"
+              )} 
+              title={onNavigate ? `Pertenece a: ${parentTask.text}. Haz clic para ver en Proyectos.` : `Pertenece a: ${parentTask.text}`}
+            >
               <Folder className="w-2.5 h-2.5 text-yellow-500 fill-transparent stroke-[2]" /> {parentTask.text}
             </span>
           )}
           
           {!isSubtask && isActualSubtask && parentTask && parentTask.type !== 'Proyecto' && (
-             <span className="flex items-center h-5 gap-1 text-[10px] font-mono text-text-dim leading-none" title={`Subtarea de: ${parentTask.text}`}>
+             <span 
+               onClick={(e) => {
+                 if (onNavigate) {
+                   e.stopPropagation();
+                   onNavigate('proyectos', parentTask.id);
+                 }
+               }}
+               className={cn(
+                 "flex items-center h-5 gap-1 text-[10px] font-mono text-text-dim leading-none",
+                 onNavigate && "cursor-pointer hover:text-text-main transition-colors"
+               )} 
+               title={onNavigate ? `Subtarea de: ${parentTask.text}. Haz clic para ver en Proyectos.` : `Subtarea de: ${parentTask.text}`}
+             >
               ↳ {parentTask.text}
             </span>
           )}
@@ -797,7 +856,16 @@ export default function TaskItem({
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         )}
-        <button onClick={onDelete} className="text-primary hover:text-red-500 p-1" title="Borrar">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente "${task.text}"?`)) {
+              onDelete();
+            }
+          }} 
+          className="text-primary hover:text-red-500 p-1" 
+          title="Borrar"
+        >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>

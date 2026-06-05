@@ -793,6 +793,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                      onStartTimer={onStartTimer}
                      history={history}
                      onUpdateConfig={onUpdateConfig}
+                     onNavigate={onNavigate}
                    />
                 )}
               </div>
@@ -838,6 +839,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                       onDeleteTask={onDeleteTask} 
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
+                      onNavigate={onNavigate}
                     />
                   ))
                 )}
@@ -879,6 +881,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                       onDeleteTask={onDeleteTask} 
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
+                      onNavigate={onNavigate}
                     />
                   ))
                 )}
@@ -903,7 +906,8 @@ function TimelineRenderer({
   activeTimer,
   onStartTimer,
   history = [],
-  onUpdateConfig
+  onUpdateConfig,
+  onNavigate
 }: { 
   items: any[], 
   config: Config | null, 
@@ -915,7 +919,8 @@ function TimelineRenderer({
   activeTimer?: { taskId: string; isRunning: boolean } | null,
   onStartTimer?: (taskId: string) => void,
   history?: HistoryRecord[],
-  onUpdateConfig?: (c: Partial<Config>) => void
+  onUpdateConfig?: (c: Partial<Config>) => void,
+  onNavigate?: (view: string, taskId?: string) => void
 }) {
   let lastEndTimeMins: number | null = null;
   const renderedItems = [];
@@ -1088,6 +1093,7 @@ function TimelineRenderer({
                   onDeleteTask={onDeleteTask}
                   activeTimer={activeTimer}
                   onStartTimer={onStartTimer}
+                  onNavigate={onNavigate}
                 />
              </div>
           </div>

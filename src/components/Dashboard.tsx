@@ -11,6 +11,7 @@ import Onboarding from './Onboarding';
 import { cn, calculateBiologicalPhase, migrateDatabase, isSameDay } from '../lib/utils';
 import { AppTask, HistoryRecord } from '../types';
 import { UserSession } from '../App';
+import { ToastProvider } from './ToastProvider';
 
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
   const [currentView, setCurrentView] = useState<'hoy' | 'sintonia' | 'estrategia' | 'bitacora' | 'configuracion'>('hoy');
@@ -317,10 +318,11 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   };
 
   return (
-    <div className={cn(
-      "font-sans h-screen w-full flex overflow-hidden transition-all duration-500",
-      config?.theme === 'kyoto-dusk' ? "theme-kyoto-dusk bg-[#181512] text-[#f3eae1]" : "bg-[#fbf9f4] text-[#2d2d2d]"
-    )}>
+    <ToastProvider>
+      <div className={cn(
+        "font-sans h-screen w-full flex overflow-hidden transition-all duration-500",
+        config?.theme === 'kyoto-dusk' ? "theme-kyoto-dusk bg-[#181512] text-[#f3eae1]" : "bg-[#fbf9f4] text-[#2d2d2d]"
+      )}>
       {/* Navigation Sidebar */}
       <div className="hidden md:flex w-[200px] flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-colors duration-500">
         <div className="p-6 border-b border-border-line flex flex-col gap-2 transition-colors duration-500">
@@ -540,7 +542,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           onBackToLogin={onSignOut}
         />
       )}
-    </div>
+      </div>
+    </ToastProvider>
   );
 }
 

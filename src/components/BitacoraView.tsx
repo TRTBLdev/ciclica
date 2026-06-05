@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import CalendarioView from './CalendarioView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
+import { useToast } from './ToastProvider';
 
 const parseLocalDate = (dateStr: string) => {
   const parts = dateStr.split('-');
@@ -41,6 +42,7 @@ export default function BitacoraView({
   onDeleteHistory,
   onAddHistory,
 }: Props) {
+  const { showToast } = useToast();
   // Tabs: 'heatmap' | 'reportes' | 'archivo' | 'completadas'
   const [activeTab, setActiveTab] = useState<'heatmap' | 'reportes' | 'archivo' | 'completadas'>('heatmap');
 
@@ -172,7 +174,7 @@ export default function BitacoraView({
     const start = parseLocalDate(histStart);
     const end = parseLocalDate(histEnd);
     if (start > end) {
-      alert("La fecha de inicio debe ser anterior o igual a la fecha de fin.");
+      showToast("La fecha de inicio debe ser anterior o igual a la fecha de fin.", "warning");
       return;
     }
 
@@ -194,7 +196,7 @@ export default function BitacoraView({
       }
     });
 
-    alert("Ciclo histórico registrado correctamente.");
+    showToast("Ciclo histórico registrado correctamente.", "success");
     setHistStart('');
     setHistEnd('');
     setShowAddHist(false);
@@ -221,7 +223,7 @@ export default function BitacoraView({
           flowLogs: newFlowLogs
         }
       });
-      alert("Ciclo eliminado del historial.");
+      showToast("Ciclo eliminado del historial.", "info");
     }
   };
 
@@ -233,7 +235,7 @@ export default function BitacoraView({
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
       
     if (flowEntries.length === 0) {
-      alert("No hay registros de ciclo para exportar.");
+      showToast("No hay registros de ciclo para exportar.", "warning");
       return;
     }
 

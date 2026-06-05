@@ -16,11 +16,18 @@ interface Props {
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onNavigate?: (view: 'hoy' | 'proyectos' | 'calendario' | 'areas' | 'completadas' | 'rutinas' | 'reportes' | 'syllabus' | 'configuracion', taskId?: string) => void;
+  focusTaskId?: string | null;
 }
 
-export default function AreasView({ config, tasks, history, onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate }: Props) {
+export default function AreasView({ config, tasks, history, onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const areas = config?.areas || {};
+
+  React.useEffect(() => {
+    if (focusTaskId && config?.areas && config.areas[focusTaskId]) {
+      setSelectedArea(focusTaskId);
+    }
+  }, [focusTaskId, config]);
 
   const handleUpdateAreas = (newAreas: Record<string, string | AreaConfig>) => {
     onUpdateConfig({ areas: newAreas });
@@ -104,7 +111,7 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
                 <input 
                   autoFocus
                   type="text" 
-                  className="w-full bg-transparent border-b border-[var(--color-text-main)] py-3 font-bold text-xl uppercase tracking-wider focus:outline-none text-text-main placeholder:text-primary/50" 
+                  className="w-full bg-base border border-border-line rounded-xl px-4 py-2 text-sm uppercase tracking-wider focus:outline-none text-text-main placeholder:text-text-dim/50 font-light" 
                   value={editForm.name} 
                   onChange={e => setEditForm({ ...editForm, name: e.target.value })}
                   placeholder="EJ. SYSTEM, MIND..."
@@ -113,7 +120,7 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
               <div>
                 <label className="text-label block mb-2">INDEX COLOR</label>
                 <select 
-                  className="w-full bg-transparent border-b border-[var(--color-text-main)] py-3 text-sm focus:outline-none uppercase text-text-main bg-base"
+                  className="w-full bg-base border border-border-line rounded-xl px-4 py-2 text-sm focus:outline-none uppercase text-text-main"
                   value={editForm.color}
                   onChange={e => setEditForm({ ...editForm, color: e.target.value })}
                 >
@@ -147,7 +154,7 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
                   onChange={e => setNewCat(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(e); }}
                   placeholder="AGREGAR CATEGORÍA..."
-                  className="flex-1 bg-transparent border-b border-[var(--color-primary)] py-2 text-xs uppercase focus:outline-none text-text-main focus:border-[var(--color-text-main)]"
+                  className="flex-1 bg-base border border-border-line rounded-xl px-4 py-2 text-xs uppercase focus:outline-none text-text-main"
                 />
                 <button type="button" onClick={handleAddCategory} className="text-text-main font-mono uppercase tracking-wider font-bold text-xs hover:underline transition-all cursor-pointer">
                   + Añadir
@@ -292,10 +299,10 @@ function AreaDetail({
   const [editNewCat, setEditNewCat] = useState('');
 
   // Expand / collapse states for rows
-  const [expandGoals, setExpandGoals] = useState(true);
-  const [expandProjects, setExpandProjects] = useState(true);
-  const [expandHabits, setExpandHabits] = useState(true);
-  const [expandTasks, setExpandTasks] = useState(true);
+  const [expandGoals, setExpandGoals] = useState(false);
+  const [expandProjects, setExpandProjects] = useState(false);
+  const [expandHabits, setExpandHabits] = useState(false);
+  const [expandTasks, setExpandTasks] = useState(false);
 
   const [addingGoal, setAddingGoal] = useState(false);
   const [newGoalText, setNewGoalText] = useState('');
@@ -401,7 +408,7 @@ function AreaDetail({
               <label className="text-[10px] font-mono uppercase tracking-wider text-text-dim block mb-1">Nombre del Área</label>
               <input 
                 type="text" 
-                className="w-full bg-transparent border-b border-[var(--color-text-main)] py-2 font-bold text-lg uppercase focus:outline-none text-text-main" 
+                className="w-full bg-base border border-border-line rounded-xl px-4 py-2 font-light text-sm uppercase tracking-wider focus:outline-none text-text-main" 
                 value={editName} 
                 onChange={e => setEditName(e.target.value)}
               />
@@ -409,7 +416,7 @@ function AreaDetail({
             <div>
               <label className="text-[10px] font-mono uppercase tracking-wider text-text-dim block mb-1">Color de Acento</label>
               <select 
-                className="w-full bg-transparent border-b border-[var(--color-text-main)] py-2 text-sm focus:outline-none uppercase font-mono text-text-main bg-base"
+                className="w-full bg-base border border-border-line rounded-xl px-4 py-2 text-sm focus:outline-none uppercase text-text-main"
                 value={editColor}
                 onChange={e => setEditColor(e.target.value)}
               >
@@ -443,7 +450,7 @@ function AreaDetail({
                 onChange={e => setEditNewCat(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleAddEditCategory(e); }}
                 placeholder="NUEVA CATEGORÍA..."
-                className="flex-1 bg-transparent border-b border-[var(--color-primary)] py-1.5 text-xs uppercase focus:outline-none font-mono text-text-main focus:border-[var(--color-text-main)]"
+                className="flex-1 bg-base border border-border-line rounded-xl px-4 py-2 text-xs uppercase focus:outline-none text-text-main"
               />
               <button type="button" onClick={handleAddEditCategory} className="text-text-main font-mono uppercase tracking-wider font-bold text-xs hover:underline transition-all cursor-pointer">
                 + Añadir

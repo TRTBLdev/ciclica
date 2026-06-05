@@ -19,12 +19,12 @@ export default function App() {
   // --- INVITATION GATE CONFIGURATION & STATES ---
   const REQUIRE_INVITATION = true;
   
-  // Códigos oficiales correctos
-  const MASTER_CODE = 'TRTBL-9K2F-5X8B-CICLICA';
-  const INVITED_CODES = [
-    'CICLICA-8F2K',
-    'CICLICA-9X7P',
-    'CICLICA-3B5D'
+  // Hashes SHA-256 de los códigos oficiales
+  const MASTER_HASH = '094870ffabbd68da5a43d21d84dfb72fbb4c5e4ce5af90e0eb1236d3abce48ed';
+  const INVITED_HASHES = [
+    '0678566d9a2553d7bd7f510e92f351c271d39eda909858cd379e7c46fc3deeac', // CICLICA-8F2K
+    '68d091e116f6743672ebe50ea710f1c09dfc7f147c3c938e43e83c3aa087c6c2', // CICLICA-9X7P
+    '179029ca0787a175cdcfa7248a82ced954116902c97dbcd471e37ee92e52f087'  // CICLICA-3B5D
   ];
 
   const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
@@ -33,6 +33,7 @@ export default function App() {
   });
   const [invitationInput, setInvitationInput] = useState('');
   const [invitationError, setInvitationError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [localUser, setLocalUser] = useState<UserSession | null>(() => {
     const saved = localStorage.getItem('ciclica_use_local');
@@ -42,22 +43,37 @@ export default function App() {
     return null;
   });
 
-  const handleVerifyInvitation = (e: React.FormEvent) => {
+  const hashStringToSHA256 = async (str: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleVerifyInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
     const input = invitationInput.trim();
+    setIsVerifying(true);
+    setInvitationError('');
     
-    // Verificamos si el código ingresado coincide con tu código maestro o la lista de invitados
-    // Soporta espacio al final si el usuario lo ingresa
-    const isValid = input === MASTER_CODE || input === MASTER_CODE.trim() || INVITED_CODES.includes(input);
-    
-    if (isValid) {
-      localStorage.setItem('ciclica_authorized', 'true');
-      localStorage.setItem('ciclica_use_local', 'true');
-      setIsAuthorized(true);
-      setLocalUser({ uid: 'local_user', displayName: 'Usuaria Local', email: null });
-      setInvitationError('');
-    } else {
-      setInvitationError('Código de invitación incorrecto o expirado.');
+    try {
+      const hashedInput = await hashStringToSHA256(input);
+      const isValid = hashedInput === MASTER_HASH || INVITED_HASHES.includes(hashedInput);
+      
+      if (isValid) {
+        localStorage.setItem('ciclica_authorized', 'true');
+        localStorage.setItem('ciclica_use_local', 'true');
+        setIsAuthorized(true);
+        setLocalUser({ uid: 'local_user', displayName: 'Usuaria Local', email: null });
+        setInvitationError('');
+      } else {
+        setInvitationError('Código de invitación incorrecto o expirado.');
+      }
+    } catch (err) {
+      setInvitationError('Error al verificar el código de invitación.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -104,6 +120,7 @@ export default function App() {
                 onChange={e => setInvitationInput(e.target.value)}
                 className="px-4 py-2.5 bg-white border border-[#e4e2dd] rounded-xl text-xs outline-none focus:border-[#a2b29f] transition-all text-[#2d2d2d]"
                 required
+                disabled={isVerifying}
               />
             </div>
 
@@ -113,9 +130,10 @@ export default function App() {
 
             <button
               type="submit"
-              className="w-full bg-[#2d2d2d] text-white py-3 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#5d5d5d] transition-colors mt-2 cursor-pointer text-center"
+              disabled={isVerifying}
+              className="w-full bg-[#2d2d2d] text-white py-3 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#5d5d5d] transition-colors mt-2 cursor-pointer text-center disabled:opacity-50"
             >
-              Verificar y Entrar
+              {isVerifying ? 'Verificando...' : 'Verificar y Entrar'}
             </button>
           </form>
           

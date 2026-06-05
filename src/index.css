@@ -220,3 +220,8 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-line) transparent;
 }
+
+/* Prevent transparent absolute dropdown overlay text overlapping */
+.absolute.glass-matte {
+  background-color: var(--color-base) !important;
+}

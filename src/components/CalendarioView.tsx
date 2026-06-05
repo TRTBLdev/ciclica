@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, Activity, Wrench, ChevronDown, ChevronRight, RotateCw, Repeat } from 'lucide-react';
 import { AppTask, Config, HistoryRecord } from '../types';
 import { timeToMins, extractSafeTime, isSameDay } from '../lib/utils';
@@ -13,6 +13,16 @@ interface Props {
 export default function CalendarioView({ config, tasks, history }: Props) {
   const [filter, setFilter] = useState('Todas');
   const [expandedRoutines, setExpandedRoutines] = useState<string[]>([]);
+  const dailyScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (dailyScrollRef.current) {
+        dailyScrollRef.current.scrollLeft = dailyScrollRef.current.scrollWidth;
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [filter]);
   
   const toggleExpand = (id: string) => {
     setExpandedRoutines(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -63,13 +73,37 @@ export default function CalendarioView({ config, tasks, history }: Props) {
     <div className="flex flex-col animate-in fade-in px-6 md:px-10 pt-10 pb-16 max-w-4xl mx-auto w-full">
       <Header filter={filter} setFilter={setFilter} config={config} />
 
+      {/* Leyenda de Colores */}
+      <div className="flex flex-wrap gap-x-6 gap-y-3 text-[10px] font-mono uppercase tracking-wider text-text-dim/80 mb-6 border-b border-border-line/10 pb-4 justify-start">
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-[var(--color-primary)] rounded-sm"></div>
+          <span>Hábito/Acción</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-accent rounded-sm"></div>
+          <span>Rutina / Progreso</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-[var(--color-primary)]/20 border border-[var(--color-primary)]/30 flex items-center justify-center text-[8px] font-bold text-primary rounded-sm">1</div>
+          <span>Pulso Logrado</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-amber-500/20 border border-amber-500/25 flex items-center justify-center text-[8px] font-bold text-amber-600 rounded-sm">1</div>
+          <span>Pulso en Progreso</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-red-500/20 border border-red-500/25 flex items-center justify-center text-[8px] font-bold text-red-600 rounded-sm">!</div>
+          <span>Pulso Excedido (Evitar)</span>
+        </div>
+      </div>
+
       {topLevelDaily.length > 0 && (
         <div className="bg-transparent py-4 md:py-6 border-b border-border-line/40 mb-8 text-left">
           <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 pb-2 border-b border-border-line/20 flex items-center gap-2">
             Hábitos Diarios y Eventos
           </h3>
           
-          <div className="overflow-x-auto pb-4">
+          <div ref={dailyScrollRef} className="overflow-x-auto pb-4">
             <table className="w-full text-sm text-left border-collapse min-w-[800px]">
               <thead>
                 <tr>
