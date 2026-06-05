@@ -3,7 +3,7 @@ import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus
 import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import GanttChart from './GanttChart';
-import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses } from '../lib/utils';
+import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -47,30 +47,36 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
-    return [...taskList].sort((a, b) => {
-      if (criterion === 'manual') {
-        const aOrder = a.order !== undefined ? a.order : 100000;
-        const bOrder = b.order !== undefined ? b.order : 100000;
-        if (a.order !== undefined || b.order !== undefined) {
-          return aOrder - bOrder;
-        }
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      }
-      if (criterion === 'priority') {
-        const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
+    const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
+
+    const pending = taskList.filter(t => !isCompletedVisual(t));
+    const completed = taskList.filter(t => isCompletedVisual(t));
+
+    let sortedPending = [...pending];
+    if (criterion === 'manual') {
+      const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const withOrders = baseline.map((t, idx) => ({
+        ...t,
+        order: t.order !== undefined ? t.order : (idx + 1) * 1000
+      }));
+      sortedPending = withOrders.sort((a, b) => a.order - b.order);
+    } else if (criterion === 'priority') {
+      const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
+      sortedPending.sort((a, b) => {
         const aVal = pVal[a.priority || 'Baja'] || 1;
         const bVal = pVal[b.priority || 'Baja'] || 1;
         return bVal - aVal;
-      }
-      if (criterion === 'name') {
-        return a.text.localeCompare(b.text);
-      }
-      if (criterion === 'date') {
+      });
+    } else if (criterion === 'name') {
+      sortedPending.sort((a, b) => a.text.localeCompare(b.text));
+    } else if (criterion === 'date') {
+      sortedPending.sort((a, b) => {
         const aTime = a.fechaPlanificada ? new Date(a.fechaPlanificada).getTime() : new Date(a.createdAt).getTime();
         const bTime = b.fechaPlanificada ? new Date(b.fechaPlanificada).getTime() : new Date(b.createdAt).getTime();
         return aTime - bTime;
-      }
-      if (criterion === 'progress') {
+      });
+    } else if (criterion === 'progress') {
+      sortedPending.sort((a, b) => {
         const getProgress = (t: AppTask) => {
           if (t.type === 'Proyecto') {
             const subs = tasks.filter(s => s.parentId === t.id);
@@ -79,9 +85,16 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           return t.completed ? 1 : 0;
         };
         return getProgress(b) - getProgress(a);
-      }
-      return 0;
+      });
+    }
+
+    const sortedCompleted = [...completed].sort((a, b) => {
+      const aTime = a.lastExecutedAt ? new Date(a.lastExecutedAt).getTime() : new Date(a.createdAt).getTime();
+      const bTime = b.lastExecutedAt ? new Date(b.lastExecutedAt).getTime() : new Date(b.createdAt).getTime();
+      return aTime - bTime;
     });
+
+    return [...sortedPending, ...sortedCompleted];
   };
 
   // Drag and drop states for tasks under projects

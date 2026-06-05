@@ -404,16 +404,25 @@ export default function TaskItem({
 
   const subtasks = allTasks.filter(t => t.parentId === task.id);
   const getSubtasksWithOrders = () => {
-    const sorted = [...subtasks].sort((a, b) => {
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-    return sorted.map((t, idx) => ({
+    const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
+
+    const pending = subtasks.filter(t => !isCompletedVisual(t));
+    const completed = subtasks.filter(t => isCompletedVisual(t));
+
+    const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const withOrders = baseline.map((t, idx) => ({
       ...t,
       order: t.order !== undefined ? t.order : (idx + 1) * 1000
     }));
+    const sortedPending = withOrders.sort((a, b) => a.order - b.order);
+
+    const sortedCompleted = [...completed].sort((a, b) => {
+      const aTime = a.lastExecutedAt ? new Date(a.lastExecutedAt).getTime() : new Date(a.createdAt).getTime();
+      const bTime = b.lastExecutedAt ? new Date(b.lastExecutedAt).getTime() : new Date(b.createdAt).getTime();
+      return aTime - bTime;
+    });
+
+    return [...sortedPending, ...sortedCompleted];
   };
 
   const activeProjects = allTasks.filter(t => t.type === 'Proyecto' && !t.completed);

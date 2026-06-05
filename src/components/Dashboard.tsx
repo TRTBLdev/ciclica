@@ -215,7 +215,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   const chNextDate = getNextPlannedDate(ch.fechaPlanificada, ch.frecuencia || 1, ch.frecuenciaUnidad || 'días');
                   tasksToUpdate.push({
                     id: ch.id,
-                    updates: { completed: false, fechaPlanificada: chNextDate }
+                    updates: { completed: false, fechaPlanificada: chNextDate, lastExecutedAt: new Date().toISOString() }
                   });
                   historyToAdd.push({
                     userId: user.uid,
@@ -233,18 +233,18 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           const nextPlannedStr = getNextPlannedDate(t.fechaPlanificada, t.frecuencia || 1, t.frecuenciaUnidad || 'días');
           tasksToUpdate.push({
             id: t.id,
-            updates: { completed: false, fechaPlanificada: nextPlannedStr }
+            updates: { completed: false, fechaPlanificada: nextPlannedStr, lastExecutedAt: new Date().toISOString() }
           });
         } else {
           tasksToUpdate.push({
             id: t.id,
-            updates: { completed: false, fechaPlanificada: new Date().toISOString() }
+            updates: { completed: false, fechaPlanificada: new Date().toISOString(), lastExecutedAt: '' }
           });
         }
       } else if (t.type !== 'Pulso') {
         tasksToUpdate.push({
           id: t.id,
-          updates: { completed: isComp, view: isComp ? '' : t.view }
+          updates: { completed: isComp, view: isComp ? '' : t.view, lastExecutedAt: isComp ? new Date().toISOString() : '' }
         });
 
         if (isComp && t.parentId) {
