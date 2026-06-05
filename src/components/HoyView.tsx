@@ -1102,7 +1102,7 @@ function TimelineRenderer({
         <div key={t.id} className="relative flex flex-col mb-4">
           <div className="flex items-stretch gap-2">
              <div className="w-0.5 flex-shrink-0" style={{ backgroundColor: `var(--color-${color}-400, #94a3b8)` }}></div>
-             <div className="flex-1 w-full overflow-hidden">
+             <div className="flex-1 w-full">
                <TaskItem 
                   task={t} 
                   config={config} 
