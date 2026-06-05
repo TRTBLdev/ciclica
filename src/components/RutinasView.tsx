@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import TaskItem from './TaskItem';
 import { RotateCw, Plus, ChevronDown, ChevronUp, Edit2, Trash2, Save, Repeat, Activity, Sliders, X } from 'lucide-react';
-import { cn, getAreaColorClasses, isSameDay } from '../lib/utils';
+import { cn, getAreaColorClasses, isSameDay, isFutureDate } from '../lib/utils';
 
 interface Props {
   config: Config | null;
@@ -48,6 +48,101 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   const [editingPulsoId, setEditingPulsoId] = useState<string | null>(null);
   const [editPulsoForm, setEditPulsoForm] = useState({ text: '', targetCount: 1, unitLabel: 'veces', polaridad: 'Reforzar', category: '', subCategory: '' });
 
+  // Drag and drop states for habits in routines
+  const [subDraggedId, setSubDraggedId] = useState<string | null>(null);
+  const [subDraggedOverId, setSubDraggedOverId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name'>('manual');
+
+  const sortTasks = (taskList: AppTask[], criterion: string) => {
+    return [...taskList].sort((a, b) => {
+      if (criterion === 'manual') {
+        const aOrder = a.order !== undefined ? a.order : 100000;
+        const bOrder = b.order !== undefined ? b.order : 100000;
+        if (a.order !== undefined || b.order !== undefined) {
+          return aOrder - bOrder;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (criterion === 'priority') {
+        const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
+        const aVal = pVal[a.priority || 'Baja'] || 1;
+        const bVal = pVal[b.priority || 'Baja'] || 1;
+        return bVal - aVal;
+      }
+      if (criterion === 'name') {
+        return a.text.localeCompare(b.text);
+      }
+      if (criterion === 'date') {
+        const aTime = a.fechaPlanificada ? new Date(a.fechaPlanificada).getTime() : new Date(a.createdAt).getTime();
+        const bTime = b.fechaPlanificada ? new Date(b.fechaPlanificada).getTime() : new Date(b.createdAt).getTime();
+        return aTime - bTime;
+      }
+      return 0;
+    });
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setSubDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== subDraggedOverId) {
+      setSubDraggedOverId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string, parentId: string) => {
+    e.preventDefault();
+    const sourceId = subDraggedId || e.dataTransfer.getData('text/plain');
+    if (!sourceId || sourceId === targetId) {
+      setSubDraggedId(null);
+      setSubDraggedOverId(null);
+      return;
+    }
+
+    const siblings = tasks.filter(t => t.parentId === parentId && t.type === 'Hábito');
+    const sortedSiblings = [...siblings].sort((a, b) => {
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    const itemsWithOrders = sortedSiblings.map((t, idx) => ({
+      ...t,
+      order: t.order !== undefined ? t.order : (idx + 1) * 1000
+    }));
+
+    const sourceIndex = itemsWithOrders.findIndex(item => item.id === sourceId);
+    const targetIndex = itemsWithOrders.findIndex(item => item.id === targetId);
+
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const reorderedList = [...itemsWithOrders];
+    const [draggedItem] = reorderedList.splice(sourceIndex, 1);
+    reorderedList.splice(targetIndex, 0, draggedItem);
+
+    const newIndex = targetIndex;
+    let newOrder = 1000;
+
+    if (newIndex === 0) {
+      newOrder = reorderedList[1].order - 1000;
+    } else if (newIndex === reorderedList.length - 1) {
+      newOrder = reorderedList[reorderedList.length - 2].order + 1000;
+    } else {
+      const prevOrder = reorderedList[newIndex - 1].order;
+      const nextOrder = reorderedList[newIndex + 1].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+
+    onUpdateTask(sourceId, { order: newOrder });
+
+    setSubDraggedId(null);
+    setSubDraggedOverId(null);
+  };
+
   React.useEffect(() => {
     if (focusTaskId) {
       const foundTask = tasks.find(t => t.id === focusTaskId);
@@ -81,8 +176,8 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
     }
   }, [focusTaskId, tasks]);
 
-  const routines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
-  const standaloneHabits = tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId)));
+  const routines = sortTasks(tasks.filter(t => t.type === 'Rutina' && !t.completed), sortBy);
+  const standaloneHabits = sortTasks(tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId))), sortBy);
   const pulsos = tasks.filter(t => t.type === 'Pulso');
 
   const startEdit = (routine: AppTask) => {
@@ -208,25 +303,41 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
         </div>
 
         {/* Collapsible Toggles - Stacked vertically */}
-        <div className="flex flex-col items-end gap-3 font-mono text-xs uppercase tracking-wider font-bold text-right">
-          <button 
-            onClick={() => { setShowAddRoutine(!showAddRoutine); setShowAddHabit(false); setShowAddPulso(false); }}
-            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddRoutine ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-          >
-            {showAddRoutine ? "✕ Cerrar" : "+ Nueva Rutina"}
-          </button>
-          <button 
-            onClick={() => { setShowAddHabit(!showAddHabit); setShowAddRoutine(false); setShowAddPulso(false); }}
-            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddHabit ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-          >
-            {showAddHabit ? "✕ Cerrar" : "+ Hábito Simple"}
-          </button>
-          <button 
-            onClick={() => { setShowAddPulso(!showAddPulso); setShowAddRoutine(false); setShowAddHabit(false); }}
-            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddPulso ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-          >
-            {showAddPulso ? "✕ Cerrar" : "+ Nuevo Pulso"}
-          </button>
+        <div className="flex flex-col items-end gap-4 font-mono text-xs uppercase tracking-wider font-bold text-right">
+          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value as any)} 
+              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
+            >
+              <option value="manual">Manual</option>
+              <option value="priority">Prioridad</option>
+              <option value="date">Fecha</option>
+              <option value="name">Nombre</option>
+            </select>
+            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
+          </div>
+          
+          <div className="flex flex-col items-end gap-3">
+            <button 
+              onClick={() => { setShowAddRoutine(!showAddRoutine); setShowAddHabit(false); setShowAddPulso(false); }}
+              className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddRoutine ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
+            >
+              {showAddRoutine ? "✕ Cerrar" : "+ Nueva Rutina"}
+            </button>
+            <button 
+              onClick={() => { setShowAddHabit(!showAddHabit); setShowAddRoutine(false); setShowAddPulso(false); }}
+              className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddHabit ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
+            >
+              {showAddHabit ? "✕ Cerrar" : "+ Hábito Simple"}
+            </button>
+            <button 
+              onClick={() => { setShowAddPulso(!showAddPulso); setShowAddRoutine(false); setShowAddHabit(false); }}
+              className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddPulso ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
+            >
+              {showAddPulso ? "✕ Cerrar" : "+ Nuevo Pulso"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -432,8 +543,9 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
         ) : (
           routines.map(routine => {
             const isExpanded = expandedRoutines.includes(routine.id);
-            const subtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
-            const routineDuration = subtasks.filter(t => !t.completed).reduce((acc, t) => acc + (t.duracion || 0), 0);
+            const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
+            const subtasks = sortTasks(rawSubtasks, sortBy);
+            const routineDuration = subtasks.filter(t => !isFutureDate(t.fechaPlanificada)).reduce((acc, t) => acc + (t.duracion || 0), 0);
             
             if (editingRoutineId === routine.id) {
               return (
@@ -583,7 +695,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                 <div className="w-full bg-[var(--color-border-line)]/30 h-[1px] mb-1">
                   <div 
                     className="h-full bg-[var(--color-primary)] transition-all duration-500" 
-                    style={{ width: `${subtasks.length > 0 ? (subtasks.filter(s => s.completed).length / subtasks.length) * 100 : 0}%` }}
+                    style={{ width: `${subtasks.length > 0 ? (subtasks.filter(s => isFutureDate(s.fechaPlanificada)).length / subtasks.length) * 100 : 0}%` }}
                   ></div>
                 </div>
 
@@ -603,6 +715,10 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         onDeleteTask={onDeleteTask}
                         isSubtask 
                         hideAreaCategory={false}
+                        onDragStart={sortBy === 'manual' ? handleDragStart : undefined}
+                        onDragOver={sortBy === 'manual' ? handleDragOver : undefined}
+                        onDrop={sortBy === 'manual' ? (e) => handleDrop(e, sub.id, routine.id) : undefined}
+                        draggedOverId={sortBy === 'manual' ? subDraggedOverId : undefined}
                       />
                     ))}
                     <div className="flex flex-col gap-1 mt-1 z-10 w-full pr-2">

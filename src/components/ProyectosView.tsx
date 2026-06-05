@@ -44,6 +44,111 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [newTaskText, setNewTaskText] = useState('');
   const [expandedProjs, setExpandedProjs] = useState<string[]>([]);
   const [showGantt, setShowGantt] = useState(false);
+  const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
+
+  const sortTasks = (taskList: AppTask[], criterion: string) => {
+    return [...taskList].sort((a, b) => {
+      if (criterion === 'manual') {
+        const aOrder = a.order !== undefined ? a.order : 100000;
+        const bOrder = b.order !== undefined ? b.order : 100000;
+        if (a.order !== undefined || b.order !== undefined) {
+          return aOrder - bOrder;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (criterion === 'priority') {
+        const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
+        const aVal = pVal[a.priority || 'Baja'] || 1;
+        const bVal = pVal[b.priority || 'Baja'] || 1;
+        return bVal - aVal;
+      }
+      if (criterion === 'name') {
+        return a.text.localeCompare(b.text);
+      }
+      if (criterion === 'date') {
+        const aTime = a.fechaPlanificada ? new Date(a.fechaPlanificada).getTime() : new Date(a.createdAt).getTime();
+        const bTime = b.fechaPlanificada ? new Date(b.fechaPlanificada).getTime() : new Date(b.createdAt).getTime();
+        return aTime - bTime;
+      }
+      if (criterion === 'progress') {
+        const getProgress = (t: AppTask) => {
+          if (t.type === 'Proyecto') {
+            const subs = tasks.filter(s => s.parentId === t.id);
+            return subs.length ? (subs.filter(s => s.completed).length / subs.length) : (t.completed ? 1 : 0);
+          }
+          return t.completed ? 1 : 0;
+        };
+        return getProgress(b) - getProgress(a);
+      }
+      return 0;
+    });
+  };
+
+  // Drag and drop states for tasks under projects
+  const [subDraggedId, setSubDraggedId] = useState<string | null>(null);
+  const [subDraggedOverId, setSubDraggedOverId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setSubDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== subDraggedOverId) {
+      setSubDraggedOverId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string, parentId: string) => {
+    e.preventDefault();
+    const sourceId = subDraggedId || e.dataTransfer.getData('text/plain');
+    if (!sourceId || sourceId === targetId) {
+      setSubDraggedId(null);
+      setSubDraggedOverId(null);
+      return;
+    }
+
+    const siblings = tasks.filter(t => t.parentId === parentId);
+    const sortedSiblings = [...siblings].sort((a, b) => {
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    const itemsWithOrders = sortedSiblings.map((t, idx) => ({
+      ...t,
+      order: t.order !== undefined ? t.order : (idx + 1) * 1000
+    }));
+
+    const sourceIndex = itemsWithOrders.findIndex(item => item.id === sourceId);
+    const targetIndex = itemsWithOrders.findIndex(item => item.id === targetId);
+
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const reorderedList = [...itemsWithOrders];
+    const [draggedItem] = reorderedList.splice(sourceIndex, 1);
+    reorderedList.splice(targetIndex, 0, draggedItem);
+
+    const newIndex = targetIndex;
+    let newOrder = 1000;
+
+    if (newIndex === 0) {
+      newOrder = reorderedList[1].order - 1000;
+    } else if (newIndex === reorderedList.length - 1) {
+      newOrder = reorderedList[reorderedList.length - 2].order + 1000;
+    } else {
+      const prevOrder = reorderedList[newIndex - 1].order;
+      const nextOrder = reorderedList[newIndex + 1].order;
+      newOrder = (prevOrder + nextOrder) / 2;
+    }
+
+    onUpdateTask(sourceId, { order: newOrder });
+
+    setSubDraggedId(null);
+    setSubDraggedOverId(null);
+  };
 
   const filteredTasksForGantt = useMemo(() => {
     if (filter === 'Todas') return tasks;
@@ -96,8 +201,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     projects = projects.filter(p => p.category === filter);
   }
 
-  const activeProjs = projects.filter(p => !p.completed);
-  const compProjs = projects.filter(p => p.completed);
+  const activeProjs = sortTasks(projects.filter(p => !p.completed), sortBy);
+  const compProjs = sortTasks(projects.filter(p => p.completed), sortBy);
 
   // Standalone tasks (Tareas Simples)
   let standaloneTasks = tasks.filter(t => {
@@ -115,8 +220,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     standaloneTasks = standaloneTasks.filter(t => t.category === filter);
   }
 
-  const activeStandaloneTasks = standaloneTasks.filter(t => !t.completed);
-  const completedStandaloneTasks = standaloneTasks.filter(t => t.completed);
+  const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed), sortBy);
+  const completedStandaloneTasks = sortTasks(standaloneTasks.filter(t => t.completed), sortBy);
 
   const startEdit = (proj: AppTask) => {
     setEditProjForm({ 
@@ -162,7 +267,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   };
 
   const renderProjBlock = (projList: AppTask[]) => projList.map(proj => {
-    const subtasks = tasks.filter(t => t.parentId === proj.id);
+    const rawSubtasks = tasks.filter(t => t.parentId === proj.id);
+    const subtasks = sortTasks(rawSubtasks, sortBy);
     const progress = subtasks.length 
       ? Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100) 
       : (proj.completed ? 100 : 0);
@@ -293,6 +399,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 hideAreaCategory
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
+                onDragStart={sortBy === 'manual' ? handleDragStart : undefined}
+                onDragOver={sortBy === 'manual' ? handleDragOver : undefined}
+                onDrop={sortBy === 'manual' ? (e) => handleDrop(e, sub.id, proj.id) : undefined}
+                draggedOverId={sortBy === 'manual' ? subDraggedOverId : undefined}
               />
             ))}
 
@@ -369,10 +479,25 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               onChange={(e) => setFilter(e.target.value)} 
               className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
             >
-              <option value="Todas">Todas las áreas</option>
+              <option value="Todas">Todas</option>
               {Object.keys(config?.areas || {}).map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
+            </select>
+            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
+          </div>
+
+          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value as any)} 
+              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
+            >
+              <option value="manual">Manual</option>
+              <option value="priority">Prioridad</option>
+              <option value="date">Fecha</option>
+              <option value="name">Nombre</option>
+              <option value="progress">Progreso</option>
             </select>
             <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
           </div>
