@@ -159,7 +159,16 @@ export default function CompletadasView({
     return filteredHistoryByDate.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return true;
-      return task.type === 'Tarea' || task.type === 'Proyecto';
+      if (task.type !== 'Tarea' && task.type !== 'Proyecto') return false;
+
+      // Ocultar del nivel superior si tiene un padre y ese padre tiene un registro el mismo día
+      if (task.parentId) {
+        const parentHasLogSameDay = filteredHistoryByDate.some(ph => 
+          ph.taskId === task.parentId && isSameDay(h.date, ph.date)
+        );
+        if (parentHasLogSameDay) return false;
+      }
+      return true;
     });
   }, [filteredHistoryByDate, tasks]);
 
@@ -167,7 +176,16 @@ export default function CompletadasView({
     return filteredHistoryByDate.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return false;
-      return task.type === 'Hábito' || task.type === 'Rutina';
+      if (task.type !== 'Hábito' && task.type !== 'Rutina') return false;
+
+      // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
+      if (task.parentId) {
+        const parentHasLogSameDay = filteredHistoryByDate.some(ph => 
+          ph.taskId === task.parentId && isSameDay(h.date, ph.date)
+        );
+        if (parentHasLogSameDay) return false;
+      }
+      return true;
     });
   }, [filteredHistoryByDate, tasks]);
 
