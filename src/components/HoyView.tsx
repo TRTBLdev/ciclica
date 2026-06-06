@@ -42,6 +42,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   // Editing pulso state
   const [editingPulsoId, setEditingPulsoId] = useState<string | null>(null);
   const [editPulsoForm, setEditPulsoForm] = useState({ text: '', targetCount: 1, unitLabel: 'veces', polaridad: 'Reforzar', category: '', subCategory: '' });
+  const [openMenuPulsoId, setOpenMenuPulsoId] = useState<string | null>(null);
 
   // Collapsible sections state
   const [showPulsos, setShowPulsos] = useState(true);
@@ -542,7 +543,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                 className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
               >
                 <span className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-emerald-500" /> Pulsos Diarios (Hábitos Cuantitativos)
+                  <Activity className="w-4 h-4 text-emerald-500" /> Pulsos Diarios
                 </span>
                 <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal">
                   {showPulsos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -663,35 +664,33 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                     return (
                       <div 
                         key={t.id} 
-                        className="relative group p-2 flex items-stretch bg-transparent rounded-none transition-all animate-in zoom-in-95 duration-200 text-left flex-1 min-w-[160px] sm:min-w-[180px] max-w-[280px] border-r border-border-line/30 last:border-r-0"
+                        className="relative group py-1.5 px-3 flex items-center bg-transparent rounded-none transition-all animate-in zoom-in-95 duration-200 text-left flex-none w-fit min-w-[160px] max-w-[220px] border-r border-border-line/30 last:border-r-0 gap-2"
                       >
-                        <div className="flex-1 pr-2 min-w-0 flex flex-col justify-between">
+                        <div className="flex-1 min-w-0 flex flex-col gap-1">
                           {/* Top row: text and badges */}
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h4 className="text-xs font-medium text-text-main truncate" title={t.text}>{t.text}</h4>
-                              {t.category && (
-                                <span className={cn("text-[7.5px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded-full border border-dashed leading-none", 
-                                  getAreaColorClasses(typeof (config?.areas?.[t.category] || 'slate') === 'string' ? config?.areas?.[t.category] as string || 'slate' : (config?.areas?.[t.category] as any)?.color || 'slate')
-                                )}>
-                                  {t.category}
-                                </span>
-                              )}
-                              {t.polaridad && (
-                                <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
-                                  {t.polaridad === 'Abandonar' ? '📉' : '📈'}
-                                </span>
-                              )}
-                            </div>
-                            
-                            {/* Progress bar */}
-                            <div className="h-[1.5px] w-full bg-[#efede8]/60 dark:bg-border-line/50 relative rounded-none overflow-hidden my-1">
-                              <div className={cn("h-full transition-all duration-300 absolute top-0 left-0", isDone ? "bg-[#81b29a]" : "bg-[#73c2b8]")} style={{ width: `${progress}%` }}></div>
-                            </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-xs font-medium text-text-main truncate" title={t.text}>{t.text}</h4>
+                            {t.category && (
+                              <span className={cn("text-[7.5px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded-full border border-dashed leading-none", 
+                                getAreaColorClasses(typeof (config?.areas?.[t.category] || 'slate') === 'string' ? config?.areas?.[t.category] as string || 'slate' : (config?.areas?.[t.category] as any)?.color || 'slate')
+                              )}>
+                                {t.category}
+                              </span>
+                            )}
+                            {t.polaridad && (
+                              <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
+                                {t.polaridad === 'Abandonar' ? '📉' : '📈'}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Progress bar */}
+                          <div className="h-[1.5px] w-full bg-[#efede8]/60 dark:bg-border-line/50 relative rounded-none overflow-hidden">
+                            <div className={cn("h-full transition-all duration-300 absolute top-0 left-0", isDone ? "bg-[#81b29a]" : "bg-[#73c2b8]")} style={{ width: `${progress}%` }}></div>
                           </div>
 
                           {/* Bottom row: Counter adjuster and count indicator */}
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 mt-0.5">
                             <div className="flex border border-border-line rounded-none bg-transparent overflow-hidden">
                               <button 
                                 onClick={() => onUpdateTask(t.id, { currentCount: Math.max(0, count - 1), completed: Math.max(0, count - 1) >= target })}
@@ -715,32 +714,60 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                           </div>
                         </div>
 
-                        {/* Right vertical action panel */}
-                        <div className="flex flex-col border-l border-border-line/70 pl-1.5 gap-1 shrink-0 justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        {/* 3-dots Options Menu */}
+                        <div className="relative flex items-center justify-center shrink-0 border-l border-border-line/70 pl-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <button 
-                            onClick={() => {
-                              setEditPulsoForm({
-                                text: t.text,
-                                targetCount: t.targetCount || 1,
-                                unitLabel: t.unitLabel || 'veces',
-                                polaridad: t.polaridad || 'Reforzar',
-                                category: t.category || '',
-                                subCategory: t.subCategory || ''
-                              });
-                              setEditingPulsoId(t.id);
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setOpenMenuPulsoId(openMenuPulsoId === t.id ? null : t.id); 
                             }}
-                            className="w-[18px] h-[18px] flex items-center justify-center text-text-dim hover:text-primary transition-colors cursor-pointer bg-transparent border-0"
-                            title="Editar Pulso"
+                            className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
+                            title="Opciones"
                           >
-                            <Edit2 className="w-3 h-3" />
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="1" />
+                              <circle cx="12" cy="5" r="1" />
+                              <circle cx="12" cy="19" r="1" />
+                            </svg>
                           </button>
-                          <button 
-                            onClick={() => { if(confirm('¿Eliminar pulso?')) onDeleteTask(t.id); }}
-                            className="w-[18px] h-[18px] flex items-center justify-center text-text-dim hover:text-red-500 transition-colors cursor-pointer bg-transparent border-0"
-                            title="Eliminar Pulso"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+
+                          {openMenuPulsoId === t.id && (
+                            <>
+                              <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuPulsoId(null)} />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-32 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left">
+                                <button 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setEditPulsoForm({
+                                      text: t.text,
+                                      targetCount: t.targetCount || 1,
+                                      unitLabel: t.unitLabel || 'veces',
+                                      polaridad: t.polaridad || 'Reforzar',
+                                      category: t.category || '',
+                                      subCategory: t.subCategory || ''
+                                    });
+                                    setEditingPulsoId(t.id);
+                                    setOpenMenuPulsoId(null); 
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                >
+                                  <Edit2 className="w-3 h-3 text-text-dim" />
+                                  Editar
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuPulsoId(null);
+                                    if (confirm('¿Eliminar pulso?')) onDeleteTask(t.id);
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                >
+                                  <X className="w-3 h-3 text-red-500" />
+                                  Eliminar
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     );

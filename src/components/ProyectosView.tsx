@@ -577,7 +577,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           <Layers className="w-6 h-6 stroke-[2]" /> Proyectos Operativos
         </h2>
         
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
             <select 
               value={filter} 
