@@ -300,7 +300,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
             <div className={cn("absolute top-0 left-0 h-full transition-all duration-300", phaseDetails.bg)} style={{ width: `${energyPercent}%` }}></div>
           </div>
           <div className="flex justify-between text-[9px] tracking-wide text-text-dim/80 font-mono">
-            <span>Trabajado: <span className="font-bold text-text-main">{hoursWorkedToday.toFixed(1)}h</span></span>
+            <span>Actividad: <span className="font-bold text-text-main">{hoursWorkedToday.toFixed(1)}h</span></span>
             <span>Límite: <span className="font-bold text-text-main">{ENERGY_LIMIT.toFixed(1)}h</span></span>
             {totalEnergy > remainingLimit ? (
               <span className="text-red-500 font-bold" title={`Te has pasado de tu límite por ${(totalEnergy - remainingLimit).toFixed(1)}h`}>Excedido: +{(totalEnergy - remainingLimit).toFixed(1)}h ⚠️</span>

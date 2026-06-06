@@ -320,6 +320,7 @@ export default function TaskItem({
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
 
   // Helper to find visual sibling items (same parent, same type)
   const getSiblings = () => {
@@ -1014,7 +1015,13 @@ export default function TaskItem({
           {/* 3 dots options */}
           <div className="relative flex items-center justify-center">
             <button 
-              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const rect = e.currentTarget.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - rect.bottom;
+                setOpenUpwards(spaceBelow < 250);
+                setIsMenuOpen(!isMenuOpen); 
+              }}
               className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
               title="Opciones"
             >
@@ -1028,7 +1035,10 @@ export default function TaskItem({
             {isMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
-                <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                <div className={cn(
+                  "absolute right-0 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
+                  openUpwards ? "bottom-full mb-1" : "top-full mt-1"
+                )}>
                   {onUpdate && (
                     <>
                       <button 
@@ -1125,6 +1135,22 @@ export default function TaskItem({
 
       {isExpanded && (
         <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-2 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
+          {(!isHabit && task.type !== 'Rutina' && onAddTask) && (
+            <div className="flex flex-col gap-1 mt-1 mb-2 z-10 w-full pr-2">
+              <form onSubmit={handleAddSubtask} className="flex items-center">
+                <input 
+                  type="text" 
+                  placeholder="Nombre de la subtarea..."
+                  className="flex-1 px-4 py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] z-10"
+                  value={newTaskText}
+                  onChange={e => setNewTaskText(e.target.value)}
+                />
+                <button type="submit" disabled={!newTaskText.trim()} className="text-text-main disabled:opacity-40 text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity ml-4 cursor-pointer hover:underline bg-transparent border-0 outline-none">
+                  + Añadir
+                </button>
+              </form>
+            </div>
+          )}
           {getSubtasksWithOrders().map(sub => (
             <TaskItem 
               key={sub.id} 
@@ -1145,22 +1171,6 @@ export default function TaskItem({
               onNavigate={onNavigate}
             />
           ))}
-          {(!isHabit && task.type !== 'Rutina' && onAddTask) && (
-            <div className="flex flex-col gap-1 mt-1 z-10 w-full pr-2">
-              <form onSubmit={handleAddSubtask} className="flex items-center">
-                <input 
-                  type="text" 
-                  placeholder="Nombre de la subtarea..."
-                  className="flex-1 px-4 py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] z-10"
-                  value={newTaskText}
-                  onChange={e => setNewTaskText(e.target.value)}
-                />
-                <button type="submit" disabled={!newTaskText.trim()} className="text-text-main disabled:opacity-40 text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity ml-4 cursor-pointer hover:underline bg-transparent border-0 outline-none">
-                  + Añadir
-                </button>
-              </form>
-            </div>
-          )}
         </div>
       )}
     </div>

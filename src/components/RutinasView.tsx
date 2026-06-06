@@ -50,6 +50,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
 
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name'>('manual');
   const [openMenuRoutineId, setOpenMenuRoutineId] = useState<string | null>(null);
+  const [menuRoutineUpwards, setMenuRoutineUpwards] = useState(false);
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
@@ -700,7 +701,13 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                     {/* 3-dots Options */}
                     <div className="relative flex items-center justify-center">
                       <button 
-                        onClick={(e) => { e.stopPropagation(); setOpenMenuRoutineId(openMenuRoutineId === routine.id ? null : routine.id); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          setMenuRoutineUpwards(spaceBelow < 250);
+                          setOpenMenuRoutineId(openMenuRoutineId === routine.id ? null : routine.id); 
+                        }}
                         className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
                         title="Opciones"
                       >
@@ -714,7 +721,10 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                       {openMenuRoutineId === routine.id && (
                         <>
                           <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuRoutineId(null)} />
-                          <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                          <div className={cn(
+                            "absolute right-0 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
+                            menuRoutineUpwards ? "bottom-full mb-1" : "top-full mt-1"
+                          )}>
                             <button 
                               onClick={(e) => { e.stopPropagation(); startEdit(routine); setOpenMenuRoutineId(null); }}
                               className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
@@ -794,24 +804,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
 
                 {isExpanded && (
                   <div className="relative pl-4 flex flex-col gap-2 mt-4 pt-4 border-t border-border-line/30 animate-in fade-in duration-200">
-                    {subtasks.map(sub => (
-                      <TaskItem 
-                        key={sub.id}
-                        task={sub} 
-                        config={config} 
-                        allTasks={tasks} 
-                        history={history}
-                        onToggle={onToggleTask} 
-                        onDelete={() => onDeleteTask(sub.id)} 
-                        onUpdate={onUpdateTask}
-                        onAddTask={onAddTask}
-                        onDeleteTask={onDeleteTask}
-                        isSubtask 
-                        hideAreaCategory={false}
-                        showMoveArrows={sortBy === 'manual'}
-                      />
-                    ))}
-                    <div className="flex flex-col gap-1 mt-1 z-10 w-full pr-2">
+                    <div className="flex flex-col gap-1 mt-1 mb-2 z-10 w-full pr-2">
                       <form 
                         onSubmit={(e: any) => {
                           e.preventDefault();
@@ -843,6 +836,23 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         </button>
                       </form>
                     </div>
+                    {subtasks.map(sub => (
+                      <TaskItem 
+                        key={sub.id}
+                        task={sub} 
+                        config={config} 
+                        allTasks={tasks} 
+                        history={history}
+                        onToggle={onToggleTask} 
+                        onDelete={() => onDeleteTask(sub.id)} 
+                        onUpdate={onUpdateTask}
+                        onAddTask={onAddTask}
+                        onDeleteTask={onDeleteTask}
+                        isSubtask 
+                        hideAreaCategory={false}
+                        showMoveArrows={sortBy === 'manual'}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

@@ -46,6 +46,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [showGantt, setShowGantt] = useState(false);
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
   const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
+  const [menuProjUpwards, setMenuProjUpwards] = useState(false);
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
@@ -394,7 +395,13 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             {/* 3-dots Options */}
             <div className="relative flex items-center justify-center">
               <button 
-                onClick={(e) => { e.stopPropagation(); setOpenMenuProjId(openMenuProjId === proj.id ? null : proj.id); }}
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  setMenuProjUpwards(spaceBelow < 250);
+                  setOpenMenuProjId(openMenuProjId === proj.id ? null : proj.id); 
+                }}
                 className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
                 title="Opciones"
               >
@@ -408,7 +415,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               {openMenuProjId === proj.id && (
                 <>
                   <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuProjId(null)} />
-                  <div className="absolute right-0 mt-1 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left top-full">
+                  <div className={cn(
+                    "absolute right-0 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
+                    menuProjUpwards ? "bottom-full mb-1" : "top-full mt-1"
+                  )}>
                     <button 
                       onClick={(e) => { e.stopPropagation(); startEdit(proj); setOpenMenuProjId(null); }}
                       className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
@@ -481,28 +491,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
         {isExpanded && (
           <div className="relative pl-2 flex flex-col gap-2 mt-4 animate-in fade-in duration-200">
-            {subtasks.map(sub => (
-              <TaskItem 
-                key={sub.id}
-                task={sub} 
-                config={config} 
-                allTasks={tasks} 
-                history={history}
-                onToggle={onToggleTask} 
-                onDelete={() => onDeleteTask(sub.id)} 
-                onUpdate={onUpdateTask}
-                onAddTask={onAddTask}
-                onDeleteTask={onDeleteTask}
-                isSubtask 
-                hideAreaCategory
-                activeTimer={activeTimer}
-                onStartTimer={onStartTimer}
-                showMoveArrows={sortBy === 'manual'}
-              />
-            ))}
-
             {addingTaskId === proj.id ? (
-              <form onSubmit={e => handleInlineAddTask(e, proj)} className="flex items-center gap-4 mt-3 ml-8 text-left">
+              <form onSubmit={e => handleInlineAddTask(e, proj)} className="flex items-center gap-4 mt-1 mb-2 ml-8 text-left w-full pr-2">
                 <input 
                   autoFocus
                   type="text" 
@@ -524,11 +514,31 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   setAddingTaskId(proj.id);
                   setNewTaskText('');
                 }}
-                className="mt-3 ml-8 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-text-dim hover:text-text-main hover:underline transition-colors py-2 cursor-pointer bg-transparent border-0 outline-none"
+                className="mt-1 mb-2 ml-8 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-text-dim hover:text-text-main hover:underline transition-colors py-2 cursor-pointer bg-transparent border-0 outline-none"
               >
                 <Plus className="w-3.5 h-3.5" /> Añadir Tarea
               </button>
             )}
+
+            {subtasks.map(sub => (
+              <TaskItem 
+                key={sub.id}
+                task={sub} 
+                config={config} 
+                allTasks={tasks} 
+                history={history}
+                onToggle={onToggleTask} 
+                onDelete={() => onDeleteTask(sub.id)} 
+                onUpdate={onUpdateTask}
+                onAddTask={onAddTask}
+                onDeleteTask={onDeleteTask}
+                isSubtask 
+                hideAreaCategory
+                activeTimer={activeTimer}
+                onStartTimer={onStartTimer}
+                showMoveArrows={sortBy === 'manual'}
+              />
+            ))}
           </div>
         )}
       </div>
