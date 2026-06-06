@@ -204,6 +204,110 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
           </div>
         </div>
 
+        {/* SECTION 1.75: BLOQUES DE TIEMPO (SEPARADORES DE LÍNEA DE TIEMPO) */}
+        <div className="border-b border-border-line/30 pb-10">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
+            ⏰ BLOQUES DE TIEMPO (LÍNEA DE TIEMPO)
+          </h3>
+          <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
+            Configure bloques horarios fijos (ej. Mañana, Almuerzo, Tarde) para estructurar visualmente su jornada en la Línea de Tiempo.
+          </p>
+
+          <div className="flex flex-col gap-4 bg-base-dim/10 border border-border-line p-5 rounded-none text-left">
+            {/* List of existing separators */}
+            {(!config?.separators || config.separators.length === 0) ? (
+              <p className="text-xs text-text-dim italic">No hay bloques de tiempo configurados.</p>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2">
+                {config.separators.map((sep, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-1.5 border-b border-border-line/40 last:border-0 text-xs">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-primary">{sep.hora}</span>
+                      <span className="text-text-main font-bold">{sep.text}</span>
+                      {sep.detalle && <span className="text-text-dim text-[11px]">({sep.detalle})</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSeps = config.separators!.filter((_, i) => i !== idx);
+                        onUpdateConfig({ separators: newSeps });
+                      }}
+                      className="p-1 hover:text-red-500 text-text-dim transition-colors cursor-pointer bg-transparent border-0 outline-none"
+                      title="Eliminar bloque"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Form to add a new separator */}
+            <div className="border-t border-border-line/40 pt-4 mt-2">
+              <span className="text-xs font-bold text-text-main font-sans block mb-2">Añadir Nuevo Bloque</span>
+              <form
+                onSubmit={(e: any) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  const hora = form.elements.sep_hora.value.trim();
+                  const text = form.elements.sep_text.value.trim();
+                  const detalle = form.elements.sep_detalle.value.trim();
+                  if (!hora || !text) return;
+                  const newSeps = [...(config?.separators || [])];
+                  newSeps.push({ hora, text, detalle });
+                  // Sort separators by time
+                  newSeps.sort((a, b) => {
+                    const timeToMins = (tStr: string) => {
+                      const [h, m] = tStr.split(':').map(Number);
+                      return (h || 0) * 60 + (m || 0);
+                    };
+                    return timeToMins(a.hora) - timeToMins(b.hora);
+                  });
+                  onUpdateConfig({ separators: newSeps });
+                  form.reset();
+                }}
+                className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
+              >
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-text-dim uppercase">Hora</label>
+                  <input
+                    required
+                    name="sep_hora"
+                    type="text"
+                    placeholder="08:00"
+                    className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none focus:outline-none focus:border-[#a2b29f]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-text-dim uppercase">Etiqueta</label>
+                  <input
+                    required
+                    name="sep_text"
+                    type="text"
+                    placeholder="Mañana"
+                    className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none focus:outline-none focus:border-[#a2b29f]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-text-dim uppercase">Detalle (Opcional)</label>
+                  <input
+                    name="sep_detalle"
+                    type="text"
+                    placeholder="Ej. Foco e inicio"
+                    className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none focus:outline-none focus:border-[#a2b29f]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-mono font-bold uppercase transition-all rounded-none cursor-pointer border border-[var(--color-text-main)] text-text-main hover:bg-base-dim/15 bg-transparent"
+                >
+                  + Añadir
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
         {/* SECTION 2: DATOS LOCALES Y BÓVEDA */}
         <div className="border-b border-border-line/30 pb-10">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">

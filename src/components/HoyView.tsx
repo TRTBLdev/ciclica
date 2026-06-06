@@ -324,7 +324,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
 
 
       {/* Quick Capture (Centro) - Ultra-Minimalist text visible input with collapsible settings */}
-      <div className="flex justify-center w-full min-h-[90px] mb-4">
+      <div className="flex justify-center w-full">
         <form 
           onSubmit={(e) => {
              e.preventDefault();
@@ -760,20 +760,6 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                 <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Línea de Tiempo
               </h3>
               <div className="flex items-center gap-4">
-                {showTimeline && onUpdateConfig && config && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const newSeps = [...(config.separators || [])];
-                      newSeps.push({ hora: "12:00", text: "Nuevo Bloque", detalle: "" });
-                      onUpdateConfig({ separators: newSeps });
-                    }}
-                    className="text-[10px] font-mono uppercase tracking-wider text-accent hover:text-text-main hover:underline cursor-pointer bg-transparent border-0 outline-none flex items-center gap-1"
-                  >
-                    <span>+ Añadir Bloque</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => setShowTimeline(!showTimeline)}
