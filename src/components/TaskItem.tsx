@@ -984,10 +984,13 @@ export default function TaskItem({
                 !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
-                    className="inline-flex items-center h-5 gap-1 text-[10px] font-mono font-medium uppercase text-[#b45f06] hover:text-[#5d5d5d] transition-colors cursor-pointer leading-none"
-                    title="Iniciar temporizador en tiempo real"
+                    className="p-1 hover:bg-base-dim/40 rounded-full transition-all cursor-pointer bg-transparent border-0 outline-none flex items-center justify-center"
+                    title="Iniciar tracker ⏱️"
                   >
-                    <Play className="w-2.5 h-2.5" /> Iniciar tracker
+                    <svg className="w-3.5 h-3.5 text-[#b45f06] hover:text-[#5d5d5d] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
                   </button>
                 )
               )}
@@ -1137,6 +1140,9 @@ export default function TaskItem({
               isSubtask 
               hideAreaCategory={sub.type !== 'Hábito'}
               showMoveArrows={showMoveArrows}
+              activeTimer={activeTimer}
+              onStartTimer={onStartTimer}
+              onNavigate={onNavigate}
             />
           ))}
           {(!isHabit && task.type !== 'Rutina' && onAddTask) && (

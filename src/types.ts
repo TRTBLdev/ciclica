@@ -74,5 +74,6 @@ export interface HistoryRecord {
   createdAt: string;
   startTime?: string;
   endTime?: string;
+  isCompletion?: boolean;
 }
 

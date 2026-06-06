@@ -32,7 +32,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData } = useData(user.uid);
+  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -140,7 +140,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           duration: finalHours,
           createdAt: new Date().toISOString(),
           startTime: sessionStart,
-          endTime: endTime
+          endTime: endTime,
+          isCompletion: false
         });
       }
     }
@@ -200,7 +201,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           duration,
           createdAt: new Date().toISOString(),
           startTime: sessionStart,
-          endTime: sessionEnd
+          endTime: sessionEnd,
+          isCompletion: true
         });
       }
 
@@ -222,7 +224,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                     taskId: ch.id,
                     date: sessionEnd,
                     duration: 0,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    isCompletion: true
                   });
                 }
               });
@@ -269,8 +272,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     if (tasksToUpdate.length > 0) {
       await updateTasks(tasksToUpdate);
     }
-    for (const hist of historyToAdd) {
-      await addHistory(hist);
+    if (historyToAdd.length > 0) {
+      await addHistoryRecords(historyToAdd);
     }
   };
 

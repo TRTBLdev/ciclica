@@ -17,6 +17,21 @@ import {
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
 
+const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
+  let nextPlan = new Date(plannedDateStr || new Date().toISOString());
+  let daysToAdd = freq || 1;
+  if (unit === 'semanas') daysToAdd *= 7;
+  if (unit === 'meses') daysToAdd *= 30;
+  
+  nextPlan.setDate(nextPlan.getDate() + daysToAdd);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  while (nextPlan.getTime() < todayStart.getTime()) {
+    nextPlan.setDate(nextPlan.getDate() + daysToAdd);
+  }
+  return nextPlan.toISOString();
+};
+
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -62,6 +77,7 @@ export default function CompletadasView({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showSimple, setShowSimple] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
+  const [subTasksMarkCompleted, setSubTasksMarkCompleted] = useState<Record<string, boolean>>({});
 
   const selectedTask = tasks.find(t => t.id === retroTaskId);
 
@@ -217,23 +233,25 @@ export default function CompletadasView({
   const handleDeleteLog = (h: HistoryRecord) => {
     const task = tasks.find(t => t.id === h.taskId);
     if (task) {
-      if (task.type === 'Tarea' || task.type === 'Proyecto') {
-        onUpdateTask(task.id, { completed: false, view: 'Hoy' });
-      } else if (task.type === 'Hábito' || task.type === 'Rutina') {
-        onUpdateTask(task.id, { 
-          completed: false, 
-          fechaPlanificada: new Date().toISOString() 
-        });
-        
-        // If it's a routine, also revert its child habits to today
-        if (task.type === 'Rutina') {
-          const childHabits = tasks.filter(t => t.parentId === task.id && t.type === 'Hábito');
-          childHabits.forEach(ch => {
-            onUpdateTask(ch.id, { 
-              completed: false, 
-              fechaPlanificada: new Date().toISOString() 
-            });
+      if (h.isCompletion !== false) {
+        if (task.type === 'Tarea' || task.type === 'Proyecto') {
+          onUpdateTask(task.id, { completed: false, view: 'Hoy' });
+        } else if (task.type === 'Hábito' || task.type === 'Rutina') {
+          onUpdateTask(task.id, { 
+            completed: false, 
+            fechaPlanificada: new Date().toISOString() 
           });
+          
+          // If it's a routine, also revert its child habits to today
+          if (task.type === 'Rutina') {
+            const childHabits = tasks.filter(t => t.parentId === task.id && t.type === 'Hábito');
+            childHabits.forEach(ch => {
+              onUpdateTask(ch.id, { 
+                completed: false, 
+                fechaPlanificada: new Date().toISOString() 
+              });
+            });
+          }
         }
       }
 
@@ -382,6 +400,15 @@ export default function CompletadasView({
                         {displayCategory && (
                           <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full", getAreaColorClasses(color))}>
                             {displayCategory}
+                          </span>
+                        )}
+                        {h.isCompletion === false ? (
+                          <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-border-line/30 text-text-dim bg-base-dim/40 rounded-full select-none" title="Esta sesión registra tiempo de progreso, pero el ítem no se marcó como completado en el planificador">
+                            ⏱️ Progreso
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-[var(--color-primary)]/30 text-primary bg-[var(--color-primary)]/10 rounded-full select-none" title="Esta sesión completó o reprogramó el ítem en el planificador">
+                            ✓ Completado
                           </span>
                         )}
                       </div>
@@ -553,14 +580,56 @@ export default function CompletadasView({
                         ) : (
                           <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={cn(
-                                "w-4 h-4 rounded-full flex items-center justify-center border shrink-0",
-                                childLog 
-                                  ? "bg-[var(--color-primary)]/15 border-[var(--color-primary)] text-primary" 
-                                  : "border-border-line/85 text-text-dim/40 bg-transparent"
-                              )}>
+                              <button 
+                                onClick={() => {
+                                  if (!childLog && onAddHistory) {
+                                    const shouldComplete = subTasksMarkCompleted[child.id] !== false;
+                                    const childDur = child.duracion || 0;
+                                    onAddHistory({
+                                      userId: h.userId,
+                                      taskId: child.id,
+                                      date: h.date,
+                                      duration: childDur,
+                                      createdAt: new Date().toISOString(),
+                                      isCompletion: shouldComplete
+                                    });
+                                    if (shouldComplete) {
+                                      if (child.type === 'Tarea' || child.type === 'Pulso') {
+                                        onUpdateTask(child.id, { completed: true, view: '' });
+                                      } else if (child.type === 'Hábito') {
+                                        const chNextDate = getNextPlannedDate(
+                                          child.fechaPlanificada, 
+                                          child.frecuencia || 1, 
+                                          child.frecuenciaUnidad || 'días'
+                                        );
+                                        onUpdateTask(child.id, { 
+                                          completed: false, 
+                                          fechaPlanificada: chNextDate,
+                                          lastExecutedAt: new Date().toISOString() 
+                                        });
+                                      }
+                                    }
+                                    if (h.duration !== undefined && h.duration > 0) {
+                                      const newParentDur = Math.max(0, parseFloat((h.duration - childDur).toFixed(2)));
+                                      onUpdateHistory(h.id, { duration: newParentDur });
+                                    }
+                                    showToast("Ejecución de sub-ítem registrada con éxito", "success");
+                                  } else if (childLog) {
+                                    if (window.confirm(`¿Estás segura de eliminar la sesión de ejecución de "${child.text}"? (Esto la marcará como incompleta)`)) {
+                                      handleDeleteLog(childLog);
+                                    }
+                                  }
+                                }}
+                                className={cn(
+                                  "w-4 h-4 rounded-full flex items-center justify-center border shrink-0 cursor-pointer transition-all bg-transparent outline-none p-0",
+                                  childLog 
+                                    ? "bg-[var(--color-primary)]/15 border-[var(--color-primary)] text-primary hover:bg-red-500/15 hover:border-red-500 hover:text-red-500" 
+                                    : "border-border-line/85 text-text-dim/40 hover:border-[var(--color-primary)] hover:text-primary"
+                                )}
+                                title={childLog ? "Deshacer ejecución de sub-ítem" : "Registrar ejecución de sub-ítem aquí"}
+                              >
                                 {childLog && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                              </div>
+                              </button>
                               <span className={cn(
                                 "font-light truncate max-w-[15rem] sm:max-w-xs md:max-w-md", 
                                 childLog ? "text-text-main" : "text-text-dim/50"
@@ -579,6 +648,11 @@ export default function CompletadasView({
                                       <span className="font-sans text-text-main bg-[var(--color-primary)]/15 text-xs px-1.5 py-0.2 border border-[var(--color-primary)]/20">
                                         ⏱ {childLog.duration}h
                                       </span>
+                                    )}
+                                    {childLog.isCompletion === false ? (
+                                      <span className="text-[9px] font-mono text-text-dim border border-border-line/30 bg-base-dim/40 px-1.5 py-0.5 rounded-full" title="Sesión de progreso">Progreso</span>
+                                    ) : (
+                                      <span className="text-[9px] font-mono text-primary border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-1.5 py-0.5 rounded-full" title="Sesión de completado">✓ Completado</span>
                                     )}
                                   </div>
                                   <div className="flex items-center">
@@ -604,30 +678,72 @@ export default function CompletadasView({
                                 </>
                               ) : (
                                 onAddHistory && (
-                                  <button 
-                                    onClick={() => {
-                                      const childDur = child.duracion || 0;
-                                      onAddHistory({
-                                        userId: h.userId,
-                                        taskId: child.id,
-                                        date: h.date,
-                                        duration: childDur,
-                                        createdAt: new Date().toISOString()
-                                      });
-                                      if (child.type === 'Tarea' || child.type === 'Pulso') {
-                                        onUpdateTask(child.id, { completed: true, view: '' });
-                                      }
-                                      if (h.duration !== undefined && h.duration > 0) {
-                                        const newParentDur = Math.max(0, parseFloat((h.duration - childDur).toFixed(2)));
-                                        onUpdateHistory(h.id, { duration: newParentDur });
-                                      }
-                                      showToast("Ejecución de sub-ítem registrada con éxito", "success");
-                                    }}
-                                    className="px-2.5 py-0.5 border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 text-text-main hover:bg-[var(--color-primary)]/20 transition-all text-xs font-mono font-medium cursor-pointer"
-                                    title="Registrar ejecución a este bloque"
-                                  >
-                                    <Plus className="w-3 h-3 inline mr-1" /> Registrar aquí
-                                  </button>
+                                  <div className="flex items-center gap-3">
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none" title="Si está marcado, también completa o reprograma la tarea/hábito en el planificador">
+                                      <div className="relative flex items-center">
+                                        <input 
+                                          type="checkbox" 
+                                          className="sr-only"
+                                          checked={subTasksMarkCompleted[child.id] !== false}
+                                          onChange={() => {
+                                            setSubTasksMarkCompleted(prev => ({
+                                              ...prev,
+                                              [child.id]: subTasksMarkCompleted[child.id] === false
+                                            }));
+                                          }}
+                                        />
+                                        <div className={cn(
+                                          "w-3.5 h-3.5 rounded border flex items-center justify-center transition-all duration-150",
+                                          (subTasksMarkCompleted[child.id] !== false)
+                                            ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]" 
+                                            : "border-border-line bg-transparent text-transparent hover:border-[var(--color-primary)]"
+                                        )}>
+                                          <Check className="w-2 h-2 stroke-[3]" />
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] font-mono uppercase text-text-dim/80">Completar</span>
+                                    </label>
+
+                                    <button 
+                                      onClick={() => {
+                                        const shouldComplete = subTasksMarkCompleted[child.id] !== false;
+                                        const childDur = child.duracion || 0;
+                                        onAddHistory({
+                                          userId: h.userId,
+                                          taskId: child.id,
+                                          date: h.date,
+                                          duration: childDur,
+                                          createdAt: new Date().toISOString(),
+                                          isCompletion: shouldComplete
+                                        });
+                                        if (shouldComplete) {
+                                          if (child.type === 'Tarea' || child.type === 'Pulso') {
+                                            onUpdateTask(child.id, { completed: true, view: '' });
+                                          } else if (child.type === 'Hábito') {
+                                            const chNextDate = getNextPlannedDate(
+                                              child.fechaPlanificada, 
+                                              child.frecuencia || 1, 
+                                              child.frecuenciaUnidad || 'días'
+                                            );
+                                            onUpdateTask(child.id, { 
+                                              completed: false, 
+                                              fechaPlanificada: chNextDate,
+                                              lastExecutedAt: new Date().toISOString() 
+                                            });
+                                          }
+                                        }
+                                        if (h.duration !== undefined && h.duration > 0) {
+                                          const newParentDur = Math.max(0, parseFloat((h.duration - childDur).toFixed(2)));
+                                          onUpdateHistory(h.id, { duration: newParentDur });
+                                        }
+                                        showToast("Ejecución de sub-ítem registrada con éxito", "success");
+                                      }}
+                                      className="px-2.5 py-0.5 border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 text-text-main hover:bg-[var(--color-primary)]/20 transition-all text-xs font-mono font-medium cursor-pointer"
+                                      title="Registrar ejecución a este bloque"
+                                    >
+                                      <Plus className="w-3 h-3 inline mr-1" /> Registrar aquí
+                                    </button>
+                                  </div>
                                 )
                               )}
                             </div>
@@ -868,13 +984,23 @@ export default function CompletadasView({
 
                 <div className="hidden sm:block h-8 w-px bg-[var(--color-border-line)]/30" />
 
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 border-border-line bg-base text-primary focus:ring-0 cursor-pointer"
-                    checked={retroMarkCompleted}
-                    onChange={e => setRetroMarkCompleted(e.checked || e.target.checked)}
-                  />
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only"
+                      checked={retroMarkCompleted}
+                      onChange={e => setRetroMarkCompleted(e.target.checked)}
+                    />
+                    <div className={cn(
+                      "w-4 h-4 rounded border flex items-center justify-center transition-all duration-150",
+                      retroMarkCompleted 
+                        ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]" 
+                        : "border-border-line bg-transparent text-transparent hover:border-[var(--color-primary)]"
+                    )}>
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                  </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-text-main">Completar en planificador</span>
                     <span className="text-[10px] text-text-dim font-mono uppercase">Marcar tarea como hecha</span>

@@ -204,6 +204,19 @@ export function useData(userId: string) {
     });
   };
 
+  const addHistoryRecords = async (recordsData: Omit<HistoryRecord, 'id'>[]) => {
+    const newRecs = recordsData.map(r => ({
+      id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${Math.floor(Math.random() * 1000)}`,
+      ...r,
+      userId: effectiveUserId
+    } as HistoryRecord));
+    setHistory(prev => {
+      const next = [...prev, ...newRecs];
+      setLocal(`ciclica_local_history_${effectiveUserId}`, next);
+      return next;
+    });
+  };
+
   const deleteTask = async (taskId: string) => {
     setTasks(prev => {
       const next = prev.filter(t => t.id !== taskId);
@@ -237,5 +250,5 @@ export function useData(userId: string) {
     setLocal(`ciclica_local_config_${effectiveUserId}`, importedConfig);
   };
 
-  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData };
+  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData };
 }
