@@ -229,7 +229,6 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   });
                 }
               });
-              return;
             }
           }
 
