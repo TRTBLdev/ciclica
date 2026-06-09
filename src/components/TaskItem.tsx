@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import { isFutureDate } from '../lib/utils';
 import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
-import { cn, getAreaColorClasses, calculateBiologicalPhase } from '../lib/utils';
+import { calculateBiologicalPhase } from '../domain/cycle';
+import { cn, getAreaColorClasses } from '../lib/utils';
 
 
 // Helper to detect cycles in parent selection

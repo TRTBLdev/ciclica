@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Compass, BookOpen } from 'lucide-react';
 import { Config, CycleTrackingType, BiologicalPhase } from '../types';
-import { cn, calculateBiologicalPhase, getLunarDetailsForDate, getLunarArchetype, getCyclePeriods, parseLocalDate } from '../lib/utils';
+import { calculateBiologicalPhase, getCyclePeriods, parseLocalDate } from '../domain/cycle';
+import { getLunarArchetype, getLunarDetailsForDate } from '../domain/lunar';
+import { cn } from '../lib/utils';
 import SyllabusView from './SyllabusView';
 
 

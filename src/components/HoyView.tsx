@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Separator, TaskType } from '../types';
-import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, calculateBiologicalPhase, getEnergyEngineDetails, getAreaColorClasses, getLunarDetailsForDate } from '../lib/utils';
+import { calculateBiologicalPhase } from '../domain/cycle';
+import { getEnergyEngineDetails } from '../domain/energy';
+import { getLunarDetailsForDate } from '../domain/lunar';
+import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, getAreaColorClasses } from '../lib/utils';
 import TaskItem from './TaskItem';
 
 interface Props {

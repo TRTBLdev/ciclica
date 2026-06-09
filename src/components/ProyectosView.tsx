@@ -3,6 +3,8 @@ import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus
 import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import GanttChart from './GanttChart';
+import SectionList from './ui/SectionList';
+import ViewHeader from './ui/ViewHeader';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
@@ -571,13 +573,11 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   return (
     <div className="flex flex-col gap-6 pt-10 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full">
       
-      {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-line pb-6 gap-4 text-left">
-        <h2 className="text-title flex items-center gap-3">
-          <Layers className="w-6 h-6 stroke-[2]" /> Proyectos Operativos
-        </h2>
-        
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+      <ViewHeader
+        title="Proyectos Operativos"
+        icon={Layers}
+        actions={(
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
             <select 
               value={filter} 
@@ -622,8 +622,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               + Nuevo Proyecto
             </button>
           )}
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {showGantt && (
         <div className="w-full mb-6">
@@ -679,40 +680,30 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       )}
 
       {/* Activos list */}
-      <div className="mb-6">
-        <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 text-left">Activos</h3>
-        <div className="border-t border-border-line/40 flex flex-col">
-          {activeProjs.length ? renderProjBlock(activeProjs) : <p className="text-xs text-text-dim p-6 text-left font-mono italic">No hay proyectos activos.</p>}
-        </div>
-      </div>
+      <SectionList title="Activos" className="mb-6" empty={!activeProjs.length} emptyMessage="No hay proyectos activos.">
+        {renderProjBlock(activeProjs)}
+      </SectionList>
 
       {/* Tareas Simples list */}
-      <div className="mb-6">
-        <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 text-left">Tareas Simples</h3>
-        <div className="border-t border-border-line/40 flex flex-col">
-          {activeStandaloneTasks.length ? (
-            activeStandaloneTasks.map(t => (
-              <TaskItem
-                key={t.id}
-                task={t}
-                config={config}
-                allTasks={tasks}
-                history={history}
-                onToggle={onToggleTask}
-                onDelete={() => onDeleteTask(t.id)}
-                onUpdate={onUpdateTask}
-                onAddTask={onAddTask}
-                onDeleteTask={onDeleteTask}
-                activeTimer={activeTimer}
-                onStartTimer={onStartTimer}
-                showMoveArrows={sortBy === 'manual'}
-              />
-            ))
-          ) : (
-            <p className="text-xs text-text-dim p-6 text-left font-mono italic">No hay tareas simples activas.</p>
-          )}
-        </div>
-      </div>
+      <SectionList title="Tareas Simples" className="mb-6" empty={!activeStandaloneTasks.length} emptyMessage="No hay tareas simples activas.">
+        {activeStandaloneTasks.map(t => (
+          <TaskItem
+            key={t.id}
+            task={t}
+            config={config}
+            allTasks={tasks}
+            history={history}
+            onToggle={onToggleTask}
+            onDelete={() => onDeleteTask(t.id)}
+            onUpdate={onUpdateTask}
+            onAddTask={onAddTask}
+            onDeleteTask={onDeleteTask}
+            activeTimer={activeTimer}
+            onStartTimer={onStartTimer}
+            showMoveArrows={sortBy === 'manual'}
+          />
+        ))}
+      </SectionList>
 
       {/* Completados list */}
       <div className="border-t border-border-line pt-6">
@@ -724,35 +715,34 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </button>
         {showCompleted && (
           <div className="flex flex-col gap-6">
-            <div>
-              <h4 className="text-[10px] font-mono font-semibold tracking-wider text-text-dim uppercase mb-2 text-left">Proyectos Completados</h4>
-              <div className="border-t border-border-line/40 flex flex-col">
-                {compProjs.length ? renderProjBlock(compProjs) : <p className="text-xs text-text-dim p-4 text-left font-mono italic">No hay proyectos completados.</p>}
-              </div>
-            </div>
+            <SectionList
+              title="Proyectos Completados"
+              headingLevel={4}
+              empty={!compProjs.length}
+              emptyMessage="No hay proyectos completados."
+            >
+              {renderProjBlock(compProjs)}
+            </SectionList>
             {completedStandaloneTasks.length > 0 && (
-              <div>
-                <h4 className="text-[10px] font-mono font-semibold tracking-wider text-text-dim uppercase mb-2 text-left">Tareas Simples Completadas</h4>
-                <div className="border-t border-border-line/40 flex flex-col">
-                  {completedStandaloneTasks.map(t => (
-                    <TaskItem
-                      key={t.id}
-                      task={t}
-                      config={config}
-                      allTasks={tasks}
-                      history={history}
-                      onToggle={onToggleTask}
-                      onDelete={() => onDeleteTask(t.id)}
-                      onUpdate={onUpdateTask}
-                      onAddTask={onAddTask}
-                      onDeleteTask={onDeleteTask}
-                      activeTimer={activeTimer}
-                      onStartTimer={onStartTimer}
-                      showMoveArrows={sortBy === 'manual'}
-                    />
-                  ))}
-                </div>
-              </div>
+              <SectionList title="Tareas Simples Completadas" headingLevel={4}>
+                {completedStandaloneTasks.map(t => (
+                  <TaskItem
+                    key={t.id}
+                    task={t}
+                    config={config}
+                    allTasks={tasks}
+                    history={history}
+                    onToggle={onToggleTask}
+                    onDelete={() => onDeleteTask(t.id)}
+                    onUpdate={onUpdateTask}
+                    onAddTask={onAddTask}
+                    onDeleteTask={onDeleteTask}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    showMoveArrows={sortBy === 'manual'}
+                  />
+                ))}
+              </SectionList>
             )}
           </div>
         )}

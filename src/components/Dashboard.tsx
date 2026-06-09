@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { useData } from '../hooks/useData';
 import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings } from 'lucide-react';
-import HoyView from './HoyView';
-import SintoniaView from './SintoniaView';
-import EstrategiaView from './EstrategiaView';
-import BitacoraView from './BitacoraView';
-import ConfiguracionView from './ConfiguracionView';
 import FloatingTimer from './FloatingTimer';
 import Onboarding from './Onboarding';
-import { cn, calculateBiologicalPhase, migrateDatabase, isSameDay, isFutureDate } from '../lib/utils';
+import { calculateBiologicalPhase } from '../domain/cycle';
+import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import { AppTask, HistoryRecord } from '../types';
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
+
+const HoyView = lazy(() => import('./HoyView'));
+const SintoniaView = lazy(() => import('./SintoniaView'));
+const EstrategiaView = lazy(() => import('./EstrategiaView'));
+const BitacoraView = lazy(() => import('./BitacoraView'));
+const ConfiguracionView = lazy(() => import('./ConfiguracionView'));
 
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
   const [currentView, setCurrentView] = useState<'hoy' | 'sintonia' | 'estrategia' | 'bitacora' | 'configuracion'>('hoy');
@@ -454,71 +456,73 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           "flex-1 h-screen bg-base overflow-y-auto w-full",
           activeTimer && "pb-[200px] md:pb-0"
         )}>
-          {currentView === 'hoy' && (
-            <HoyView 
-              config={config} 
-              tasks={tasks} 
-              history={history} 
-              onToggleTask={handleToggleTask}
-              onAddEvent={handleAddEvent}
-              onDeleteTask={deleteTask}
-              onUpdateTask={handleUpdateTask}
-              onAddTask={addTask}
-              activeTimer={activeTimer}
-              onStartTimer={handleStartTimer}
-              onUpdateConfig={updateConfig}
-              onNavigate={handleNavigate}
-            />
-          )}
-          {currentView === 'sintonia' && (
-            <SintoniaView 
-              config={config}
-              onUpdateConfig={updateConfig}
-              onNavigate={handleNavigate}
-            />
-          )}
-          {currentView === 'estrategia' && (
-            <EstrategiaView 
-              config={config} 
-              tasks={tasks}
-              history={history}
-              onUpdateConfig={updateConfig}
-              onToggleTask={handleToggleTask}
-              onDeleteTask={deleteTask}
-              onAddTask={addTask}
-              onUpdateTask={handleUpdateTask}
-              activeTimer={activeTimer}
-              onStartTimer={handleStartTimer}
-              focusTaskId={focusTaskId}
-              onNavigate={handleNavigate}
-            />
-          )}
-          {currentView === 'bitacora' && (
-            <BitacoraView 
-              config={config} 
-              tasks={tasks}
-              history={history}
-              onToggleTask={handleToggleTask}
-              onDeleteTask={deleteTask}
-              onAddTask={addTask}
-              onUpdateTask={handleUpdateTask}
-              onUpdateConfig={updateConfig}
-              onUpdateHistory={updateHistory}
-              onDeleteHistory={deleteHistory}
-              onAddHistory={addHistory}
-            />
-          )}
-          {currentView === 'configuracion' && (
-            <ConfiguracionView 
-              config={config} 
-              onUpdateConfig={updateConfig} 
-              tasks={tasks}
-              history={history}
-              onSignOut={onSignOut}
-              importLocalData={importLocalData}
-              onNavigate={handleNavigate}
-            />
-          )}
+          <Suspense fallback={<ViewLoader />}>
+            {currentView === 'hoy' && (
+              <HoyView 
+                config={config} 
+                tasks={tasks} 
+                history={history} 
+                onToggleTask={handleToggleTask}
+                onAddEvent={handleAddEvent}
+                onDeleteTask={deleteTask}
+                onUpdateTask={handleUpdateTask}
+                onAddTask={addTask}
+                activeTimer={activeTimer}
+                onStartTimer={handleStartTimer}
+                onUpdateConfig={updateConfig}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {currentView === 'sintonia' && (
+              <SintoniaView 
+                config={config}
+                onUpdateConfig={updateConfig}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {currentView === 'estrategia' && (
+              <EstrategiaView 
+                config={config} 
+                tasks={tasks}
+                history={history}
+                onUpdateConfig={updateConfig}
+                onToggleTask={handleToggleTask}
+                onDeleteTask={deleteTask}
+                onAddTask={addTask}
+                onUpdateTask={handleUpdateTask}
+                activeTimer={activeTimer}
+                onStartTimer={handleStartTimer}
+                focusTaskId={focusTaskId}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {currentView === 'bitacora' && (
+              <BitacoraView 
+                config={config} 
+                tasks={tasks}
+                history={history}
+                onToggleTask={handleToggleTask}
+                onDeleteTask={deleteTask}
+                onAddTask={addTask}
+                onUpdateTask={handleUpdateTask}
+                onUpdateConfig={updateConfig}
+                onUpdateHistory={updateHistory}
+                onDeleteHistory={deleteHistory}
+                onAddHistory={addHistory}
+              />
+            )}
+            {currentView === 'configuracion' && (
+              <ConfiguracionView 
+                config={config} 
+                onUpdateConfig={updateConfig} 
+                tasks={tasks}
+                history={history}
+                onSignOut={onSignOut}
+                importLocalData={importLocalData}
+                onNavigate={handleNavigate}
+              />
+            )}
+          </Suspense>
         </div>
       </div>
 
@@ -548,6 +552,14 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       )}
       </div>
     </ToastProvider>
+  );
+}
+
+function ViewLoader() {
+  return (
+    <div className="min-h-full flex items-center justify-center py-16">
+      <Loader className="animate-spin text-slate-900 w-6 h-6" />
+    </div>
   );
 }
 
