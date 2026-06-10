@@ -222,24 +222,34 @@ export default function CompletadasView({
     setEditDuration(durHours);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = (id: string, isPulso: boolean) => {
     try {
       let finalStartISO = '';
       let finalEndISO = '';
-      if (editStartTime && editEndTime) {
-        finalStartISO = new Date(editStartTime).toISOString();
+      if (isPulso) {
         finalEndISO = new Date(editEndTime).toISOString();
+        onUpdateHistory(id, {
+          date: finalEndISO,
+          duration: 0,
+          startTime: '',
+          endTime: ''
+        });
       } else {
-        finalEndISO = new Date(`${editDate}T${editTime}:00`).toISOString();
-        finalStartISO = new Date(new Date(finalEndISO).getTime() - editDuration * 3600000).toISOString();
+        if (editStartTime && editEndTime) {
+          finalStartISO = new Date(editStartTime).toISOString();
+          finalEndISO = new Date(editEndTime).toISOString();
+        } else {
+          finalEndISO = new Date(`${editDate}T${editTime}:00`).toISOString();
+          finalStartISO = new Date(new Date(finalEndISO).getTime() - editDuration * 3600000).toISOString();
+        }
+        
+        onUpdateHistory(id, {
+          date: finalEndISO,
+          duration: Number(editDuration),
+          startTime: finalStartISO,
+          endTime: finalEndISO
+        });
       }
-      
-      onUpdateHistory(id, {
-        date: finalEndISO,
-        duration: Number(editDuration),
-        startTime: finalStartISO,
-        endTime: finalEndISO
-      });
       showToast("Registro histórico actualizado con éxito", "success");
     } catch (e) {
       console.error(e);
@@ -338,55 +348,73 @@ export default function CompletadasView({
                     <div className="text-[10px] font-mono font-bold tracking-widest text-primary uppercase">
                       Modificando Registro: {task?.text || 'Elemento histórico'}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
-                        <input 
-                          type="datetime-local" 
-                          className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
-                          value={editStartTime}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setEditStartTime(val);
-                            if (val && editEndTime) {
-                              const diff = new Date(editEndTime).getTime() - new Date(val).getTime();
-                              setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
-                            }
-                          }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
+                    {task?.type === 'Pulso' ? (
+                      <div className="flex flex-col gap-1 w-full text-left">
+                        <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fecha y Hora de Registro</label>
                         <input 
                           type="datetime-local" 
                           className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                           value={editEndTime}
                           onChange={e => {
-                            const val = e.target.value;
-                            setEditEndTime(val);
-                            if (editStartTime && val) {
-                              const diff = new Date(val).getTime() - new Date(editStartTime).getTime();
-                              setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
-                            }
+                            setEditEndTime(e.target.value);
+                            setEditStartTime('');
+                            setEditDuration(0);
                           }}
                         />
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-4 bg-base-dim/20 p-3 border border-border-line/50">
-                      <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Duración Calculada:</span>
-                      <div className="flex items-center gap-1.5">
-                        <input 
-                          type="number" 
-                          min={0}
-                          step="0.01"
-                          className="w-20 text-xs px-3 py-1 border border-border-line bg-base text-center font-mono font-bold text-text-main outline-none"
-                          value={editDuration || 0}
-                          onChange={e => setEditDuration(Number(e.target.value))}
-                        />
-                        <span className="text-xs text-text-dim font-mono">horas</span>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
+                            <input 
+                              type="datetime-local" 
+                              className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
+                              value={editStartTime}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setEditStartTime(val);
+                                if (val && editEndTime) {
+                                  const diff = new Date(editEndTime).getTime() - new Date(val).getTime();
+                                  setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
+                            <input 
+                              type="datetime-local" 
+                              className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
+                              value={editEndTime}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setEditEndTime(val);
+                                if (editStartTime && val) {
+                                  const diff = new Date(val).getTime() - new Date(editStartTime).getTime();
+                                  setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 bg-base-dim/20 p-3 border border-border-line/50">
+                          <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Duración Calculada:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input 
+                              type="number" 
+                              min={0}
+                              step="0.01"
+                              className="w-20 text-xs px-3 py-1 border border-border-line bg-base text-center font-mono font-bold text-text-main outline-none"
+                              value={editDuration || 0}
+                              onChange={e => setEditDuration(Number(e.target.value))}
+                            />
+                            <span className="text-xs text-text-dim font-mono">horas</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     
                     <div className="flex justify-end gap-6 mt-1">
                       <button 
@@ -396,7 +424,7 @@ export default function CompletadasView({
                         Cancelar
                       </button>
                       <button 
-                        onClick={() => handleSaveEdit(h.id)}
+                        onClick={() => handleSaveEdit(h.id, task?.type === 'Pulso')}
                         className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0 outline-none"
                       >
                         Guardar
@@ -530,55 +558,73 @@ export default function CompletadasView({
                               <span className="font-medium text-text-main">{child.text}</span>
                               <span className="text-[9px] font-mono border border-border-line text-text-main font-semibold px-2 py-0.5 uppercase">Editar {child.type}</span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="flex flex-col gap-0.5">
-                                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
-                                <input 
-                                  type="datetime-local" 
-                                  className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
-                                  value={editStartTime}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEditStartTime(val);
-                                    if (val && editEndTime) {
-                                      const diff = new Date(editEndTime).getTime() - new Date(val).getTime();
-                                      setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div className="flex flex-col gap-0.5">
-                                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
+                            {child.type === 'Pulso' ? (
+                              <div className="flex flex-col gap-1 w-full text-left">
+                                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fecha y Hora de Registro</label>
                                 <input 
                                   type="datetime-local" 
                                   className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                                   value={editEndTime}
                                   onChange={e => {
-                                    const val = e.target.value;
-                                    setEditEndTime(val);
-                                    if (editStartTime && val) {
-                                      const diff = new Date(val).getTime() - new Date(editStartTime).getTime();
-                                      setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
-                                    }
+                                    setEditEndTime(e.target.value);
+                                    setEditStartTime('');
+                                    setEditDuration(0);
                                   }}
                                 />
                               </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-4 bg-base-dim/20 p-2 border border-border-line/50">
-                              <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Calculado:</span>
-                              <div className="flex items-center gap-1.5">
-                                <input 
-                                  type="number" 
-                                  min={0}
-                                  step="0.01"
-                                  className="w-16 text-xs px-2 py-0.5 border border-border-line rounded bg-base text-center font-mono font-bold text-text-main outline-none"
-                                  value={editDuration || 0}
-                                  onChange={e => setEditDuration(Number(e.target.value))}
-                                />
-                                <span className="text-xs text-text-dim font-mono">horas</span>
-                              </div>
-                            </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="flex flex-col gap-0.5">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
+                                    <input 
+                                      type="datetime-local" 
+                                      className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
+                                      value={editStartTime}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setEditStartTime(val);
+                                        if (val && editEndTime) {
+                                          const diff = new Date(editEndTime).getTime() - new Date(val).getTime();
+                                          setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
+                                    <input 
+                                      type="datetime-local" 
+                                      className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
+                                      value={editEndTime}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setEditEndTime(val);
+                                        if (editStartTime && val) {
+                                          const diff = new Date(val).getTime() - new Date(editStartTime).getTime();
+                                          setEditDuration(Math.max(0, parseFloat((diff / 3600000).toFixed(2))));
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 bg-base-dim/20 p-2 border border-border-line/50">
+                                  <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Calculado:</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <input 
+                                      type="number" 
+                                      min={0}
+                                      step="0.01"
+                                      className="w-16 text-xs px-2 py-0.5 border border-border-line rounded bg-base text-center font-mono font-bold text-text-main outline-none"
+                                      value={editDuration || 0}
+                                      onChange={e => setEditDuration(Number(e.target.value))}
+                                    />
+                                    <span className="text-xs text-text-dim font-mono">horas</span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
                             
                             <div className="flex justify-end gap-4 mt-1">
                               <button 
@@ -588,7 +634,7 @@ export default function CompletadasView({
                                 Cancelar
                               </button>
                               <button 
-                                onClick={() => handleSaveEdit(childLog!.id)}
+                                onClick={() => handleSaveEdit(childLog!.id, child.type === 'Pulso')}
                                 className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0 outline-none"
                               >
                                 Guardar
