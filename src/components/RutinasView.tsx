@@ -364,7 +364,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                 value={routineArea}
                 onChange={e => { setRoutineArea(e.target.value); setRoutineSubCat(''); }}
               >
-                <option value="">Sin Ãrea</option>
+                <option value="">Sin Área</option>
                 {Object.keys(config?.areas || {}).map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
@@ -376,7 +376,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                   value={routineSubCat}
                   onChange={e => setRoutineSubCat(e.target.value)}
                 >
-                  <option value="">Sin CategorÃ­a</option>
+                  <option value="">Sin Categoría</option>
                   {((config?.areas?.[routineArea] as any).categories || []).map((sc: string) => (
                     <option key={sc} value={sc}>{sc}</option>
                   ))}
@@ -390,7 +390,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
         </form>
       )}
 
-      {/* 2. COLLAPSIBLE FORM: CREAR HÃBITO */}
+      {/* 2. COLLAPSIBLE FORM: CREAR HABITO */}
       {showAddHabit && (
         <form onSubmit={handleAddHabit} className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
           <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">Crear Nuevo Hábito Recurrente</h4>
@@ -398,7 +398,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
             <input 
               autoFocus
               type="text"
-              placeholder="Â¿QuÃ© hábito deseas incorporar?..."
+              placeholder="¿Qué hábito deseas incorporar?..."
               value={newHabitText}
               onChange={e => setNewHabitText(e.target.value)}
               className="px-4 py-2 bg-base border border-border-line rounded-full text-sm focus:outline-none focus:border-[#a2b29f] text-text-main"
@@ -433,7 +433,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                   value={habitArea}
                   onChange={e => { setHabitArea(e.target.value); }}
                 >
-                  <option value="">Sin Ãrea</option>
+                  <option value="">Sin Área</option>
                   {Object.keys(config?.areas || {}).map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
@@ -445,7 +445,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                     value={habitSubCat}
                     onChange={e => setHabitSubCat(e.target.value)}
                   >
-                    <option value="">Sin CategorÃ­a</option>
+                    <option value="">Sin Categoría</option>
                     {((config?.areas?.[habitArea] as any).categories || []).map((sc: string) => (
                       <option key={sc} value={sc}>{sc}</option>
                     ))}
@@ -468,7 +468,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
             <input 
               autoFocus
               type="text"
-              placeholder="Â¿QuÃ© pulso deseas trackear? (ej: Vasos de agua, meditaciÃ³n...)..."
+              placeholder="¿Qué pulso deseas trackear? (ej: Vasos de agua, meditación...)..."
               value={newPulsoText}
               onChange={e => setNewPulsoText(e.target.value)}
               className="px-4 py-2 bg-base border border-border-line rounded-full text-sm focus:outline-none focus:border-[#a2b29f] text-text-main"
@@ -502,8 +502,8 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                   onChange={e => setPulsoPolaridad(e.target.value as any)}
                   title="Polaridad del Pulso"
                 >
-                  <option value="Reforzar">ðŸ“ˆ Reforzar</option>
-                  <option value="Abandonar">ðŸ“‰ Abandonar</option>
+                  <option value="Reforzar">📈 Reforzar</option>
+                  <option value="Abandonar">📉 Abandonar</option>
                 </select>
 
                 <select 
@@ -511,7 +511,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                   value={pulsoArea}
                   onChange={e => { setPulsoArea(e.target.value); setPulsoSubCat(''); }}
                 >
-                  <option value="">Sin Ãrea</option>
+                  <option value="">Sin Área</option>
                   {Object.keys(config?.areas || {}).map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
@@ -523,7 +523,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                     value={pulsoSubCat}
                     onChange={e => setPulsoSubCat(e.target.value)}
                   >
-                    <option value="">Sin CategorÃ­a</option>
+                    <option value="">Sin Categoría</option>
                     {((config?.areas?.[pulsoArea] as any).categories || []).map((sc: string) => (
                       <option key={sc} value={sc}>{sc}</option>
                     ))}
@@ -570,7 +570,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         value={editRoutineForm.category}
                         onChange={e => setEditRoutineForm({...editRoutineForm, category: e.target.value, subCategory: ''})}
                       >
-                        <option value="">Sin Ãrea</option>
+                        <option value="">Sin Área</option>
                         {Object.keys(config?.areas || {}).map(a => (
                           <option key={a} value={a}>{a}</option>
                         ))}
@@ -581,7 +581,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                           value={editRoutineForm.subCategory}
                           onChange={e => setEditRoutineForm({...editRoutineForm, subCategory: e.target.value})}
                         >
-                          <option value="">Sin CategorÃ­a</option>
+                          <option value="">Sin Categoría</option>
                           {((config?.areas?.[editRoutineForm.category] as any)?.categories || []).map((sc: string) => (
                             <option key={sc} value={sc}>{sc}</option>
                           ))}
@@ -594,7 +594,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none font-mono text-xs text-text-main"
                         value={editRoutineForm.fechaPlanificada}
                         onChange={e => setEditRoutineForm({...editRoutineForm, fechaPlanificada: e.target.value})}
-                        title="PrÃ³xima EjecuciÃ³n"
+                        title="Próxima Ejecución"
                       />
                       <input 
                         type="time" 
@@ -669,16 +669,16 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                     
                     <div className="flex gap-3 text-[10px] font-mono text-text-dim/80 mt-1.5 flex-wrap items-center lowercase tracking-wider mb-2">
                       <span>{subtasks.length} hábitos</span>
-                      {routineDuration > 0 && <span className="text-text-dim font-mono">â± {routineDuration}h</span>}
+                      {routineDuration > 0 && <span className="text-text-dim font-mono">⏱ {routineDuration}h</span>}
                       {routine.fechaPlanificada && (
                          <span className="text-text-dim font-mono">
-                           ðŸ“… {routine.fechaPlanificada.substring(0, 10)}
+                           📅 {routine.fechaPlanificada.substring(0, 10)}
                          </span>
                       )}
-                      {routine.hora && <span className="text-text-dim font-mono">ðŸ•’ {routine.hora}</span>}
+                      {routine.hora && <span className="text-text-dim font-mono">🕒 {routine.hora}</span>}
                       {routine.frecuencia && (
                         <span className="text-text-dim font-mono">
-                          ðŸ”„ cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
+                          🔄 cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
                         </span>
                       )}
                     </div>
@@ -754,7 +754,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setOpenMenuRoutineId(null);
-                                if (window.confirm(`Â¿EstÃ¡s segura de que deseas eliminar permanentemente la rutina "${routine.text}" y todos sus hábitos?`)) {
+                                if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente la rutina "${routine.text}" y todos sus hábitos?`)) {
                                   onDeleteTask(routine.id);
                                 }
                               }} 
@@ -825,11 +825,11 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                       >
                         <input 
                           type="text" 
-                          placeholder="AÃ±adir hábito a esta rutina..."
+                          placeholder="Añadir hábito a esta rutina..."
                           className="flex-1 px-4 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
                         />
                         <button type="submit" className="text-text-main text-xs font-bold font-mono uppercase tracking-wider hover:underline cursor-pointer bg-transparent border-0 outline-none ml-4">
-                          + AÃ±adir
+                          + Añadir
                         </button>
                       </form>
                     </div>
@@ -946,9 +946,9 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                               className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
                               value={editPulsoForm.category}
                               onChange={e => setEditPulsoForm({...editPulsoForm, category: e.target.value, subCategory: ''})}
-                              title="Ãrea"
+                              title="Área"
                             >
-                              <option value="">Sin Ãrea</option>
+                              <option value="">Sin Área</option>
                               {Object.keys(config?.areas || {}).map(a => (
                                 <option key={a} value={a}>{a}</option>
                               ))}
@@ -959,7 +959,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                                 className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
                                 value={editPulsoForm.subCategory}
                                 onChange={e => setEditPulsoForm({...editPulsoForm, subCategory: e.target.value})}
-                                title="CategorÃ­a"
+                                title="Categoría"
                               >
                                 <option value="">Sin Cat.</option>
                                 {((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => (
@@ -1017,7 +1017,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         )}
                         {t.polaridad && (
                           <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
-                            {t.polaridad === 'Abandonar' ? 'ðŸ“‰' : 'ðŸ“ˆ'}
+                            {t.polaridad === 'Abandonar' ? '📉' : '📈'}
                           </span>
                         )}
                       </div>
@@ -1096,7 +1096,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setOpenMenuPulsoId(null);
-                                if (confirm('Â¿Eliminar pulso?')) onDeleteTask(t.id);
+                                if (confirm('¿Eliminar pulso?')) onDeleteTask(t.id);
                               }}
                               className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                             >
