@@ -61,6 +61,7 @@ export interface AppTask {
   unitLabel?: string; // Ej. "vasos", "veces", "pastillas"
   lastExecutedAt?: string; // Último check real
   order?: number; // Posición de ordenación para subtareas/hábitos
+  allocationType?: 'fixed' | 'growth' | 'mixed';
   createdAt: string;
   updatedAt?: string;
 }

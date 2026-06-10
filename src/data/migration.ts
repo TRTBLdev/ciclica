@@ -57,6 +57,14 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask {
     task.unitLabel = typeof task.unitLabel === 'string' ? task.unitLabel : 'veces';
   }
 
+  if (!task.allocationType) {
+    if (task.type === 'Rutina' || task.type === 'Hábito' || task.type === 'Pulso') {
+      task.allocationType = 'fixed';
+    } else {
+      task.allocationType = 'growth';
+    }
+  }
+
   task.completed = !!task.completed;
   task.createdAt = task.createdAt || now.toISOString();
 

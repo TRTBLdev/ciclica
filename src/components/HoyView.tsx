@@ -41,6 +41,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [qcFrecuenciaUnidad, setQcFrecuenciaUnidad] = useState('días');
   const [qcTargetCount, setQcTargetCount] = useState(8);
   const [qcUnitLabel, setQcUnitLabel] = useState('vasos');
+  const [qcAllocation, setQcAllocation] = useState<'fixed' | 'growth' | 'mixed'>('growth');
 
   // Editing pulso state
   const [editingPulsoId, setEditingPulsoId] = useState<string | null>(null);
@@ -93,10 +94,34 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   });
 
   const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
-  const hoursWorkedToday = todayRecords.reduce((acc, h) => acc + (h.duration || 0), 0);
-  const remainingLimit = Math.max(0, ENERGY_LIMIT - hoursWorkedToday);
+  
+  let fixedHoursToday = 0;
+  let growthHoursToday = 0;
+  let mixedHoursToday = 0;
 
-  let totalEnergy = 0;
+  todayRecords.forEach(h => {
+    const task = tasks.find(t => t.id === h.taskId);
+    const duration = h.duration || 0;
+    const alloc = task?.allocationType || (task ? (task.type === 'Rutina' || task.type === 'Hábito' || task.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
+    if (alloc === 'fixed') {
+      fixedHoursToday += duration;
+    } else if (alloc === 'mixed') {
+      mixedHoursToday += duration;
+    } else {
+      growthHoursToday += duration;
+    }
+  });
+
+  const totalSoporteReal = fixedHoursToday + (mixedHoursToday * 0.5);
+  const totalInversionReal = growthHoursToday + (mixedHoursToday * 0.5);
+  const hoursWorkedToday = fixedHoursToday + growthHoursToday + mixedHoursToday;
+
+  // Capacidad de Crecimiento Real = Límite Biológico - Soporte Vital Real
+  const growthCapacityToday = Math.max(0, ENERGY_LIMIT - totalSoporteReal);
+  const remainingGrowthLimit = Math.max(0, growthCapacityToday - totalInversionReal);
+
+  let plannedSoporte = 0;
+  let plannedInversion = 0;
   const timedTasks: any[] = [];
   const untimedTasks: AppTask[] = [];
 
@@ -105,7 +130,17 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     if (t.type === 'Rutina' || t.type === 'Proyecto') {
       taskDur = tasks.filter(sub => sub.parentId === t.id && !sub.completed).reduce((acc, sub) => acc + (sub.duracion || 0), 0);
     }
-    totalEnergy += taskDur;
+    
+    const alloc = t.allocationType || (t.type === 'Rutina' || t.type === 'Hábito' || t.type === 'Pulso' ? 'fixed' : 'growth');
+    if (alloc === 'fixed') {
+      plannedSoporte += taskDur;
+    } else if (alloc === 'mixed') {
+      plannedSoporte += taskDur * 0.5;
+      plannedInversion += taskDur * 0.5;
+    } else {
+      plannedInversion += taskDur;
+    }
+
     const safeTime = extractSafeTime(t.hora);
     if (safeTime) {
       timedTasks.push({ ...t, hora: safeTime });
@@ -114,6 +149,8 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     }
   });
 
+  const totalEnergy = plannedSoporte + plannedInversion;
+  const remainingLimit = Math.max(0, ENERGY_LIMIT - hoursWorkedToday);
   const energyPercent = remainingLimit > 0 ? Math.min((totalEnergy / remainingLimit) * 100, 100) : (totalEnergy > 0 ? 100 : 0);
   const energyColor = totalEnergy > remainingLimit ? 'bg-red-500' : 'bg-amber-400';
 
@@ -293,25 +330,60 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
           {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
 
-        <div className="w-full lg:w-80 flex flex-col justify-end">
+        <div className="w-full lg:w-80 flex flex-col justify-end text-left">
           <div className="flex justify-between items-end w-full pb-1 mb-0.5">
-            <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono">Energía Ejecutiva</span>
+            <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono">Asignación Energética</span>
             <span className="text-xs text-text-main font-bold">
-              {totalEnergy.toFixed(1)}h plan <span className="text-[#a2b29f] font-normal" title={`Límite restante disponible: ${remainingLimit.toFixed(1)}h`}>/ {remainingLimit.toFixed(1)}h disp</span>
+              {hoursWorkedToday.toFixed(1)}h real / {ENERGY_LIMIT.toFixed(1)}h lím
             </span>
           </div>
-          <div className="w-full h-[3px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1.5">
-            <div className={cn("absolute top-0 left-0 h-full transition-all duration-300", phaseDetails.bg)} style={{ width: `${energyPercent}%` }}></div>
-          </div>
-          <div className="flex justify-between text-[9px] tracking-wide text-text-dim/80 font-mono">
-            <span>Actividad: <span className="font-bold text-text-main">{hoursWorkedToday.toFixed(1)}h</span></span>
-            <span>Límite: <span className="font-bold text-text-main">{ENERGY_LIMIT.toFixed(1)}h</span></span>
-            {totalEnergy > remainingLimit ? (
-              <span className="text-red-500 font-bold" title={`Te has pasado de tu límite por ${(totalEnergy - remainingLimit).toFixed(1)}h`}>Excedido: +{(totalEnergy - remainingLimit).toFixed(1)}h ⚠️</span>
-            ) : (
-              <span>Libre: <span className="font-bold text-text-main">{(remainingLimit - totalEnergy).toFixed(1)}h</span></span>
+          
+          {/* Stacked Progress Bar */}
+          <div className="w-full h-[5px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1.5 flex">
+            {fixedHoursToday > 0 && (
+              <div 
+                style={{ width: `${(fixedHoursToday / ENERGY_LIMIT) * 100}%` }} 
+                className="bg-[#81b29a] h-full transition-all duration-300" 
+                title={`Soporte Vital: ${fixedHoursToday.toFixed(1)}h`} 
+              />
+            )}
+            {mixedHoursToday > 0 && (
+              <div 
+                style={{ width: `${(mixedHoursToday / ENERGY_LIMIT) * 100}%` }} 
+                className="bg-[#e07a5f] h-full transition-all duration-300" 
+                title={`Híbrido/Mixto: ${mixedHoursToday.toFixed(1)}h`} 
+              />
+            )}
+            {growthHoursToday > 0 && (
+              <div 
+                style={{ width: `${(growthHoursToday / ENERGY_LIMIT) * 100}%` }} 
+                className="bg-[#d4af37] h-full transition-all duration-300" 
+                title={`Inversión Crecimiento: ${growthHoursToday.toFixed(1)}h`} 
+              />
             )}
           </div>
+          
+          <div className="flex justify-between text-[9px] tracking-wide text-text-dim/80 font-mono">
+            <span>🛡️ Soporte: <span className="font-bold text-text-main">{totalSoporteReal.toFixed(1)}h</span></span>
+            <span>⚡ Crecimiento Disp: <span className="font-bold text-text-main">{growthCapacityToday.toFixed(1)}h</span></span>
+            {totalInversionReal > growthCapacityToday ? (
+              <span className="text-red-500 font-bold" title={`Excedido: +${(totalInversionReal - growthCapacityToday).toFixed(1)}h`}>Excedido: +{(totalInversionReal - growthCapacityToday).toFixed(1)}h ⚠️</span>
+            ) : (
+              <span>Disp: <span className="font-bold text-text-main">{remainingGrowthLimit.toFixed(1)}h</span></span>
+            )}
+          </div>
+
+          {/* Validating/celebratory messages */}
+          {totalSoporteReal > 0 && (
+            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-2 uppercase tracking-wider">
+              🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital. ¡Base sostenida!
+            </div>
+          )}
+          {totalInversionReal >= growthCapacityToday && growthCapacityToday > 0 && (
+            <div className="text-[9px] text-primary font-mono leading-tight mt-1 uppercase tracking-wider font-bold">
+              🎉 100% de crecimiento disponible completado hoy.
+            </div>
+          )}
         </div>
       </div>
 
@@ -342,7 +414,8 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                priority: qcPriority,
                completed: false,
                view: qcView,
-               hora: qcHora
+               hora: qcHora,
+               allocationType: qcAllocation
              };
              if (qcType === 'Hábito' || qcType === 'Rutina') {
                newTask.frecuencia = qcFrecuencia;
@@ -405,7 +478,19 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               
               {/* Task Type */}
               <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-4">
-                <select className="appearance-none bg-transparent text-text-main text-xs tracking-normal focus:outline-none cursor-pointer pr-4 font-mono font-bold" value={qcType} onChange={e => setQcType(e.target.value)}>
+                <select 
+                  className="appearance-none bg-transparent text-text-main text-xs tracking-normal focus:outline-none cursor-pointer pr-4 font-mono font-bold" 
+                  value={qcType} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setQcType(val);
+                    if (val === 'Hábito' || val === 'Rutina' || val === 'Contador') {
+                      setQcAllocation('fixed');
+                    } else {
+                      setQcAllocation('growth');
+                    }
+                  }}
+                >
                   <option value="Tarea">✏️ TAREA</option>
                   <option value="Hábito">🔄 HÁBITO SIMPLE</option>
                   <option value="Contador">📈 RITMO (MULTI-DIARIO)</option>
@@ -466,6 +551,16 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                   </div>
                 </div>
               )}
+
+              {/* Asignación Energética */}
+              <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-4 font-mono text-xs">
+                <select className="appearance-none bg-transparent text-text-main focus:outline-none cursor-pointer pr-4 font-bold" value={qcAllocation} onChange={e => setQcAllocation(e.target.value as any)}>
+                  <option value="growth">⚡ INVERSIÓN</option>
+                  <option value="fixed">🛡️ SOPORTE VITAL</option>
+                  <option value="mixed">☯️ MIXTO</option>
+                </select>
+                <ChevronDown className="absolute right-0 w-3 h-3 text-text-main pointer-events-none" />
+              </div>
 
               {/* Date */}
               <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center gap-1 text-xs font-mono">

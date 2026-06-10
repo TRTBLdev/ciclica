@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { AppTask, Config, HistoryRecord } from '../types';
+import { AppTask, Config, HistoryRecord, BiologicalPhase } from '../types';
+import { calculateBiologicalPhase } from '../domain/cycle';
 import { 
   BarChart3, 
   Calendar, 
@@ -183,15 +184,53 @@ export default function ReportesView({ config, tasks, history }: Props) {
   // Rows of activities that logged time in the period
   const occupancyRows = useMemo(() => {
     const projectNodes: Record<string, OccupancyNode> = {};
+    const routineNodes: Record<string, OccupancyNode> = {};
     const standaloneNodes: Record<string, OccupancyNode> = {};
 
     filteredHistory.forEach(h => {
       const dayKey = new Date(h.date).toISOString().substring(0, 10);
       const originalTask = tasks.find(t => t.id === h.taskId);
       const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
+      const routineTask = (originalTask && originalTask.type === 'Hábito' && originalTask.parentId)
+        ? tasks.find(t => t.id === originalTask.parentId && t.type === 'Rutina')
+        : null;
       const duration = h.duration || 0;
 
-      if (projectTask) {
+      if (routineTask) {
+        // Group under Routine node
+        if (!routineNodes[routineTask.id]) {
+          routineNodes[routineTask.id] = {
+            id: routineTask.id,
+            text: routineTask.text,
+            type: 'Rutina',
+            area: routineTask.category || 'Sin Área',
+            totalHours: 0,
+            logsByDay: {},
+            children: []
+          };
+        }
+
+        routineNodes[routineTask.id].totalHours += duration;
+        routineNodes[routineTask.id].logsByDay[dayKey] = (routineNodes[routineTask.id].logsByDay[dayKey] || 0) + duration;
+
+        if (originalTask && originalTask.id !== routineTask.id) {
+          let childNode = routineNodes[routineTask.id].children.find(c => c.id === originalTask.id);
+          if (!childNode) {
+            childNode = {
+              id: originalTask.id,
+              text: originalTask.text,
+              type: originalTask.type,
+              area: originalTask.category || routineTask.category || 'Sin Área',
+              totalHours: 0,
+              logsByDay: {},
+              children: []
+            };
+            routineNodes[routineTask.id].children.push(childNode);
+          }
+          childNode.totalHours += duration;
+          childNode.logsByDay[dayKey] = (childNode.logsByDay[dayKey] || 0) + duration;
+        }
+      } else if (projectTask) {
         // It's part of a project! Group under project node.
         if (!projectNodes[projectTask.id]) {
           projectNodes[projectTask.id] = {
@@ -253,19 +292,24 @@ export default function ReportesView({ config, tasks, history }: Props) {
       return p;
     }).sort((a, b) => b.totalHours - a.totalHours);
 
+    const sortedRoutines = Object.values(routineNodes).map(r => {
+      r.children.sort((a, b) => b.totalHours - a.totalHours);
+      return r;
+    }).sort((a, b) => b.totalHours - a.totalHours);
+
     const sortedStandalone = Object.values(standaloneNodes).sort((a, b) => b.totalHours - a.totalHours);
 
-    return [...sortedProjects, ...sortedStandalone];
+    return [...sortedProjects, ...sortedRoutines, ...sortedStandalone];
   }, [filteredHistory, tasks]);
 
-  // Flatten the hierarchy to visible rows based on project expand/collapse state
+  // Flatten the hierarchy to visible rows based on project/routine expand/collapse state
   const visibleOccupancyRows = useMemo(() => {
     const rows: { node: OccupancyNode; isChild: boolean; parentId?: string }[] = [];
-    occupancyRows.forEach(projNode => {
-      rows.push({ node: projNode, isChild: false });
-      if (projNode.type === 'Proyecto' && expandedProjects[projNode.id]) {
-        projNode.children.forEach(child => {
-          rows.push({ node: child, isChild: true, parentId: projNode.id });
+    occupancyRows.forEach(node => {
+      rows.push({ node, isChild: false });
+      if ((node.type === 'Proyecto' || node.type === 'Rutina') && expandedProjects[node.id]) {
+        node.children.forEach(child => {
+          rows.push({ node: child, isChild: true, parentId: node.id });
         });
       }
     });
@@ -274,6 +318,8 @@ export default function ReportesView({ config, tasks, history }: Props) {
 
   interface StatsResult {
     totalHours: number;
+    fixedHours: number;
+    growthHours: number;
     historyCount: number;
     activeDays: number;
     totalRangeDays: number;
@@ -317,8 +363,9 @@ export default function ReportesView({ config, tasks, history }: Props) {
       'Pulso': 0
     };
 
-    // Keep track of distinct active days inside the selected range
     const activeDaysSet = new Set<string>();
+    let fixedHours = 0;
+    let growthHours = 0;
 
     filteredHistory.forEach(h => {
       const duration = h.duration || 0;
@@ -329,6 +376,16 @@ export default function ReportesView({ config, tasks, history }: Props) {
       activeDaysSet.add(localDateStr);
 
       const originalTask = tasks.find(t => t.id === h.taskId);
+      const alloc = originalTask?.allocationType || (originalTask ? (originalTask.type === 'Rutina' || originalTask.type === 'Hábito' || originalTask.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
+      if (alloc === 'fixed') {
+        fixedHours += duration;
+      } else if (alloc === 'mixed') {
+        fixedHours += duration * 0.5;
+        growthHours += duration * 0.5;
+      } else {
+        growthHours += duration;
+      }
+
       const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
       const task = projectTask || originalTask;
       const effectiveType = projectTask ? 'Proyecto' : (originalTask ? originalTask.type : 'Tarea');
@@ -451,6 +508,8 @@ export default function ReportesView({ config, tasks, history }: Props) {
 
     return {
       totalHours: Math.round(totalDuration * 100) / 100,
+      fixedHours: Math.round(fixedHours * 100) / 100,
+      growthHours: Math.round(growthHours * 100) / 100,
       historyCount,
       activeDays: activeDaysSet.size,
       totalRangeDays: rangeDays,
@@ -466,6 +525,34 @@ export default function ReportesView({ config, tasks, history }: Props) {
     };
   }, [filteredHistory, tasks, periodRange]);
 
+  const cyclicalBreakdown = useMemo(() => {
+    const phases: Record<BiologicalPhase, { fixed: number; growth: number; total: number }> = {
+      dinamica: { fixed: 0, growth: 0, total: 0 },
+      expresiva: { fixed: 0, growth: 0, total: 0 },
+      creativa: { fixed: 0, growth: 0, total: 0 },
+      reflexiva: { fixed: 0, growth: 0, total: 0 },
+    };
+
+    filteredHistory.forEach(h => {
+      const duration = h.duration || 0;
+      const originalTask = tasks.find(t => t.id === h.taskId);
+      const alloc = originalTask?.allocationType || (originalTask ? (originalTask.type === 'Rutina' || originalTask.type === 'Hábito' || originalTask.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
+      const phase = calculateBiologicalPhase(config, new Date(h.date));
+      
+      if (alloc === 'fixed') {
+        phases[phase].fixed += duration;
+      } else if (alloc === 'mixed') {
+        phases[phase].fixed += duration * 0.5;
+        phases[phase].growth += duration * 0.5;
+      } else {
+        phases[phase].growth += duration;
+      }
+      phases[phase].total += duration;
+    });
+
+    return phases;
+  }, [filteredHistory, tasks, config]);
+
   // Handle Copy Raw Text Report to clipboard
   const handleCopyReport = () => {
     const rangeStr = `${periodRange.start.toLocaleDateString('es-ES')} - ${periodRange.end.toLocaleDateString('es-ES')}`;
@@ -474,6 +561,8 @@ Intervalo: ${rangeStr}
 --------------------------------------------------
 📈 MÉTRICAS CLAVE:
 • Horas Totales Invertidas: ${stats.totalHours} h
+• Horas de Soporte Vital (Fixed): ${stats.fixedHours} h
+• Horas de Inversión (Growth): ${stats.growthHours} h
 • Sesiones Completadas: ${stats.historyCount} sesiones
 • Promedio Diario Real: ${stats.dailyAverage} h/día
 • Días con Registro Activo: ${stats.activeDays} de ${stats.totalRangeDays} días 
@@ -509,6 +598,8 @@ Intervalo: ${rangeStr}
 
 ## 📈 MÉTRICAS CLAVE
 - **Horas Totales Invertidas:** ${stats.totalHours} h
+- **Horas de Soporte Vital (Fixed Costs):** ${stats.fixedHours} h
+- **Horas de Inversión (Growth Investments):** ${stats.growthHours} h
 - **Sesiones Completadas:** ${stats.historyCount} sesiones
 - **Promedio Diario Real:** ${stats.dailyAverage} h/día
 - **Días con Registro Activo:** ${stats.activeDays} de ${stats.totalRangeDays} días 
@@ -679,21 +770,21 @@ SORT date DESC
       {/* METRICS GRID - STYLED WITH NON-INTERSECTING LINES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border-t border-l border-border-line/30 mb-8">
         
-        {/* Metric 1: Total Hours invested */}
+        {/* Metric 1: Soporte Vital */}
         <div className="border-r border-b border-border-line/30 p-6 flex flex-col gap-1 bg-transparent">
-          <span className="text-[10px] font-mono text-text-dim uppercase">Horas Invertidas</span>
-          <div className="flex items-baseline gap-1 mt-1 text-text-main">
-            <span className="text-2xl sm:text-3xl font-light font-mono tracking-tight">{stats.totalHours}</span>
+          <span className="text-[10px] font-mono text-text-dim uppercase">🛡️ Soporte Vital</span>
+          <div className="flex items-baseline gap-1 mt-1 text-[#81b29a] font-bold">
+            <span className="text-2xl sm:text-3xl font-light font-mono tracking-tight">{stats.fixedHours}</span>
             <span className="text-xs text-text-dim/80 font-medium tracking-wide">horas</span>
           </div>
         </div>
 
-        {/* Metric 2: Total Sessions complete */}
+        {/* Metric 2: Inversión Crecimiento */}
         <div className="border-r border-b border-border-line/30 p-6 flex flex-col gap-1 bg-transparent justify-between">
-          <span className="text-[10px] font-mono text-text-dim uppercase">Sesiones de Foco</span>
-          <div className="flex items-baseline gap-1 mt-1 text-text-main">
-            <span className="text-2xl sm:text-3xl font-light font-mono tracking-tight">{stats.historyCount}</span>
-            <span className="text-xs text-text-dim/80 font-medium tracking-wide">veces</span>
+          <span className="text-[10px] font-mono text-text-dim uppercase">⚡ Inversión Crecimiento</span>
+          <div className="flex items-baseline gap-1 mt-1 text-[#d4af37] font-bold">
+            <span className="text-2xl sm:text-3xl font-light font-mono tracking-tight">{stats.growthHours}</span>
+            <span className="text-xs text-text-dim/80 font-medium tracking-wide">horas</span>
           </div>
         </div>
 
@@ -702,7 +793,7 @@ SORT date DESC
           <span className="text-[10px] font-mono text-text-dim uppercase">Promedio Real</span>
           <div className="flex items-baseline gap-1 mt-1 text-text-main">
             <span className="text-2xl sm:text-3xl font-light font-mono tracking-tight">{stats.dailyAverage}</span>
-            <span className="text-xs text-text-dim/80 font-medium tracking-wide">h/día</span>
+            <span className="text-xs text-text-dim/80 font-medium tracking-wide">h/día (Total: {stats.totalHours}h)</span>
           </div>
         </div>
 
@@ -714,6 +805,111 @@ SORT date DESC
           </span>
         </div>
       </div>
+
+      {/* BALANCE ENERGÉTICO (FIXED COSTS VS. GROWTH INVESTMENTS) */}
+      <div className="bg-transparent py-6 border-b border-border-line/50 flex flex-col gap-4">
+        <div className="border-b border-border-line/20 pb-3 flex justify-between items-center flex-wrap gap-2 text-left">
+          <div>
+            <h3 className="text-sm font-medium text-text-main flex items-center gap-1.5">
+              <Activity className="w-4 h-4 text-primary" />
+              Balance de Asignación Energética (Fixed Costs vs. Growth Investments)
+            </h3>
+            <p className="text-xs text-text-dim font-medium">Proporción de esfuerzo dedicado a sostener la vida vs. expandir tus metas</p>
+          </div>
+          <span className="text-[10px] font-mono text-text-dim uppercase bg-base-dim px-2.5 py-1 border border-border-line/30 rounded-md">
+            🛡️ Soporte: {stats.fixedHours.toFixed(1)}h | ⚡ Inversión: {stats.growthHours.toFixed(1)}h
+          </span>
+        </div>
+
+        {stats.totalHours === 0 ? (
+          <div className="py-8 text-center flex flex-col items-center justify-center opacity-40">
+            <Activity className="w-8 h-8 text-text-dim mb-1" />
+            <p className="text-text-dim font-medium text-xs">Registra horas para visualizar tu balance energético</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {/* Split Bar */}
+            <div className="w-full h-[12px] bg-base-dim relative rounded-full overflow-hidden flex shadow-inner">
+              <div 
+                style={{ width: `${(stats.fixedHours / stats.totalHours) * 100}%` }} 
+                className="bg-[#81b29a] h-full transition-all duration-300 flex items-center justify-center text-[8px] font-bold text-white font-mono"
+                title={`Soporte Vital: ${stats.fixedHours.toFixed(1)}h`}
+              >
+                {stats.fixedHours > 0 && `${Math.round((stats.fixedHours / stats.totalHours) * 100)}% 🛡️`}
+              </div>
+              <div 
+                style={{ width: `${(stats.growthHours / stats.totalHours) * 100}%` }} 
+                className="bg-[#d4af37] h-full transition-all duration-300 flex items-center justify-center text-[8px] font-bold text-white font-mono"
+                title={`Inversión Crecimiento: ${stats.growthHours.toFixed(1)}h`}
+              >
+                {stats.growthHours > 0 && `${Math.round((stats.growthHours / stats.totalHours) * 100)}% ⚡`}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-text-dim font-medium flex-wrap mt-1 gap-2 text-left">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-[#81b29a]" />
+                <strong>Soporte Vital ({stats.fixedHours.toFixed(1)}h):</strong> Hábitos y rutinas de autocuidado, alimentación y hogar.
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-[#d4af37]" />
+                <strong>Inversión Crecimiento ({stats.growthHours.toFixed(1)}h):</strong> Proyectos, metas profesionales, finanzas y estudio.
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CYCLE PHASE BREAKDOWN */}
+      {(period === 'ciclo' || stats.totalRangeDays > 15) && (
+        <div className="bg-transparent py-6 border-b border-border-line/50 flex flex-col gap-4">
+          <div className="border-b border-border-line/20 pb-3 text-left">
+            <h3 className="text-sm font-medium text-text-main flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#73c2b8]" />
+              Distribución Energética por Fases Biológicas
+            </h3>
+            <p className="text-xs text-text-dim font-medium">Análisis de la alineación de tus niveles de energía real por fases del ciclo</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+            {[
+              { id: 'reflexiva', label: 'Menstruación / Reflexiva 🩸', details: 'Fase de hibernación y autocuidado' },
+              { id: 'dinamica', label: 'Folicular / Dinámica ⚡', details: 'Fase de empuje, lógica y planificación' },
+              { id: 'expresiva', label: 'Ovulación / Expresiva 🌸', details: 'Fase social, empatía e intercambio' },
+              { id: 'creativa', label: 'Lútea / Creativa 🍃', details: 'Fase de purga, orden y descarte' }
+            ].map(phaseObj => {
+              const data = cyclicalBreakdown[phaseObj.id as BiologicalPhase];
+              const total = data.total;
+              const fixedPercent = total > 0 ? Math.round((data.fixed / total) * 100) : 0;
+              const growthPercent = total > 0 ? Math.round((data.growth / total) * 100) : 0;
+
+              return (
+                <div key={phaseObj.id} className="p-4 border border-border-line/30 rounded-2xl bg-base-dim/10 text-left flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-text-main block">{phaseObj.label}</span>
+                    <span className="text-[10px] text-text-dim font-mono block mt-0.5">{phaseObj.details}</span>
+                  </div>
+                  
+                  {total === 0 ? (
+                    <span className="text-[10px] font-mono text-text-dim/60 italic block mt-6">Sin registros</span>
+                  ) : (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <div className="flex justify-between items-baseline text-[10px] font-mono text-text-main">
+                        <span>Horas: <strong>{total.toFixed(1)}h</strong></span>
+                        <span>{fixedPercent}% 🛡️ / {growthPercent}% ⚡</span>
+                      </div>
+                      <div className="w-full h-2 bg-base-dim rounded-full overflow-hidden flex">
+                        <div style={{ width: `${fixedPercent}%` }} className="bg-[#81b29a] h-full" />
+                        <div style={{ width: `${growthPercent}%` }} className="bg-[#d4af37] h-full" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* CHARTS GRAPHICS WRAPPER */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -1057,7 +1253,7 @@ SORT date DESC
               </div>
               <div className="flex flex-col">
                 {visibleOccupancyRows.map(({ node: row, isChild, parentId }) => {
-                  const hasChildren = row.type === 'Proyecto' && row.children.length > 0;
+                  const hasChildren = (row.type === 'Proyecto' || row.type === 'Rutina') && row.children.length > 0;
                   const isExpanded = !!expandedProjects[row.id];
 
                   return (

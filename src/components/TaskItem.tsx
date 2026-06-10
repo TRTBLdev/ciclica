@@ -316,6 +316,7 @@ export default function TaskItem({
   const [editType, setEditType] = useState<TaskType>(task.type);
   const [editDependencyId, setEditDependencyId] = useState(task.dependencyId || '');
   const [depSearch, setDepSearch] = useState('');
+  const [editAllocationType, setEditAllocationType] = useState<'fixed' | 'growth' | 'mixed'>(task.allocationType || 'growth');
   const [isExpanded, setIsExpanded] = useState(false);
   const [newTaskText, setNewTaskText] = useState('');
   const [addingSubtask, setAddingSubtask] = useState(false);
@@ -410,6 +411,7 @@ export default function TaskItem({
       setEditType(task.type);
       setEditDependencyId(task.dependencyId || '');
       setDepSearch('');
+      setEditAllocationType(task.allocationType || 'growth');
     }
   }, [isEditing, task]);
 
@@ -457,6 +459,7 @@ export default function TaskItem({
         parentId: editParentId,
         type: editType,
         dependencyId: editDependencyId,
+        allocationType: editAllocationType,
       };
       
       const planDate = new Date(editFechaPlanificada);
@@ -803,6 +806,18 @@ export default function TaskItem({
                             <span className="text-xs text-text-dim font-mono font-bold">h</span>
                           </div>
                         )}
+                        <div className="relative flex items-center bg-transparent rounded-md" title="Asignación Energética">
+                          <select 
+                            className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
+                            value={editAllocationType} 
+                            onChange={e => setEditAllocationType(e.target.value as any)}
+                          >
+                            <option value="growth">⚡ Inversión</option>
+                            <option value="fixed">🛡️ Soporte Vital</option>
+                            <option value="mixed">☯️ Mixto</option>
+                          </select>
+                          <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+                        </div>
                       </div>
                     )}
                   </>
@@ -944,6 +959,11 @@ export default function TaskItem({
               )}
               {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
               {isFutureDate(task.fechaPlanificada) && !isHabit && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
+              {task.allocationType && (
+                <span className="flex items-center h-5 text-[10px] font-mono font-medium leading-none text-text-dim/80 bg-base-dim px-2 rounded-full border border-border-line/30" title="Asignación Energética">
+                  {task.allocationType === 'fixed' ? '🛡️ Soporte' : task.allocationType === 'growth' ? '⚡ Inversión' : '☯️ Mixto'}
+                </span>
+              )}
               
               {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
                 <span 

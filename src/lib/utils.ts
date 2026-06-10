@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { AppTask } from "../types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -132,5 +133,21 @@ export function getSafeTailwindClasses() {
     'text-red-400', 'text-red-500', 'text-red-600', 'text-red-700', 'bg-red-50', 'bg-red-400', 'bg-red-500', 'border-red-100', 'border-red-200',
     'text-green-400', 'text-green-500', 'text-green-600', 'text-green-700', 'bg-green-50', 'bg-green-400', 'bg-green-500', 'border-green-100', 'border-green-200',
   ];
+}
+
+export function getEffectiveAllocation(task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' {
+  if (task.allocationType) return task.allocationType;
+
+  if (task.parentId) {
+    const parent = allTasks.find(t => t.id === task.parentId);
+    if (parent) {
+      return getEffectiveAllocation(parent, allTasks);
+    }
+  }
+
+  if (task.type === 'Rutina' || task.type === 'Hábito' || task.type === 'Pulso') {
+    return 'fixed';
+  }
+  return 'growth';
 }
 
