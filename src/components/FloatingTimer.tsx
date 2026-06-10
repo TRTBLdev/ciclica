@@ -19,6 +19,8 @@ interface FloatingTimerProps {
   onDiscard: () => void;
   onStartTimer: (taskId: string) => void;
   onUpdateStartTime: (newStartTime: string) => void;
+  isMinimized?: boolean;
+  onToggleMinimize?: () => void;
 }
 
 export default function FloatingTimer({
@@ -29,7 +31,9 @@ export default function FloatingTimer({
   onStop,
   onDiscard,
   onStartTimer,
-  onUpdateStartTime
+  onUpdateStartTime,
+  isMinimized = false,
+  onToggleMinimize
 }: FloatingTimerProps) {
   const [ticker, setTicker] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -173,9 +177,49 @@ export default function FloatingTimer({
     setEditHHMM(`${hh}:${mm}`);
   };
 
+  if (isMinimized) {
+    return (
+      <div className="fixed md:relative bottom-[50px] md:bottom-0 left-0 right-0 md:right-auto w-full md:w-auto bg-base border-t border-border-line z-50 md:z-0 px-4 py-2 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] md:shadow-none h-[52px] flex items-center justify-between transition-all duration-300">
+        <div className="flex items-center gap-3 min-w-0 flex-1 text-left">
+          <Circle className={cn("w-2 h-2 fill-current shrink-0", activeTimer.isRunning ? "text-accent animate-pulse" : "text-secondary")} />
+          <span className="text-xs font-medium text-text-main truncate max-w-[12rem]">{taskName}</span>
+          <span className="text-xs font-mono font-bold text-text-main shrink-0">{formattedTime}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {activeTimer.isRunning ? (
+            <button onClick={onPause} className="p-1 hover:bg-base-dim/40 rounded-full transition-colors cursor-pointer bg-transparent border-0 outline-none" title="Pausar">
+              <Pause className="w-4 h-4 text-text-dim hover:text-text-main" />
+            </button>
+          ) : (
+            <button onClick={onResume} className="p-1 hover:bg-base-dim/40 rounded-full transition-colors cursor-pointer bg-transparent border-0 outline-none" title="Reanudar">
+              <Play className="w-4 h-4 text-text-dim hover:text-text-main" />
+            </button>
+          )}
+          <button onClick={() => onStop(true)} className="p-1 hover:bg-base-dim/40 rounded-full transition-colors cursor-pointer bg-transparent border-0 outline-none" title="Completar y Guardar">
+            <CheckCircle2 className="w-4 h-4 text-accent" />
+          </button>
+          {onToggleMinimize && (
+            <button onClick={onToggleMinimize} className="p-1 hover:bg-base-dim/40 rounded-full transition-colors cursor-pointer bg-transparent border-0 outline-none" title="Expandir tracker">
+              <ChevronDown className="w-4 h-4 text-text-dim rotate-180" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed md:relative bottom-0 left-0 right-0 md:right-auto w-full md:w-auto bg-base border-t md:border-t-0 border-border-line z-50 md:z-0 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)] md:shadow-none h-[200px] flex flex-col justify-between">
-      <div className="absolute top-0 right-0 p-4">
+    <div className="fixed md:relative bottom-[50px] md:bottom-0 left-0 right-0 md:right-auto w-full md:w-auto bg-base border-t border-border-line z-50 md:z-0 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)] md:shadow-none h-[220px] flex flex-col justify-between transition-all duration-300">
+      <div className="absolute top-0 right-0 p-4 flex gap-2">
+        {onToggleMinimize && (
+          <button 
+            onClick={onToggleMinimize}
+            className="text-text-dim hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+            title="Minimizar tracker"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        )}
         <button 
           onClick={onDiscard}
           className="text-primary hover:text-red-500 transition-colors animate-in fade-in"
@@ -188,7 +232,7 @@ export default function FloatingTimer({
       {!isEditing ? (
         <div 
           onClick={startEditMode}
-          className="flex flex-col flex-1 justify-between group/timer cursor-pointer hover:bg-base-dim/40 rounded-xl p-2 transition-all duration-200"
+          className="flex flex-col flex-1 justify-between group/timer cursor-pointer hover:bg-base-dim/40 rounded-xl p-2 transition-all duration-200 mt-2"
           title="Click para ajustar la hora de inicio y duración"
         >
           <div className="flex flex-col mb-1 animate-in fade-in">
@@ -224,7 +268,7 @@ export default function FloatingTimer({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5 mb-2 p-2 bg-base-dim/10 rounded-xl border border-border-line/40 animate-in slide-in-from-top-2 duration-200">
+        <div className="flex flex-col gap-2.5 mb-2 p-2 bg-base-dim/10 rounded-xl border border-border-line/40 animate-in slide-in-from-top-2 duration-200 mt-2">
           <span className="text-[10px] font-mono uppercase text-text-dim font-bold">Ajustar Hora de Inicio</span>
           <div className="flex gap-3 items-center">
             <div className="flex flex-col gap-1 text-left flex-1">
@@ -280,7 +324,7 @@ export default function FloatingTimer({
         {activeTimer.isRunning ? (
           <button
             onClick={onPause}
-            className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2"
+            className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2 bg-transparent border-0 outline-none cursor-pointer"
             title="Pausar"
           >
             <Pause className="w-4 h-4 group-hover:text-accent" /> 
@@ -289,7 +333,7 @@ export default function FloatingTimer({
         ) : (
           <button
             onClick={onResume}
-            className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2"
+            className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2 bg-transparent border-0 outline-none cursor-pointer"
             title="Reanudar"
           >
             <Play className="w-4 h-4 group-hover:text-accent" /> 
@@ -299,7 +343,7 @@ export default function FloatingTimer({
 
         <button
           onClick={() => onStop(false)}
-          className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2"
+          className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2 bg-transparent border-0 outline-none cursor-pointer"
           title="Guardar"
         >
           <Save className="w-4 h-4 group-hover:text-accent" /> 
@@ -308,7 +352,7 @@ export default function FloatingTimer({
 
         <button
           onClick={() => onStop(true)}
-          className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2"
+          className="flex flex-col items-center gap-2 text-text-dim hover:text-text-main transition-colors group p-2 bg-transparent border-0 outline-none cursor-pointer"
           title="Finalizar"
         >
           <CheckCircle2 className="w-4 h-4 text-accent group-hover:text-text-main" /> 

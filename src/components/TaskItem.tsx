@@ -586,17 +586,21 @@ export default function TaskItem({
       className={cn(
         "relative group flex flex-col p-4 transition-all duration-200",
         isCompletedVisual && !isEditing ? "grayscale" : "",
-        locked ? "opacity-60 pointer-events-none grayscale" : "",
+        locked ? "opacity-60 grayscale" : "",
         isSubtask ? "ml-2 md:ml-4 mt-1 relative before:content-[''] before:absolute before:-left-3 md:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : ""
       )}
     >
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
         <button 
-          onClick={() => onToggle(task)} 
-          onMouseEnter={() => setIsCheckboxHovered(true)}
+          onClick={() => { if (!locked) onToggle(task); }} 
+          disabled={locked}
+          onMouseEnter={() => { if (!locked) setIsCheckboxHovered(true); }}
           onMouseLeave={() => setIsCheckboxHovered(false)}
-          className="mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent transition-all duration-200 flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40 cursor-pointer"
+          className={cn(
+            "mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent transition-all duration-200 flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40",
+            locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+          )}
         >
           {isCompletedVisual ? (
             (task.type === 'Rutina' || task.type === 'Hábito') ? (
@@ -862,16 +866,16 @@ export default function TaskItem({
             <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
               <p 
                 onClick={() => {
-                  if (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
+                  if (!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
                     onStartTimer(task.id);
                   }
                 }}
                 className={cn(
                   "text-base flex-1 min-w-0 break-words", 
                   isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
-                  (!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) && "cursor-pointer hover:text-primary transition-colors"
+                  (!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
                 )}
-                title={(!isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
+                title={(!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
                 {task.text}
               </p>
@@ -983,7 +987,7 @@ export default function TaskItem({
                   🔴 Trackeando
                 </span>
               ) : (
-                !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && (
+                !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && !locked && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
                     className="p-1 hover:bg-base-dim/40 rounded-full transition-all cursor-pointer bg-transparent border-0 outline-none flex items-center justify-center"

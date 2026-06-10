@@ -176,7 +176,7 @@ export default function CompletadasView({
     return filteredHistoryByDate.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return false;
-      if (task.type !== 'Hábito' && task.type !== 'Rutina') return false;
+      if (task.type !== 'Hábito' && task.type !== 'Rutina' && task.type !== 'Pulso') return false;
 
       // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
       if (task.parentId) {

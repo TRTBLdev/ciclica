@@ -693,27 +693,28 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                           </div>
 
                           {/* Bottom row: Counter adjuster and count indicator */}
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <div className="flex border border-border-line rounded-none bg-transparent overflow-hidden">
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5">
                               <button 
                                 onClick={() => onUpdateTask(t.id, { currentCount: Math.max(0, count - 1), completed: Math.max(0, count - 1) >= target })}
-                                className="w-[18px] h-[18px] flex items-center justify-center text-[9px] text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-colors cursor-pointer bg-transparent border-0 rounded-none font-bold"
+                                className="w-[28px] h-[28px] rounded-full border border-border-line flex items-center justify-center text-xs text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
+                                title="Decrementar"
                               >
                                 -
                               </button>
-                              <div className="w-[1px] bg-border-line"></div>
                               <button 
                                 onClick={() => onUpdateTask(t.id, { currentCount: Math.min(target * 2, count + 1), completed: (count + 1) >= target })}
-                                className="w-[18px] h-[18px] flex items-center justify-center text-[9px] text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-colors cursor-pointer bg-transparent border-0 rounded-none font-bold"
+                                className="w-[28px] h-[28px] rounded-full border border-[#73c2b8]/40 flex items-center justify-center text-xs text-[#73c2b8] hover:bg-[#73c2b8]/10 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
+                                title="Incrementar"
                               >
                                 +
                               </button>
                             </div>
                             
-                            <span className="text-[9.5px] font-mono text-text-dim leading-none">
+                            <span className="text-[10px] font-mono text-text-dim leading-none">
                               {count} <span className="opacity-60">/ {target} {unit}</span>
                             </span>
-                            {isDone && <span className="text-[7.5px] uppercase tracking-wider font-mono font-bold text-[#81b29a] leading-none">Listo</span>}
+                            {isDone && <span className="text-[8px] uppercase tracking-wider font-mono font-bold text-[#81b29a] leading-none">Listo</span>}
                           </div>
                         </div>
 
@@ -1137,37 +1138,22 @@ function TimelineRenderer({
           </div>
 
           {hasComparison && (
-            <div className="mt-4 ml-8 pb-6 grid grid-cols-2 gap-8 items-start">
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-[#5d5d5d] tracking-widest font-medium uppercase">AUDITORÍA DE TIEMPO REAL</span>
-                <span className={cn(
-                  "text-xs tracking-normal px-2 py-0.5 rounded-full border self-start",
-                  totalExecutedHours === 0 ? "border-[#e4e2dd] text-[#5d5d5d]" :
-                  Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "border-[#73c2b8] text-[#73c2b8] bg-[#73c2b8]/10" :
-                  totalExecutedHours > plannedHours ? "border-[#e69138] text-[#b45f06] bg-[#e69138]/10" :
-                  "border-[#a2b29f] text-[#5d5d5d]"
-                )}>
-                  {totalExecutedHours === 0 ? "Sin iniciar" :
-                   Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "Clavado!" :
-                   totalExecutedHours > plannedHours ? `EXCESO +${(totalExecutedHours - plannedHours).toFixed(2)}H` :
-                   `RESTAN -${(plannedHours - totalExecutedHours).toFixed(2)}H`}
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-[auto,1fr,auto] gap-x-4 items-center mr-5">
-                <span className="text-xs text-[#5d5d5d] tracking-normal font-medium">TOTAL:</span>
-                <div className="flex-1 h-[1.5px] bg-[#e4e2dd] relative overflow-hidden">
-                  <div className="absolute top-0 bottom-0 bg-[#a2b29f]/30 transition-all" style={{ width: `${Math.min(100, (plannedHours / Math.max(4, plannedHours, totalExecutedHours)) * 100)}%` }}></div>
-                  <div className={cn(
-                    "h-full transition-all absolute top-0",
-                    totalExecutedHours === 0 ? "bg-transparent" :
-                    totalExecutedHours > plannedHours ? "bg-[#e69138]" : "bg-[#73c2b8]"
-                  )} style={{ width: `${Math.min(100, (totalExecutedHours / Math.max(4, plannedHours, totalExecutedHours)) * 100)}%` }}></div>
-                </div>
-                <span className={cn("text-xs text-right font-medium", totalExecutedHours > 0 ? "text-[#2d2d2d]" : "text-[#5d5d5d]")}>
-                  {totalExecutedHours.toFixed(2)}h / {plannedHours}h
-                </span>
-              </div>
+            <div className="mt-1 ml-8 pb-3 flex items-center gap-3 text-[11px] text-[#5d5d5d] font-mono">
+              <span className="opacity-80">⏱️ AUDITORÍA:</span>
+              <span className="font-bold text-text-main">{totalExecutedHours.toFixed(2)}h real</span>
+              <span className="opacity-60">/ {plannedHours}h plan</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full border text-[9px] font-sans tracking-wide",
+                totalExecutedHours === 0 ? "border-border-line text-text-dim/60 bg-transparent" :
+                Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "border-[#73c2b8] text-[#73c2b8] bg-[#73c2b8]/10" :
+                totalExecutedHours > plannedHours ? "border-[#e69138]/60 text-[#b45f06] bg-[#e69138]/5" :
+                "border-[#a2b29f]/60 text-text-dim"
+              )}>
+                {totalExecutedHours === 0 ? "Sin iniciar" :
+                 Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "¡Clavado!" :
+                 totalExecutedHours > plannedHours ? `Exceso +${(totalExecutedHours - plannedHours).toFixed(2)}h` :
+                 `Resta -${(plannedHours - totalExecutedHours).toFixed(2)}h`}
+              </span>
             </div>
           )}
         </div>

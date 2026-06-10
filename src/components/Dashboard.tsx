@@ -18,6 +18,7 @@ const ConfiguracionView = lazy(() => import('./ConfiguracionView'));
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
   const [currentView, setCurrentView] = useState<'hoy' | 'sintonia' | 'estrategia' | 'bitacora' | 'configuracion'>('hoy');
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
+  const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
@@ -412,49 +413,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
       {/* Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Mobile Tabs */}
-        <div className="md:hidden flex bg-base border-b border-border-line overflow-x-auto no-scrollbar">
-          <NavButton 
-            isMobile
-            active={currentView === 'hoy'} 
-            icon={<Target className="w-4 h-4" />} 
-            label="Foco" 
-            onClick={() => setCurrentView('hoy')} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'sintonia'} 
-            icon={<Compass className="w-4 h-4" />} 
-            label="Sintonía" 
-            onClick={() => setCurrentView('sintonia')} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'estrategia'} 
-            icon={<Layers className="w-4 h-4" />} 
-            label="Estrategia" 
-            onClick={() => setCurrentView('estrategia')} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'bitacora'} 
-            icon={<Calendar className="w-4 h-4" />} 
-            label="Bitácora" 
-            onClick={() => setCurrentView('bitacora')} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'configuracion'} 
-            icon={<Settings className="w-4 h-4" />} 
-            label="Ajustes" 
-            onClick={() => setCurrentView('configuracion')} 
-          />
-        </div>
-
         {/* Content */}
         <div className={cn(
-          "flex-1 h-screen bg-base overflow-y-auto w-full",
-          activeTimer && "pb-[200px] md:pb-0"
+          "flex-1 h-screen bg-base overflow-y-auto w-full pb-[60px] md:pb-0",
+          activeTimer && (isTimerMinimized ? "pb-[112px] md:pb-0" : "pb-[270px] md:pb-0")
         )}>
           <Suspense fallback={<ViewLoader />}>
             {currentView === 'hoy' && (
@@ -524,6 +486,45 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             )}
           </Suspense>
         </div>
+
+        {/* Mobile Tabs fixed at the bottom */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
+          <NavButton 
+            isMobile
+            active={currentView === 'hoy'} 
+            icon={<Target className="w-4 h-4" />} 
+            label="Foco" 
+            onClick={() => setCurrentView('hoy')} 
+          />
+          <NavButton 
+            isMobile
+            active={currentView === 'sintonia'} 
+            icon={<Compass className="w-4 h-4" />} 
+            label="Sintonía" 
+            onClick={() => setCurrentView('sintonia')} 
+          />
+          <NavButton 
+            isMobile
+            active={currentView === 'estrategia'} 
+            icon={<Layers className="w-4 h-4" />} 
+            label="Estrategia" 
+            onClick={() => setCurrentView('estrategia')} 
+          />
+          <NavButton 
+            isMobile
+            active={currentView === 'bitacora'} 
+            icon={<Calendar className="w-4 h-4" />} 
+            label="Bitácora" 
+            onClick={() => setCurrentView('bitacora')} 
+          />
+          <NavButton 
+            isMobile
+            active={currentView === 'configuracion'} 
+            icon={<Settings className="w-4 h-4" />} 
+            label="Ajustes" 
+            onClick={() => setCurrentView('configuracion')} 
+          />
+        </div>
       </div>
 
       {activeTimer && (
@@ -537,6 +538,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             onDiscard={handleDiscardTimer}
             onStartTimer={handleStartTimer}
             onUpdateStartTime={handleUpdateTimerStartTime}
+            isMinimized={isTimerMinimized}
+            onToggleMinimize={() => setIsTimerMinimized(!isTimerMinimized)}
           />
         </div>
       )}

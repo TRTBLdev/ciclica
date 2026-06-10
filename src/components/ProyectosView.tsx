@@ -37,7 +37,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [filter, setFilter] = useState('Todas');
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isAddingTask, setIsAddingTask] = useState(false);
   const [newProjForm, setNewProjForm] = useState({ text: '', category: '', subCategory: '', parentId: '' });
+  const [newTaskForm, setNewTaskForm] = useState({ text: '', category: '', subCategory: '', fechaPlanificada: new Date().toISOString().substring(0, 10), duracion: 0 });
   
   const [editingProjId, setEditingProjId] = useState<string | null>(null);
   const [editProjForm, setEditProjForm] = useState({ text: '', category: '', subCategory: '', parentId: '' });
@@ -614,13 +616,30 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             {showGantt ? '✕ ocultar cronograma' : '📅 ver cronograma'}
           </button>
           
-          {!isAdding && (
-            <button 
-              onClick={() => setIsAdding(true)} 
-              className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
-            >
-              + Nuevo Proyecto
-            </button>
+          {!isAdding && !isAddingTask && (
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setIsAdding(true)} 
+                className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
+              >
+                + Nuevo Proyecto
+              </button>
+              <button 
+                onClick={() => {
+                  setIsAddingTask(true);
+                  setNewTaskForm({
+                    text: '',
+                    category: filter !== 'Todas' ? filter : '',
+                    subCategory: '',
+                    fechaPlanificada: new Date().toISOString().substring(0, 10),
+                    duracion: 0
+                  });
+                }} 
+                className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
+              >
+                + Nueva Tarea Simple
+              </button>
+            </div>
           )}
           </div>
         )}
@@ -632,12 +651,92 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </div>
       )}
 
+      {isAddingTask && (
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newTaskForm.text.trim() || !newTaskForm.category) return;
+            onAddTask({
+              userId: 'placeholder',
+              text: newTaskForm.text.trim(),
+              category: newTaskForm.category,
+              subCategory: newTaskForm.subCategory || undefined,
+              type: 'Tarea',
+              completed: false,
+              fechaPlanificada: new Date(newTaskForm.fechaPlanificada).toISOString(),
+              duracion: Number(newTaskForm.duracion || 0),
+              createdAt: new Date().toISOString()
+            });
+            setIsAddingTask(false);
+          }} 
+          className="bg-base-dim/20 border border-border-line p-5 mb-6 text-left animate-in slide-in-from-top-2 duration-300 flex flex-col gap-4"
+        >
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Crear Nueva Tarea Simple</h3>
+            <button type="button" onClick={() => setIsAddingTask(false)} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0">
+              <X className="w-4 h-4"/>
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input 
+              autoFocus
+              type="text" 
+              placeholder="Nombre de la tarea..."
+              className="flex-1 px-4 py-2 bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+              value={newTaskForm.text}
+              onChange={e => setNewTaskForm({...newTaskForm, text: e.target.value})}
+            />
+            <AreaCategoryDropdown
+              config={config}
+              value={`${newTaskForm.category}${newTaskForm.subCategory ? ':' + newTaskForm.subCategory : ''}`}
+              onChange={(category, subCategory) => {
+                setNewTaskForm({...newTaskForm, category, subCategory});
+              }}
+              placeholder="Seleccionar Área"
+            />
+          </div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-text-dim font-mono uppercase">Fecha:</span>
+              <input 
+                type="date"
+                className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono"
+                value={newTaskForm.fechaPlanificada}
+                onChange={e => setNewTaskForm({...newTaskForm, fechaPlanificada: e.target.value})}
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-text-dim font-mono uppercase">Duración:</span>
+              <div className="flex items-center gap-1 bg-base border border-border-line rounded-full px-3 py-1.5">
+                <input 
+                  type="number" 
+                  min={0} 
+                  step="0.1"
+                  className="w-10 bg-transparent text-text-main text-xs font-bold focus:outline-none text-center" 
+                  value={newTaskForm.duracion || ''} 
+                  onChange={e => setNewTaskForm({...newTaskForm, duracion: Number(e.target.value)})}
+                  placeholder="0.0"
+                />
+                <span className="text-xs text-text-dim font-mono font-bold">h</span>
+              </div>
+            </div>
+            <button 
+              type="submit" 
+              disabled={!newTaskForm.text.trim() || !newTaskForm.category} 
+              className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 sm:ml-auto bg-transparent border-0 outline-none"
+            >
+              Crear Tarea
+            </button>
+          </div>
+        </form>
+      )}
+
       {isAdding && (
         <form onSubmit={handleAddProject} className="bg-base-dim/20 border border-border-line p-5 mb-6 text-left animate-in slide-in-from-top-2 duration-300">
            <div className="flex justify-between items-center mb-4">
             <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Crear Nuevo Proyecto</h3>
             <button type="button" onClick={() => setIsAdding(false)} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0">
-              <X className="w-4 h-4"/>
+               <X className="w-4 h-4"/>
             </button>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
