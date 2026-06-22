@@ -1,5 +1,6 @@
 import { AppTask, Config, HistoryRecord } from '../types';
 import { DEFAULT_AREAS, DEFAULT_SEPARATORS } from './defaults';
+import { getFrequencyInDays } from './taskScheduling';
 
 interface RawDatabase {
   tasks?: unknown;
@@ -36,8 +37,12 @@ export function normalizeConfig(rawConfig: any): Config {
   return config as Config;
 }
 
-export function normalizeTask(rawTask: any, now = new Date()): AppTask {
+export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
   const task = { ...rawTask };
+
+  if (task.type === 'Meta') {
+    return null;
+  }
 
   if (!task.id) {
     task.id = `task_migrated_${now.getTime()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -55,6 +60,11 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask {
     task.currentCount = typeof task.currentCount === 'number' ? task.currentCount : 0;
     task.targetCount = typeof task.targetCount === 'number' ? task.targetCount : 8;
     task.unitLabel = typeof task.unitLabel === 'string' ? task.unitLabel : 'veces';
+  }
+
+  if (task.type === 'Rutina' && !task.completionMode) {
+    const days = getFrequencyInDays(task.frecuencia, task.frecuenciaUnidad);
+    task.completionMode = days <= 7 ? 'auto' : 'manual';
   }
 
   if (!task.allocationType) {
@@ -90,7 +100,9 @@ export function migrateDatabase(rawData: RawDatabase): { tasks: AppTask[]; histo
 
   const rawTasks = Array.isArray(rawData.tasks) ? rawData.tasks : [];
   const rawHistory = Array.isArray(rawData.history) ? rawData.history : [];
-  const tasks = rawTasks.map(t => normalizeTask(t));
+  const tasks = rawTasks
+    .map(t => normalizeTask(t))
+    .filter((t): t is AppTask => t !== null);
   const history = rawHistory.map(h => normalizeHistoryRecord(h));
   const config = normalizeConfig(rawData.config);
 

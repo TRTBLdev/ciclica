@@ -308,21 +308,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                  }}
                  placeholder="Seleccionar Área"
                />
-               {editProjForm.category && tasks.some(t => t.type === 'Meta' && t.category === editProjForm.category) && (
-                 <div className="relative flex items-center pr-6 bg-base rounded-full border border-border-line px-4 py-2 w-full md:w-60">
-                   <select
-                     value={editProjForm.parentId}
-                     onChange={e => setEditProjForm({...editProjForm, parentId: e.target.value})}
-                     className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0 w-full"
-                   >
-                     <option value="">Sin Meta Asociada</option>
-                     {tasks.filter(t => t.type === 'Meta' && t.category === editProjForm.category).map(m => (
-                       <option key={m.id} value={m.id}>🎯 {m.text}</option>
-                     ))}
-                   </select>
-                   <ChevronDown className="absolute right-3 w-3.5 h-3.5 text-text-main pointer-events-none" />
-                 </div>
-               )}
              </div>
             <div className="flex justify-end gap-6 items-center">
               <button onClick={() => setEditingProjId(null)} className="text-xs font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0 outline-none">Cancelar</button>
@@ -756,21 +741,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               }}
               placeholder="SELECCIONAR ÁREA / CATEGORÍA"
             />
-            {newProjForm.category && tasks.some(t => t.type === 'Meta' && t.category === newProjForm.category) && (
-              <div className="relative flex items-center pr-6 bg-base rounded-full border border-border-line px-4 py-2 w-full sm:w-60">
-                <select
-                  value={newProjForm.parentId}
-                  onChange={e => setNewProjForm({...newProjForm, parentId: e.target.value})}
-                  className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0 w-full"
-                >
-                  <option value="">Sin Meta Asociada</option>
-                  {tasks.filter(t => t.type === 'Meta' && t.category === newProjForm.category).map(m => (
-                    <option key={m.id} value={m.id}>🎯 {m.text}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 w-3.5 h-3.5 text-text-main pointer-events-none" />
-              </div>
-            )}
             <button type="submit" disabled={!newProjForm.text.trim() || !newProjForm.category} className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 sm:ml-4 bg-transparent border-0 outline-none">
               Crear
             </button>

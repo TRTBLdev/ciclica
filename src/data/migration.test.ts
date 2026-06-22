@@ -49,9 +49,64 @@ describe('normalizeTask', () => {
     const now = new Date('2026-02-03T04:05:06.000Z');
     const task = normalizeTask({ userId: 'local_user', text: 'New task' }, now);
 
-    expect(task.id).toMatch(/^task_migrated_/);
-    expect(task.type).toBe('Tarea');
-    expect(task.createdAt).toBe('2026-02-03T04:05:06.000Z');
+    expect(task).not.toBeNull();
+    expect(task!.id).toMatch(/^task_migrated_/);
+    expect(task!.type).toBe('Tarea');
+    expect(task!.createdAt).toBe('2026-02-03T04:05:06.000Z');
+  });
+
+  it('filters out Meta tasks by returning null', () => {
+    const task = normalizeTask({
+      id: 'task_meta_1',
+      userId: 'local_user',
+      text: 'My Meta',
+      type: 'Meta',
+    });
+    expect(task).toBeNull();
+  });
+
+  it('assigns auto completionMode for Rutina with frequency <= 7 days', () => {
+    const task1 = normalizeTask({
+      userId: 'local_user',
+      text: 'Daily Rutina',
+      type: 'Rutina',
+      frecuencia: 3,
+      frecuenciaUnidad: 'días',
+    });
+    expect(task1).not.toBeNull();
+    expect(task1!.completionMode).toBe('auto');
+
+    const task2 = normalizeTask({
+      userId: 'local_user',
+      text: 'Weekly Rutina',
+      type: 'Rutina',
+      frecuencia: 1,
+      frecuenciaUnidad: 'semanas',
+    });
+    expect(task2).not.toBeNull();
+    expect(task2!.completionMode).toBe('auto');
+  });
+
+  it('assigns manual completionMode for Rutina with frequency > 7 days', () => {
+    const task1 = normalizeTask({
+      userId: 'local_user',
+      text: 'Fortnightly Rutina',
+      type: 'Rutina',
+      frecuencia: 2,
+      frecuenciaUnidad: 'semanas',
+    });
+    expect(task1).not.toBeNull();
+    expect(task1!.completionMode).toBe('manual');
+
+    const task2 = normalizeTask({
+      userId: 'local_user',
+      text: 'Monthly Rutina',
+      type: 'Rutina',
+      frecuencia: 1,
+      frecuenciaUnidad: 'meses',
+    });
+    expect(task2).not.toBeNull();
+    expect(task2!.completionMode).toBe('manual');
   });
 });
 

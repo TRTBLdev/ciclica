@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppTask, Config, HistoryRecord, TaskType } from '../types';
+import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
 import { isFutureDate } from '../lib/utils';
 import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
@@ -51,14 +51,6 @@ function getTypeIcon(type: TaskType) {
       return (
         <svg className="w-3.5 h-3.5 stroke-[2] fill-none text-emerald-600 dark:text-emerald-500" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V6m0 0 3.5 3.5M12 6L8.5 9.5M12 11c3 0 5-2 5-5m-5 9c-3 0-5-2-5-5" />
-        </svg>
-      );
-    case 'Meta':
-      return (
-        <svg className="w-3.5 h-3.5 stroke-[2] fill-none" viewBox="0 0 24 24" stroke="currentColor">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="6" />
-          <circle cx="12" cy="12" r="2" />
         </svg>
       );
     case 'Pulso':
@@ -324,6 +316,18 @@ export default function TaskItem({
   const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
   const [openUpwards, setOpenUpwards] = useState(false);
 
+  const [editNotes, setEditNotes] = useState(task.notes || '');
+  const [editChecklist, setEditChecklist] = useState<ChecklistItem[]>(task.checklist || []);
+  const [newChecklistItemText, setNewChecklistItemText] = useState('');
+
+  const handleToggleChecklistItem = (itemId: string) => {
+    if (!onUpdate) return;
+    const newChecklist = (task.checklist || []).map(item =>
+      item.id === itemId ? { ...item, done: !item.done } : item
+    );
+    onUpdate(task.id, { checklist: newChecklist });
+  };
+
   // Helper to find visual sibling items (same parent, same type)
   const getSiblings = () => {
     const parentId = task.parentId || '';
@@ -412,6 +416,9 @@ export default function TaskItem({
       setEditDependencyId(task.dependencyId || '');
       setDepSearch('');
       setEditAllocationType(task.allocationType || 'growth');
+      setEditNotes(task.notes || '');
+      setEditChecklist(task.checklist || []);
+      setNewChecklistItemText('');
     }
   }, [isEditing, task]);
 
@@ -460,6 +467,8 @@ export default function TaskItem({
         type: editType,
         dependencyId: editDependencyId,
         allocationType: editAllocationType,
+        notes: editNotes,
+        checklist: editChecklist,
       };
       
       const planDate = new Date(editFechaPlanificada);
@@ -583,6 +592,19 @@ export default function TaskItem({
     return null;
   };
 
+  const daysPending = (() => {
+    if (isCompletedVisual) return 0;
+    const refDateStr = task.lastExecutedAt || task.fechaPlanificada;
+    if (!refDateStr) return 0;
+    const refDate = new Date(refDateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    refDate.setHours(0, 0, 0, 0);
+    const diffMs = today.getTime() - refDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  })();
+
   return (
     <div 
       id={`task-item-${task.id}`}
@@ -649,7 +671,7 @@ export default function TaskItem({
                     const newType = e.target.value as TaskType;
                     setEditType(newType);
                     // Clear parentId if switching to top-level types
-                    if (newType === 'Proyecto' || newType === 'Rutina' || newType === 'Meta') {
+                    if (newType === 'Proyecto' || newType === 'Rutina') {
                       setEditParentId('');
                     } else if (newType === 'Hábito' && editType === 'Tarea') {
                       setEditParentId('');
@@ -662,7 +684,6 @@ export default function TaskItem({
                   <option value="Proyecto">📁 Proyecto</option>
                   <option value="Rutina">🔁 Rutina</option>
                   <option value="Hábito">🌱 Hábito</option>
-                  <option value="Meta">🎯 Meta de Enfoque</option>
                   <option value="Pulso">💓 Pulso (Multi-Diario)</option>
                 </select>
                 <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
@@ -806,20 +827,21 @@ export default function TaskItem({
                             <span className="text-xs text-text-dim font-mono font-bold">h</span>
                           </div>
                         )}
-                        <div className="relative flex items-center bg-transparent rounded-md" title="Asignación Energética">
-                          <select 
-                            className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
-                            value={editAllocationType} 
-                            onChange={e => setEditAllocationType(e.target.value as any)}
-                          >
-                            <option value="growth">⚡ Inversión</option>
-                            <option value="fixed">🛡️ Soporte Vital</option>
-                            <option value="mixed">☯️ Mixto</option>
-                          </select>
-                          <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                        </div>
                       </div>
                     )}
+                    {/* Asignación Energética — SIEMPRE visible, incluso para subtareas */}
+                    <div className="relative flex items-center bg-transparent rounded-md" title="Asignación Energética">
+                      <select 
+                        className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
+                        value={editAllocationType} 
+                        onChange={e => setEditAllocationType(e.target.value as any)}
+                      >
+                        <option value="growth">⚡ Inversión</option>
+                        <option value="fixed">🛡️ Soporte Vital</option>
+                        <option value="mixed">☯️ Mixto</option>
+                      </select>
+                      <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+                    </div>
                   </>
                 );
               })()}
@@ -867,6 +889,81 @@ export default function TaskItem({
                 </div>
               </div>
             )}
+
+            {/* UI de notes */}
+            <div className="flex flex-col gap-1 text-left w-full mt-3">
+              <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Notas:</span>
+              <textarea
+                placeholder="Notas y contexto..."
+                className="w-full min-h-[80px] p-3 text-xs bg-base text-text-main border border-border-line rounded-xl focus:outline-none focus:border-[#a2b29f] resize-y font-sans font-light"
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+              />
+            </div>
+
+            {/* UI de checklist */}
+            <div className="flex flex-col gap-2 text-left w-full mt-3">
+              <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Checklist (Guía Operativa):</span>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                {editChecklist.length === 0 ? (
+                  <span className="text-[10px] text-primary italic pl-2">Sin ítems</span>
+                ) : (
+                  editChecklist.map(item => (
+                    <div key={item.id} className="flex items-center justify-between bg-base-dim/20 px-3 py-1.5 rounded-lg border border-border-line/40">
+                      <span className={cn("text-xs text-text-main", item.done && "line-through opacity-60")}>{item.text}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditChecklist(editChecklist.filter(i => i.id !== item.id))}
+                        className="text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="flex gap-2 mt-1">
+                <input
+                  type="text"
+                  placeholder="Añadir ítem al checklist..."
+                  className="flex-1 px-4 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+                  value={newChecklistItemText}
+                  onChange={e => setNewChecklistItemText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (newChecklistItemText.trim()) {
+                        const newItem: ChecklistItem = {
+                          id: `chk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                          text: newChecklistItemText.trim(),
+                          done: false
+                        };
+                        setEditChecklist([...editChecklist, newItem]);
+                        setNewChecklistItemText('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newChecklistItemText.trim()) {
+                      const newItem: ChecklistItem = {
+                        id: `chk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                        text: newChecklistItemText.trim(),
+                        done: false
+                      };
+                      setEditChecklist([...editChecklist, newItem]);
+                      setNewChecklistItemText('');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-primary text-base-dim rounded-full text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer border-0 outline-none flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center gap-6 mt-3">
               <button onClick={handleSave} className="text-text-main text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity cursor-pointer hover:underline">
                 + Guardar
@@ -886,13 +983,22 @@ export default function TaskItem({
                   }
                 }}
                 className={cn(
-                  "text-base flex-1 min-w-0 break-words", 
+                  "text-base flex-1 min-w-0 break-words flex items-center gap-2", 
                   isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
                   (!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
                 )}
                 title={(!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
-                {task.text}
+                {daysPending >= 4 && (
+                  <span 
+                    className={cn(
+                      "inline-block w-2 h-2 rounded-full shrink-0 animate-pulse",
+                      daysPending >= 8 ? "bg-red-400" : "bg-amber-400"
+                    )}
+                    title={`Pendiente hace ${daysPending} días`}
+                  />
+                )}
+                <span>{task.text}</span>
               </p>
               {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
             </div>
@@ -958,7 +1064,7 @@ export default function TaskItem({
                 )
               )}
               {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
-              {isFutureDate(task.fechaPlanificada) && !isHabit && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
+              {isFutureDate(task.fechaPlanificada) && !isHabit && !isActualSubtask && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
               {task.allocationType && (
                 <span className="flex items-center h-5 text-[10px] font-mono font-medium leading-none text-text-dim/80 bg-base-dim px-2 rounded-full border border-border-line/30" title="Asignación Energética">
                   {task.allocationType === 'fixed' ? '🛡️ Soporte' : task.allocationType === 'growth' ? '⚡ Inversión' : '☯️ Mixto'}
@@ -1029,11 +1135,11 @@ export default function TaskItem({
 
         <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
           {/* Chevron */}
-          {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask)) && (
+          {(hasSubtasks || (!isHabit && task.type !== 'Rutina' && !isActualSubtask && onAddTask) || !!task.notes || (task.checklist && task.checklist.length > 0)) && (
             <button 
               onClick={() => setIsExpanded(!isExpanded)} 
               className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
-              title={isExpanded ? "Ocultar subtareas" : (task.type === 'Rutina' ? "Ver hábitos" : "Ver/Añadir subtareas")}
+              title={isExpanded ? "Ocultar detalles" : "Ver detalles"}
             >
               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
@@ -1161,7 +1267,37 @@ export default function TaskItem({
       </div>
 
       {isExpanded && (
-        <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-2 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
+        <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-3 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100 pr-2">
+          
+          {/* Notes display */}
+          {task.notes && (
+            <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main whitespace-pre-wrap font-sans font-light leading-relaxed mb-1">
+              <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest mb-1.5 font-bold">Notas</div>
+              {task.notes}
+            </div>
+          )}
+
+          {/* Checklist display */}
+          {task.checklist && task.checklist.length > 0 && (
+            <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main flex flex-col gap-2.5 mb-1">
+              <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest font-bold">Guía de Pasos (Checklist)</div>
+              <div className="flex flex-col gap-2">
+                {task.checklist.map(item => (
+                  <label key={item.id} className="flex items-center gap-2.5 cursor-pointer select-none py-0.5">
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      onChange={() => handleToggleChecklistItem(item.id)}
+                      className="rounded border-border-line text-primary focus:ring-primary w-4 h-4 cursor-pointer bg-base"
+                    />
+                    <span className={cn("text-xs text-text-main font-light", item.done && "line-through opacity-50")}>
+                      {item.text}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {(!isHabit && task.type !== 'Rutina' && onAddTask) && (
             <div className="flex flex-col gap-1 mt-1 mb-2 z-10 w-full pr-2">
               <form onSubmit={handleAddSubtask} className="flex items-center">

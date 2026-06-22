@@ -3,7 +3,7 @@ export interface AreaConfig {
   categories?: string[];
 }
 
-export type CycleTrackingType = 'menstrual' | 'lunar' | 'none';
+export type CycleTrackingType = 'menstrual' | 'lunar' | 'weekly' | 'none';
 export type BiologicalPhase = 'dinamica' | 'expresiva' | 'creativa' | 'reflexiva';
 
 export interface UserCycleConfig {
@@ -34,7 +34,13 @@ export interface Separator {
   detalle: string;
 }
 
-export type TaskType = 'Hábito' | 'Pulso' | 'Proyecto' | 'Tarea' | 'Rutina' | 'Meta';
+export type TaskType = 'Hábito' | 'Pulso' | 'Proyecto' | 'Tarea' | 'Rutina';
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
 
 export interface AppTask {
   id: string; // Document ID
@@ -55,13 +61,16 @@ export interface AppTask {
   frecuenciaUnidad?: 'días' | 'semanas' | 'meses';
   duracion?: number; // Estimación en horas (Energía Ejecutiva)
   objetivo?: number;
-  polaridad?: string;
+  polaridad?: 'Reforzar' | 'Abandonar';
   currentCount?: number; // Valor acumulado hoy (ej. 3)
   targetCount?: number; // Meta diaria cuantitativa (ej. 8)
   unitLabel?: string; // Ej. "vasos", "veces", "pastillas"
   lastExecutedAt?: string; // Último check real
   order?: number; // Posición de ordenación para subtareas/hábitos
   allocationType?: 'fixed' | 'growth' | 'mixed';
+  completionMode?: 'auto' | 'manual';
+  notes?: string;
+  checklist?: ChecklistItem[];
   createdAt: string;
   updatedAt?: string;
 }

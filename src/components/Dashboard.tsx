@@ -254,15 +254,19 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
         if (isComp && t.parentId) {
           const parent = tasks.find(p => p.id === t.parentId);
-          if (parent && parent.type !== 'Rutina' && parent.type !== 'Proyecto') {
-            const siblings = tasks.filter(s => s.parentId === parent.id);
-            const allSiblingsDone = siblings.every(s => {
-              if (s.id === t.id) return true;
-              const updated = tasksToUpdate.find(up => up.id === s.id);
-              return updated ? !!updated.updates.completed : s.completed;
-            });
-            if (allSiblingsDone && !parent.completed) {
-              processToggle(parent, true);
+          if (parent && parent.type !== 'Proyecto') {
+            if (parent.type === 'Rutina' && parent.completionMode === 'manual') {
+              // Si el parent es una Rutina con modo manual, no auto-completar
+            } else {
+              const siblings = tasks.filter(s => s.parentId === parent.id);
+              const allSiblingsDone = siblings.every(s => {
+                if (s.id === t.id) return true;
+                const updated = tasksToUpdate.find(up => up.id === s.id);
+                return updated ? !!updated.updates.completed : s.completed;
+              });
+              if (allSiblingsDone && !parent.completed) {
+                processToggle(parent, true);
+              }
             }
           }
         }

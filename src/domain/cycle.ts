@@ -21,7 +21,7 @@ export function getCyclePeriods(flowLogs: Record<string, number> | undefined): P
   if (!flowLogs) return [];
   const flowEntries = Object.entries(flowLogs)
     .filter(([_, intensity]) => intensity > 0)
-    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    .sort((a, b) => parseLocalDate(a[0]).getTime() - parseLocalDate(b[0]).getTime());
 
   if (flowEntries.length === 0) return [];
 
@@ -61,7 +61,7 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
   if (trackingType === 'menstrual' && flowLogs && Object.keys(flowLogs).length > 0) {
     const logEntries = Object.entries(flowLogs)
       .filter(([_, intensity]) => intensity > 0)
-      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+      .sort((a, b) => parseLocalDate(a[0]).getTime() - parseLocalDate(b[0]).getTime());
 
     if (logEntries.length === 0) return 'expresiva';
 
@@ -69,7 +69,7 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
     let lastDate: Date | null = null;
 
     logEntries.forEach(([dateStr]) => {
-      const currentDate = new Date(dateStr);
+      const currentDate = parseLocalDate(dateStr);
       if (!lastDate) {
         cycleStartDates.push(currentDate);
       } else {
@@ -112,9 +112,14 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
 
     const menstrualPhaseLength = Math.max(configuredPeriodLength, consecutiveFlowDays);
 
-    if (daysIntoCycle < menstrualPhaseLength) return 'reflexiva';
-    if (daysIntoCycle < calculatedCycleLength * 0.40) return 'dinamica';
-    if (daysIntoCycle < calculatedCycleLength * 0.58) return 'expresiva';
+    // Wraparound: if days exceed cycle length, project into current cycle using modulo
+    const effectiveDays = daysIntoCycle >= calculatedCycleLength
+      ? daysIntoCycle % calculatedCycleLength
+      : daysIntoCycle;
+
+    if (effectiveDays < menstrualPhaseLength) return 'reflexiva';
+    if (effectiveDays < calculatedCycleLength * 0.40) return 'dinamica';
+    if (effectiveDays < calculatedCycleLength * 0.58) return 'expresiva';
     return 'creativa';
   }
 
@@ -124,6 +129,26 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
     if (ratio <= 0.50) return 'dinamica';
     if (ratio <= 0.75) return 'expresiva';
     return 'creativa';
+  }
+
+  // Weekly mode: auto-rotate phases every 7 days (Mon-Sun)
+  if (trackingType === 'weekly') {
+    const today = new Date(todayDate);
+    // Get the Monday of the current week
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    
+    // Calculate which week of the 4-week rotation we're in
+    // Use epoch Monday (Jan 5, 1970) as reference point for consistent rotation
+    const epochMonday = new Date(1970, 0, 5); // First Monday of epoch
+    const weeksSinceEpoch = Math.floor((monday.getTime() - epochMonday.getTime()) / (7 * DAY_MS));
+    const weekInCycle = weeksSinceEpoch % 4;
+    
+    const phases: BiologicalPhase[] = ['reflexiva', 'dinamica', 'expresiva', 'creativa'];
+    return phases[weekInCycle];
   }
 
   return 'expresiva';

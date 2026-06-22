@@ -147,6 +147,7 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
               {[
                 ...(config?.cycleConfig?.menstruates !== false ? [{ key: 'menstrual', label: '🩸 Menstrual' }] : []),
                 { key: 'lunar', label: '🌙 Lunar / Sinódico' },
+                { key: 'weekly', label: '📅 Semanal' },
                 { key: 'none', label: '🔄 Manual / Fijo' }
               ].map(t => {
                 const isActive = effectiveCycleType === t.key;
@@ -309,6 +310,51 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
                   <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
                     La aplicación utiliza de forma predictiva la fase sinódica lunar actual calculada matemáticamente en base a la fecha real del sistema. Las variaciones de tu barra de Energía Ejecutiva diaria y tus arquetipos cognitivos mutarán sintonizados con el cielo.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* WEEKLY VIEW CONTENT */}
+            {cycleType === 'weekly' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="py-4 border-b border-border-line flex flex-col gap-2 text-left">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37] font-bold">Rotación Semanal Automática</span>
+                  <h3 className="text-base font-light text-text-main font-sans">
+                    Las fases cambian automáticamente cada lunes en un ciclo de 4 semanas.
+                  </h3>
+                  <p className="text-xs text-text-dim leading-relaxed max-w-2xl mt-1">
+                    Ideal si prefieres un ritmo regular y predecible sin seguimiento biológico. Cada semana (lunes a domingo) corresponde a una fase del ciclo de energía: Reflexiva → Dinámica → Expresiva → Creativa, repitiéndose cada 4 semanas.
+                  </p>
+                </div>
+                
+                <div className="border border-border-line p-6 rounded-none text-left space-y-4">
+                  <span className="text-3xl block mb-2">📅</span>
+                  <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase mb-2">Fase Activa Esta Semana</h4>
+                  <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
+                    Tu fase actual es <span className="text-primary font-mono font-bold uppercase">{currentPhase}</span>. 
+                    Cambiará automáticamente el próximo lunes.
+                  </p>
+                  <div className="flex flex-col border-t border-border-line/40 pt-4 divide-y divide-border-line/20">
+                    {[
+                      { phase: 'reflexiva', label: '🩸 Semana 1 — Reflexiva', desc: '5h de Energía — Descansar, autocuidar, planificar suavemente' },
+                      { phase: 'dinamica', label: '⚡ Semana 2 — Dinámica', desc: '12h de Energía — Estructurar, ejecutar, construir' },
+                      { phase: 'expresiva', label: '🌸 Semana 3 — Expresiva', desc: '10h de Energía — Comunicar, relacionarse, colaborar' },
+                      { phase: 'creativa', label: '🌿 Semana 4 — Creativa', desc: '8h de Energía — Organizar, descartar, soltar' }
+                    ].map(p => (
+                      <div 
+                        key={p.phase}
+                        className={cn(
+                          "py-3 px-2 text-xs font-mono uppercase tracking-wider flex flex-col sm:flex-row sm:items-center justify-between gap-1",
+                          currentPhase === p.phase 
+                            ? "text-text-main font-bold bg-base-dim/15" 
+                            : "text-text-dim"
+                        )}
+                      >
+                        <span>{p.label} {currentPhase === p.phase && '◀ Actual'}</span>
+                        <span className="text-[10px] lowercase tracking-normal font-light opacity-80">{p.desc}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

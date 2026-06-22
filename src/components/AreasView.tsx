@@ -184,8 +184,8 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
             const categories = typeof val === 'string' ? [] : (val.categories || []);
             const areaColor = typeof val === 'string' ? val : (val.color || 'slate');
             const activeProjects = tasks.filter(t => t.category === key && t.type === 'Proyecto' && !t.completed);
-            const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed);
-            const activeGoals = tasks.filter(t => t.category === key && t.type === 'Meta' && !t.completed);
+            const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
+            const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed);
 
             return (
               <button
@@ -205,9 +205,9 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
 
                 <div className="flex flex-col gap-2 w-full mb-8 text-xs font-mono text-text-dim">
                   <div className="flex justify-between items-center w-full">
-                    <span className="tracking-wide">METAS</span>
+                    <span className="tracking-wide">RUTINAS</span>
                     <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
-                    <span className="text-text-main font-bold">{activeGoals.length.toString().padStart(2, '0')}</span>
+                    <span className="text-text-main font-bold">{activeRoutines.length.toString().padStart(2, '0')}</span>
                   </div>
                   <div className="flex justify-between items-center w-full">
                     <span className="tracking-wide">PROYECTOS</span>
@@ -299,33 +299,15 @@ function AreaDetail({
   const [editNewCat, setEditNewCat] = useState('');
 
   // Expand / collapse states for rows
-  const [expandGoals, setExpandGoals] = useState(false);
+  const [expandRoutines, setExpandRoutines] = useState(false);
   const [expandProjects, setExpandProjects] = useState(false);
   const [expandHabits, setExpandHabits] = useState(false);
   const [expandTasks, setExpandTasks] = useState(false);
 
-  const [addingGoal, setAddingGoal] = useState(false);
-  const [newGoalText, setNewGoalText] = useState('');
-
-  const handleAddGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGoalText.trim()) return;
-    onAddTask({
-      userId: 'placeholder',
-      text: newGoalText.trim(),
-      category: areaName,
-      type: 'Meta',
-      completed: false,
-      createdAt: new Date().toISOString()
-    });
-    setNewGoalText('');
-    setAddingGoal(false);
-  };
-
-  const goalsInArea = tasks.filter(t => t.type === 'Meta' && t.category === areaName);
+  const routinesInArea = tasks.filter(t => t.type === 'Rutina' && t.category === areaName);
   const projectsInArea = tasks.filter(t => t.type === 'Proyecto' && t.category === areaName);
-  const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type==='Rutina'));
-  const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && t.type !== 'Meta' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type==='Rutina'));
+  const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
+  const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
 
   const handleAddEditCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -478,117 +460,7 @@ function AreaDetail({
       {/* RENDER HORIZONTAL COLLAPSIBLE LISTS (Accordion Style) */}
       <div className="flex-1 p-6 md:p-10 flex flex-col gap-6 max-w-4xl w-full mx-auto text-left pb-16 bg-base">
          
-         {/* 1. METAS SECTION */}
-         <div className="border-b border-border-line/30 pb-6">
-            <h3 
-              onClick={() => setExpandGoals(!expandGoals)}
-              className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
-            >
-              <span className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" /> Metas de Enfoque ({goalsInArea.length})
-              </span>
-              <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
-                {expandGoals ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandGoals ? 'Ocultar' : 'Mostrar'}
-              </span>
-            </h3>
-
-            {expandGoals && (
-              <div className="mt-4 space-y-4 animate-in fade-in duration-200">
-                {goalsInArea.length === 0 ? (
-                  <p className="text-xs text-primary pl-6 italic">Sin metas registradas en este pilar.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {goalsInArea.map(g => {
-                      const associatedProjects = tasks.filter(t => t.type === 'Proyecto' && t.parentId === g.id);
-                      const totalProj = associatedProjects.length;
-                      const completedProj = associatedProjects.filter(p => p.completed).length;
-                      const metaProgress = totalProj > 0 ? Math.round((completedProj / totalProj) * 100) : null;
-                      
-                      return (
-                        <div key={g.id} className="flex flex-col border-b border-border-line/10 pb-4 last:border-0 last:pb-0">
-                          <TaskItem
-                            task={g}
-                            config={config}
-                            allTasks={tasks}
-                            history={history}
-                            onToggle={onToggleTask}
-                            onDelete={() => onDeleteTask(g.id)}
-                            onUpdate={onUpdateTask}
-                            onAddTask={onAddTask}
-                            onDeleteTask={onDeleteTask}
-                            onNavigateToLocation={onNavigate ? () => onNavigate('proyectos', g.id) : undefined}
-                          />
-                          
-                          {/* Meta Progress & Associated Projects */}
-                          <div className="pl-12 flex flex-col gap-1.5 text-xs font-mono text-text-dim text-left mt-1">
-                            {metaProgress !== null && (
-                              <div className="flex items-center gap-3">
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-primary">Progreso:</span>
-                                <div className="w-24 h-1 bg-base-dim/60 rounded-full overflow-hidden border border-border-line/10">
-                                  <div className="h-full bg-primary" style={{ width: `${metaProgress}%` }} />
-                                </div>
-                                <span className="text-[9px] text-text-main font-bold">{metaProgress}% ({completedProj}/{totalProj} Proyectos)</span>
-                              </div>
-                            )}
-                            
-                            {associatedProjects.length > 0 && (
-                              <div className="flex flex-col gap-1 mt-1 pl-3 border-l border-border-line/20">
-                                {associatedProjects.map(p => (
-                                  <div key={p.id} className="flex items-center gap-2 text-[10px] text-text-dim/80">
-                                    <span>↳</span>
-                                    <span className={cn(p.completed && "line-through opacity-60")}>{p.text}</span>
-                                    <span className={cn("text-[8px] px-1.5 rounded-full uppercase tracking-wide leading-none py-0.5", 
-                                      p.completed 
-                                        ? "bg-slate-100 text-slate-500 border border-slate-200/50" 
-                                        : "bg-primary/10 text-primary border border-primary/20"
-                                    )}>
-                                      {p.completed ? "Listo" : "En curso"}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {addingGoal ? (
-                  <form onSubmit={handleAddGoal} className="flex items-center gap-4 mt-3 pl-6 text-left animate-in slide-in-from-top-1 duration-150">
-                    <input 
-                      autoFocus
-                      type="text" 
-                      placeholder="Nombre de la nueva meta..."
-                      className="flex-1 px-4 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
-                      value={newGoalText}
-                      onChange={e => setNewGoalText(e.target.value)}
-                      onBlur={() => {
-                        if (!newGoalText.trim()) setAddingGoal(false);
-                      }}
-                    />
-                    <button type="submit" disabled={!newGoalText.trim()} className="text-text-main disabled:opacity-40 text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity ml-2 cursor-pointer hover:underline bg-transparent border-0 outline-none">
-                      + Crear
-                    </button>
-                  </form>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      setAddingGoal(true);
-                      setNewGoalText('');
-                    }}
-                    className="mt-3 pl-6 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-text-dim hover:text-text-main hover:underline transition-colors py-1 bg-transparent border-0 outline-none cursor-pointer"
-                  >
-                    + Nueva Meta
-                  </button>
-                )}
-              </div>
-            )}
-         </div>
-
-         {/* 2. PROJECTS SECTION */}
+         {/* 1. PROJECTS SECTION */}
          <div className="border-b border-border-line/30 pb-6">
             <h3 
               onClick={() => setExpandProjects(!expandProjects)}
@@ -634,6 +506,70 @@ function AreaDetail({
                        </button>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+         </div>
+
+         {/* 2. RUTINAS SECTION */}
+         <div className="border-b border-border-line/30 pb-6">
+            <h3 
+              onClick={() => setExpandRoutines(!expandRoutines)}
+              className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
+            >
+              <span className="flex items-center gap-2">
+                <Repeat className="w-4 h-4 text-primary" /> Rutinas del Pilar ({routinesInArea.length})
+              </span>
+              <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
+                {expandRoutines ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {expandRoutines ? 'Ocultar' : 'Mostrar'}
+              </span>
+            </h3>
+
+            {expandRoutines && (
+              <div className="mt-4 space-y-4 animate-in fade-in duration-200">
+                {routinesInArea.length === 0 ? (
+                  <p className="text-xs text-primary pl-6 italic">Sin rutinas asignadas en este pilar.</p>
+                ) : (
+                  routinesInArea.map(r => {
+                    const childHabits = tasks.filter(h => h.parentId === r.id && h.type === 'Hábito');
+                    return (
+                      <div key={r.id} className="flex flex-col border-b border-border-line/10 pb-4 last:border-0 last:pb-0">
+                        <TaskItem
+                          task={r}
+                          config={config}
+                          allTasks={tasks}
+                          history={history}
+                          onToggle={onToggleTask}
+                          onDelete={() => onDeleteTask(r.id)}
+                          onUpdate={onUpdateTask}
+                          onAddTask={onAddTask}
+                          onDeleteTask={onDeleteTask}
+                          onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
+                        />
+                        
+                        {/* Nested Child Habits */}
+                        {childHabits.length > 0 && (
+                          <div className="pl-12 flex flex-col gap-2 mt-2">
+                            {childHabits.map(h => (
+                              <TaskItem
+                                key={h.id}
+                                task={h}
+                                config={config}
+                                allTasks={tasks}
+                                history={history}
+                                onToggle={onToggleTask}
+                                onDelete={() => onDeleteTask(h.id)}
+                                onUpdate={onUpdateTask}
+                                onAddTask={onAddTask}
+                                onDeleteTask={onDeleteTask}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
