@@ -154,5 +154,109 @@ export function useData(userId: string) {
     setLocal(keys.config, importedConfig);
   };
 
-  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData };
+  const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null) => {
+    const keys = getDataKeys(effectiveUserId);
+    
+    if (importedTasks && importedTasks.length > 0) {
+      setTasks(prev => {
+        const next = [...prev];
+        importedTasks.forEach(impTask => {
+          const idx = next.findIndex(t => t.id === impTask.id);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], ...impTask, updatedAt: new Date().toISOString() };
+          } else {
+            next.push(impTask);
+          }
+        });
+        setLocal(keys.tasks, next);
+        return next;
+      });
+    }
+
+    if (importedHistory && importedHistory.length > 0) {
+      setHistory(prev => {
+        const next = [...prev];
+        importedHistory.forEach(impHist => {
+          const idx = next.findIndex(h => h.id === impHist.id);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], ...impHist, updatedAt: new Date().toISOString() };
+          } else {
+            next.push(impHist);
+          }
+        });
+        setLocal(keys.history, next);
+        return next;
+      });
+    }
+
+    if (importedConfig) {
+      setConfig(prev => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if (importedConfig.cycleConfig) {
+          next.cycleConfig = { ...next.cycleConfig, ...importedConfig.cycleConfig };
+        }
+        if (importedConfig.areas) {
+          next.areas = { ...next.areas, ...importedConfig.areas };
+        }
+        setLocal(keys.config, next);
+        return next;
+      });
+    }
+  };
+
+  const clearPartialData = (type: 'ciclos' | 'habitos' | 'tareas') => {
+    const keys = getDataKeys(effectiveUserId);
+    
+    if (type === 'ciclos') {
+      setConfig(prev => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        next.cycleConfig = {
+          ...next.cycleConfig,
+          flowLogs: {}
+        };
+        setLocal(keys.config, next);
+        return next;
+      });
+    } else if (type === 'habitos') {
+      setTasks(prev => {
+        const next = prev.filter(t => t.type !== 'Hábito' && t.type !== 'Rutina');
+        setLocal(keys.tasks, next);
+        return next;
+      });
+      // We could also clear related history, but for simplicity we'll just clear the tasks. 
+      // If we want to clear history too:
+      setHistory(prev => {
+        // Only keep history for tasks that are NOT habits/routines. Wait, we need the tasks list.
+        // It's safer to just let history be orphaned, or we can filter it based on current tasks.
+        // Let's filter it by finding tasks to delete first.
+        const tasksToDeleteIds = tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina').map(t => t.id);
+        const next = prev.filter(h => !tasksToDeleteIds.includes(h.taskId));
+        setLocal(keys.history, next);
+        return next;
+      });
+    } else if (type === 'tareas') {
+      setTasks(prev => {
+        const next = prev.filter(t => t.type !== 'Tarea' && t.type !== 'Proyecto' && t.type !== 'Pulso');
+        setLocal(keys.tasks, next);
+        return next;
+      });
+      setHistory(prev => {
+        const tasksToDeleteIds = tasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto' || t.type === 'Pulso').map(t => t.id);
+        const next = prev.filter(h => !tasksToDeleteIds.includes(h.taskId));
+        setLocal(keys.history, next);
+        return next;
+      });
+      setConfig(prev => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        next.areas = {}; // Reset areas
+        setLocal(keys.config, next);
+        return next;
+      });
+    }
+  };
+
+  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData };
 }

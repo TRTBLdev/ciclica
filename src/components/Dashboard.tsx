@@ -35,7 +35,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData } = useData(user.uid);
+  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -485,6 +485,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 history={history}
                 onSignOut={onSignOut}
                 importLocalData={importLocalData}
+                mergeLocalData={mergeLocalData}
+                clearPartialData={clearPartialData}
                 onNavigate={handleNavigate}
               />
             )}

@@ -11,19 +11,42 @@ interface Props {
   history: any[];
   onSignOut: () => void;
   importLocalData: (tasks: any[], history: any[], config: any) => void;
+  mergeLocalData: (tasks: any[], history: any[], config: any) => void;
+  clearPartialData: (type: 'ciclos' | 'habitos' | 'tareas') => void;
   onNavigate?: (view: any) => void;
 }
 
-export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, onSignOut, importLocalData }: Props) {
+export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  const handleExportVault = () => {
-    const data = { tasks, history, config };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const handleExportData = (type: 'all' | 'ciclos' | 'habitos' | 'tareas') => {
+    let dataToExport: any = {};
+    let filename = `ciclica_vault_${new Date().toISOString().slice(0, 10)}.json`;
+
+    if (type === 'all') {
+      dataToExport = { tasks, history, config };
+    } else if (type === 'ciclos') {
+      dataToExport = { config: { cycleConfig: config?.cycleConfig } };
+      filename = `ciclica_ciclos_${new Date().toISOString().slice(0, 10)}.json`;
+    } else if (type === 'habitos') {
+      const habitTasks = tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
+      const habitIds = habitTasks.map(t => t.id);
+      const habitHistory = history.filter(h => habitIds.includes(h.taskId));
+      dataToExport = { tasks: habitTasks, history: habitHistory };
+      filename = `ciclica_habitos_${new Date().toISOString().slice(0, 10)}.json`;
+    } else if (type === 'tareas') {
+      const projTasks = tasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto' || t.type === 'Pulso');
+      const projIds = projTasks.map(t => t.id);
+      const projHistory = history.filter(h => projIds.includes(h.taskId));
+      dataToExport = { tasks: projTasks, history: projHistory, config: { areas: config?.areas } };
+      filename = `ciclica_tareas_${new Date().toISOString().slice(0, 10)}.json`;
+    }
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ciclica_vault_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -40,12 +63,12 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
       try {
         const imported = JSON.parse(event.target?.result as string);
         if (imported.tasks || imported.history || imported.config) {
-          importLocalData(imported.tasks || [], imported.history || [], imported.config || {});
-          setImportStatus('success');
-          showToast("¡Cíclica Vault importado con éxito!", "success");
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
+          if (window.confirm("⚠️ Importar Bóveda Completa reemplazará TODOS tus datos actuales. Si deseas combinar datos, usa las opciones parciales. ¿Continuar?")) {
+            importLocalData(imported.tasks || [], imported.history || [], imported.config || {});
+            setImportStatus('success');
+            showToast("¡Cíclica Vault importado con éxito!", "success");
+            setTimeout(() => window.location.reload(), 1500);
+          }
         } else {
           setImportStatus('error');
           showToast("El archivo no tiene el formato correcto de Cíclica.", "error");
@@ -56,11 +79,44 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImportPartial = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string);
+        if (imported.tasks || imported.history || imported.config) {
+          mergeLocalData(imported.tasks || [], imported.history || [], imported.config || null);
+          setImportStatus('success');
+          showToast("Datos parciales combinados con éxito!", "success");
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          setImportStatus('error');
+          showToast("El archivo no tiene el formato correcto.", "error");
+        }
+      } catch (err) {
+        setImportStatus('error');
+        showToast("Error al leer el archivo JSON.", "error");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleFactoryReset = () => {
     if (window.confirm("⚠️ ¿Estás segura de que deseas BORRAR TODOS TUS DATOS de CÍCLICA en este navegador y restablecer de fábrica? \n\nEsta acción es irreversible y eliminará tus tareas, proyectos, hábitos, configuraciones e historial local de forma permanente. (Te recomendamos 'Exportar' tu bóveda en JSON primero).")) {
       localStorage.clear();
+      window.location.reload();
+    }
+  };
+
+  const handlePartialClear = (type: 'ciclos' | 'habitos' | 'tareas', name: string) => {
+    if (window.confirm(`⚠️ ¿Estás segura de que deseas BORRAR los datos de ${name}? \n\nEsta acción eliminará de forma irreversible esa información, pero el resto de tus datos quedará intacto.`)) {
+      clearPartialData(type);
       window.location.reload();
     }
   };
@@ -311,37 +367,80 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
         {/* SECTION 2: DATOS LOCALES Y BÓVEDA */}
         <div className="border-b border-border-line/30 pb-10">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
-            💾 CÍCLICA VAULT (PERSISTENCIA LOCAL-FIRST)
+            💾 CÍCLICA VAULT Y DATOS LOCALES
           </h3>
           <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
-            Sus datos pertenecen únicamente a usted. Cíclica opera 100% de forma local en su navegador. Exporte copias de seguridad de su base de datos o impórtelas de vuelta en formato JSON portátil en cualquier dispositivo.
+            Cíclica opera de forma local en su navegador. Exporte o importe todos sus datos (Bóveda Completa) o descargue módulos específicos para fusionarlos.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button
-              onClick={handleExportVault}
-              className="flex-1 p-4 border border-border-line hover:border-[var(--color-text-main)] text-left flex items-center gap-4 cursor-pointer hover:bg-base-dim/10 transition-all bg-transparent"
-            >
-              <Download className="w-5 h-5 text-primary shrink-0" />
-              <div>
-                <div className="text-xs font-mono font-bold uppercase text-text-main">Exportar Bóveda</div>
-                <div className="text-[10px] text-text-dim font-sans font-light mt-0.5">Descarga un archivo JSON portable con todas tus tareas, hábitos e historial.</div>
-              </div>
-            </button>
+          <div className="flex flex-col gap-4">
+            <div className="text-xs font-bold text-text-main font-sans mt-2">Bóveda Completa (Todos los datos)</div>
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              <button
+                onClick={() => handleExportData('all')}
+                className="flex-1 p-4 border border-border-line hover:border-[var(--color-text-main)] text-left flex items-center gap-4 cursor-pointer hover:bg-base-dim/10 transition-all bg-transparent"
+              >
+                <Download className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <div className="text-xs font-mono font-bold uppercase text-text-main">Exportar Todo</div>
+                  <div className="text-[10px] text-text-dim font-sans font-light mt-0.5">Descarga copia total (JSON).</div>
+                </div>
+              </button>
 
-            <label className="flex-1 p-4 border border-border-line hover:border-[var(--color-text-main)] text-left flex items-center gap-4 cursor-pointer hover:bg-base-dim/10 transition-all bg-transparent">
-              <Upload className="w-5 h-5 text-accent shrink-0 font-normal" />
-              <div>
-                <div className="text-xs font-mono font-bold uppercase text-text-main">Importar Bóveda</div>
-                <div className="text-[10px] text-text-dim font-sans font-light mt-0.5">Carga una copia de seguridad JSON previa. Reemplazará tus datos actuales.</div>
+              <label className="flex-1 p-4 border border-border-line hover:border-[var(--color-text-main)] text-left flex items-center gap-4 cursor-pointer hover:bg-base-dim/10 transition-all bg-transparent">
+                <Upload className="w-5 h-5 text-accent shrink-0 font-normal" />
+                <div>
+                  <div className="text-xs font-mono font-bold uppercase text-text-main">Importar y Sobrescribir Todo</div>
+                  <div className="text-[10px] text-text-dim font-sans font-light mt-0.5">Reemplaza tus datos actuales.</div>
+                </div>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImportVault}
+                />
+              </label>
+            </div>
+
+            <div className="text-xs font-bold text-text-main font-sans mt-2">Datos Parciales (Combinar / Merge)</div>
+            <p className="text-[10px] text-text-dim font-sans mb-2">Descarga o sube módulos individuales. Al importar, los datos se combinarán con los existentes.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Ciclos */}
+              <div className="border border-border-line p-3">
+                <div className="text-xs font-mono font-bold mb-3">CICLOS</div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleExportData('ciclos')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
+                  <label className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10 text-center cursor-pointer">
+                    Importar
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
+                  </label>
+                </div>
               </div>
-              <input
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleImportVault}
-              />
-            </label>
+
+              {/* Hábitos */}
+              <div className="border border-border-line p-3">
+                <div className="text-xs font-mono font-bold mb-3">HÁBITOS</div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleExportData('habitos')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
+                  <label className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10 text-center cursor-pointer">
+                    Importar
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Tareas */}
+              <div className="border border-border-line p-3">
+                <div className="text-xs font-mono font-bold mb-3">TAREAS Y PROY.</div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleExportData('tareas')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
+                  <label className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10 text-center cursor-pointer">
+                    Importar
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -351,10 +450,10 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
             🛡️ SEGURIDAD Y DEPURACIÓN
           </h3>
           <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
-            Administre su sesión en este dispositivo o elimine todo rastro de su huella de datos de forma destructiva y permanente.
+            Administre su sesión o elimine rastros de su huella de datos de forma destructiva y permanente.
           </p>
 
-          <div className="flex flex-col gap-3 max-w-sm">
+          <div className="flex flex-col gap-3 max-w-sm mb-8">
             <button
               onClick={onSignOut}
               className="w-full flex items-center justify-between border border-border-line hover:border-[var(--color-text-main)] px-4 py-3 transition-all text-xs font-mono uppercase tracking-wider text-text-main cursor-pointer bg-transparent"
@@ -362,12 +461,40 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
               <span>Cerrar Sesión</span>
               <LogOut className="w-4 h-4 text-text-dim" />
             </button>
+          </div>
+
+          <div className="border-t border-red-500/20 pt-6">
+            <h4 className="text-xs font-bold text-red-500 font-sans mb-4">Zona de Peligro: Borrado de Datos</h4>
+            
+            <div className="grid grid-cols-2 gap-3 mb-6">
+               <button
+                  onClick={() => handlePartialClear('ciclos', 'Ciclos y Registros Hormonales')}
+                  className="p-3 text-left border border-red-500/10 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
+                >
+                  <div className="text-[10px] font-mono uppercase text-red-500 font-bold mb-1">Borrar Ciclos</div>
+                  <div className="text-[9px] text-text-dim leading-tight">Elimina registros menstruales.</div>
+                </button>
+                <button
+                  onClick={() => handlePartialClear('habitos', 'Hábitos y Rutinas')}
+                  className="p-3 text-left border border-red-500/10 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
+                >
+                  <div className="text-[10px] font-mono uppercase text-red-500 font-bold mb-1">Borrar Hábitos</div>
+                  <div className="text-[9px] text-text-dim leading-tight">Elimina hábitos y su historial.</div>
+                </button>
+                <button
+                  onClick={() => handlePartialClear('tareas', 'Tareas, Áreas y Proyectos')}
+                  className="p-3 text-left border border-red-500/10 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
+                >
+                  <div className="text-[10px] font-mono uppercase text-red-500 font-bold mb-1">Borrar Tareas</div>
+                  <div className="text-[9px] text-text-dim leading-tight">Elimina tareas, proyectos y áreas.</div>
+                </button>
+            </div>
 
             <button
               onClick={handleFactoryReset}
-              className="w-full flex items-center justify-between border border-red-500/20 hover:border-red-500 px-4 py-3 transition-all text-xs font-mono uppercase tracking-wider text-red-500 hover:bg-red-500/10 cursor-pointer bg-transparent"
+              className="w-full flex items-center justify-between border border-red-500 hover:border-red-600 px-4 py-3 transition-all text-xs font-mono uppercase tracking-wider text-white bg-red-500 hover:bg-red-600 cursor-pointer"
             >
-              <span>Restablecer de Fábrica</span>
+              <span>Restablecer Todo de Fábrica</span>
               <Trash2 className="w-4 h-4 shrink-0" />
             </button>
           </div>
