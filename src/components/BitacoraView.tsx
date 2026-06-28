@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Calendar, BarChart3, CheckCircle2, BookOpen, X, Download } from 'lucide-react';
-import { Config, AppTask, HistoryRecord } from '../types';
+import { Config, AppTask, HistoryRecord, Intention, IntentionScale } from '../types';
 import { cn } from '../lib/utils';
 import CalendarioView from './CalendarioView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
+import PlanificarView from './PlanificarView';
+import BalanceView from './BalanceView';
 import { useToast } from './ToastProvider';
+import { getCurrentPeriod, formatLocalDate } from '../domain/periodUtils';
 
 const parseLocalDate = (dateStr: string) => {
   const parts = dateStr.split('-');
@@ -19,6 +22,11 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  intentions: Intention[];
+  onAddIntention: (intention: Omit<Intention, 'id'>) => void;
+  onUpdateIntention: (id: string, updates: Partial<Intention>) => void;
+  onDeleteIntention: (id: string) => void;
+  onOpenIntentions: () => void;
   onToggleTask: (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => void;
   onDeleteTask: (id: string) => void;
   onAddTask: (task: Partial<AppTask>) => void;
@@ -33,6 +41,11 @@ export default function BitacoraView({
   config,
   tasks,
   history,
+  intentions,
+  onAddIntention,
+  onUpdateIntention,
+  onDeleteIntention,
+  onOpenIntentions,
   onToggleTask,
   onDeleteTask,
   onAddTask,
@@ -43,8 +56,10 @@ export default function BitacoraView({
   onAddHistory,
 }: Props) {
   const { showToast } = useToast();
-  // Tabs: 'heatmap' | 'reportes' | 'archivo' | 'completadas'
-  const [activeTab, setActiveTab] = useState<'heatmap' | 'reportes' | 'archivo' | 'completadas'>('heatmap');
+  // Tabs: 'planificar' | 'balance' | 'historial'
+  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'historial'>('balance');
+  const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('phase');
+  const [cursorDate, setCursorDate] = useState<Date>(new Date());
 
   // Cycles archive states
   const [showAddHist, setShowAddHist] = useState(false);
@@ -300,6 +315,41 @@ export default function BitacoraView({
     document.body.removeChild(link);
   };
 
+  const isPrevPeriodInPast = () => {
+    if (activeScale === 'free') return false;
+    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
+    const startObj = parseLocalDate(currentPeriod.start);
+    startObj.setDate(startObj.getDate() - 1);
+    const prevPeriod = getCurrentPeriod(activeScale, config, startObj);
+    const prevEnd = parseLocalDate(prevPeriod.end);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return prevEnd < today;
+  };
+
+  const handlePrevPeriod = () => {
+    if (activeScale === 'free') return; // Rango libre no tiene prev/next definido aún
+    if (activeTab === 'planificar' && isPrevPeriodInPast()) {
+      return; // Bloqueado
+    }
+    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
+    const startObj = parseLocalDate(currentPeriod.start);
+    startObj.setDate(startObj.getDate() - 1);
+    setCursorDate(startObj);
+  };
+
+  const handleNextPeriod = () => {
+    if (activeScale === 'free') return;
+    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
+    const endObj = parseLocalDate(currentPeriod.end);
+    endObj.setDate(endObj.getDate() + 1);
+    setCursorDate(endObj);
+  };
+
+  const currentPeriod = activeScale === 'free' 
+    ? { start: '', end: '', label: 'Todo el tiempo' } // TODO: Implementar rango libre real
+    : getCurrentPeriod(activeScale, config, cursorDate);
+
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base text-left">
       {/* Upper Navigation Tabs Bar */}
@@ -307,28 +357,30 @@ export default function BitacoraView({
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-line pb-4 gap-4">
           <div className="text-left">
             <h1 className="text-title mb-1 leading-none flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-text-main" /> Bitácora
+              <BookOpen className="w-6 h-6 text-text-main" /> Bitácora
             </h1>
             <p className="text-xs text-text-dim max-w-2xl leading-relaxed">
-              Consulte su historial de hábitos, analíticas de rendimiento, tareas completadas y el archivo de ciclos biológicos.
+              Planifica tus intenciones, evalúa tu balance y consulta tu historial de ciclos, hábitos y tareas.
             </p>
           </div>
 
           {/* Quick-Access Top Monospace Tab Selector */}
           <div className="flex flex-wrap gap-4 font-mono text-xs uppercase tracking-wider font-bold bg-transparent">
             {[
-              { id: 'heatmap', label: 'Heatmap', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'reportes', label: 'Reportes', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              ...(config?.cycleConfig?.menstruates !== false
-                ? [{ id: 'archivo', label: 'Archivo de Ciclos', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }]
-                : []),
-              { id: 'completadas', label: 'Completadas', icon: <CheckCircle2 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
+              { id: 'planificar', label: 'Planificar', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+              { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+              { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
             ].map(t => {
               const isActive = activeTab === t.id;
               return (
                 <button
                   key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
+                  onClick={() => {
+                    setActiveTab(t.id as any);
+                    if (t.id === 'planificar' && activeScale === 'free') {
+                      setActiveScale('phase');
+                    }
+                  }}
                   className={cn(
                     "flex items-center gap-1.5 hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
                     isActive 
@@ -343,44 +395,130 @@ export default function BitacoraView({
             })}
           </div>
         </div>
+
+        {/* Sub-Header: Scale Selector & Period Navigator */}
+        {(activeTab === 'planificar' || activeTab === 'balance') && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-b border-border-line/40">
+            <div className="flex bg-base-dim/10 rounded-full border border-border-line overflow-hidden text-xs font-mono uppercase tracking-wider">
+              {(['phase', 'cycle', 'quarter', 'year', 'free'] as const).map(s => {
+                if (s === 'free' && activeTab === 'planificar') return null;
+                const labels: Record<string, string> = { phase: 'Fase', cycle: 'Ciclo', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setActiveScale(s)}
+                    className={cn(
+                      "px-4 py-1.5 transition-colors cursor-pointer border-r border-border-line last:border-0",
+                      activeScale === s ? "bg-text-main text-[var(--base-bg)] font-bold" : "hover:bg-base-dim/20 text-text-dim hover:text-text-main"
+                    )}
+                  >
+                    {labels[s]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeScale !== 'free' && (
+              <div className="flex items-center gap-3 bg-base-dim/10 px-3 py-1.5 rounded-full border border-border-line text-xs font-mono uppercase tracking-widest text-text-main">
+                <button 
+                  onClick={handlePrevPeriod} 
+                  disabled={activeTab === 'planificar' && isPrevPeriodInPast()}
+                  className="p-1 hover:bg-base-dim/50 rounded-full cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ◀
+                </button>
+                <div className="w-56 text-center font-bold text-[10px] relative group overflow-hidden" title="Haz click para seleccionar una fecha específica">
+                  {currentPeriod.label}
+                  <input
+                    type="date"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={formatLocalDate(cursorDate)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                         const newDate = parseLocalDate(e.target.value);
+                         if (activeTab === 'planificar') {
+                           const today = new Date();
+                           today.setHours(0, 0, 0, 0);
+                           const newPeriod = getCurrentPeriod(activeScale, config, newDate);
+                           if (parseLocalDate(newPeriod.end) < today) {
+                             showToast("No puedes planificar períodos pasados.", 'error');
+                             return;
+                           }
+                         }
+                         setCursorDate(newDate);
+                      }
+                    }}
+                  />
+                </div>
+                <button onClick={handleNextPeriod} className="p-1 hover:bg-base-dim/50 rounded-full cursor-pointer">▶</button>
+                <button onClick={() => setCursorDate(new Date())} className="ml-2 border-l border-border-line pl-3 py-0.5 hover:underline cursor-pointer">Hoy</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">
-        {activeTab === 'heatmap' && (
-          <div className="animate-in fade-in duration-200">
-            <CalendarioView
-              config={config}
+        {activeTab === 'planificar' && activeScale !== 'free' && (
+          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto text-left">
+            <PlanificarView
+              scale={activeScale}
+              intentions={intentions}
               tasks={tasks}
               history={history}
+              config={config}
+              periodStart={currentPeriod.start}
+              periodEnd={currentPeriod.end}
+              periodLabel={currentPeriod.label}
+              onAddIntention={onAddIntention}
+              onUpdateIntention={onUpdateIntention}
+              onDeleteIntention={onDeleteIntention}
             />
           </div>
         )}
 
-        {activeTab === 'reportes' && (
+        {activeTab === 'balance' && (
           <div className="animate-in fade-in duration-200">
-            <ReportesView
-              config={config}
+            <BalanceView
+              scale={activeScale}
+              intentions={intentions}
               tasks={tasks}
               history={history}
+              config={config}
+              periodStart={currentPeriod.start}
+              periodEnd={currentPeriod.end}
             />
           </div>
         )}
 
-        {activeTab === 'completadas' && (
-          <div className="animate-in fade-in duration-200">
-            <CompletadasView
-              config={config}
-              tasks={tasks}
-              history={history}
-              onToggleTask={onToggleTask}
-              onDeleteTask={onDeleteTask}
-              onUpdateTask={onUpdateTask}
-              onAddTask={onAddTask}
-              onUpdateHistory={onUpdateHistory}
-              onDeleteHistory={onDeleteHistory}
-              onAddHistory={onAddHistory}
-            />
+        {activeTab === 'historial' && (
+          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto">
+            {/* Temporarily rendering CompletadasView inline until HistorialView is done */}
+            <div className="mb-8">
+              <h2 className="text-title mb-4 border-b border-border-line pb-2">Completadas</h2>
+              <CompletadasView
+                config={config}
+                tasks={tasks}
+                history={history}
+                onToggleTask={onToggleTask}
+                onDeleteTask={onDeleteTask}
+                onUpdateTask={onUpdateTask}
+                onAddTask={onAddTask}
+                onUpdateHistory={onUpdateHistory}
+                onDeleteHistory={onDeleteHistory}
+                onAddHistory={onAddHistory}
+              />
+            </div>
+            
+            <div className="mb-8">
+              <h2 className="text-title mb-4 border-b border-border-line pb-2">Heatmap (Calendario Histórico)</h2>
+              <CalendarioView
+                config={config}
+                tasks={tasks}
+                history={history}
+              />
+            </div>
           </div>
         )}
 

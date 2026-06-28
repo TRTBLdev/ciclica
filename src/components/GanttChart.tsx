@@ -7,12 +7,12 @@ interface GanttChartProps {
   config: Config | null;
   tasks: AppTask[];
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
+  scale: 'phase' | 'cycle' | 'quarter' | 'year';
+  periodStart: string;
+  periodEnd: string;
 }
 
-type GanttScale = 'ciclo' | 'cuarto' | 'año';
-
-export default function GanttChart({ config, tasks, onUpdateTask }: GanttChartProps) {
-  const [scale, setScale] = useState<GanttScale>('ciclo');
+export default function GanttChart({ config, tasks, onUpdateTask, scale, periodStart, periodEnd }: GanttChartProps) {
   const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgLines, setSvgLines] = useState<{ d: string; id: string }[]>([]);
@@ -32,46 +32,50 @@ export default function GanttChart({ config, tasks, onUpdateTask }: GanttChartPr
     setExpandedProjects(projects.map(p => p.id));
   }, [projects]);
 
-  // Calculate timeline start and end dates based on scale
+  // Parse period dates and add buffer for context navigation (past/future)
   const { timelineStart, timelineEnd, cols } = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-
-    let start = new Date(now);
-    let end = new Date(now);
+    let start = new Date(periodStart);
+    let end = new Date(periodEnd);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    
     let colLabels: string[] = [];
 
-    if (scale === 'ciclo') {
-      // 30 days scale: starts 5 days ago, ends 25 days from now
-      start.setDate(now.getDate() - 5);
-      end.setDate(now.getDate() + 25);
-
-      for (let i = 0; i < 30; i++) {
+    if (scale === 'phase' || scale === 'cycle') {
+      // Add 10 days buffer on each side for context
+      start.setDate(start.getDate() - 10);
+      end.setDate(end.getDate() + 10);
+      
+      const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      for (let i = 0; i <= totalDays; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         colLabels.push(`${d.getDate()}/${d.getMonth() + 1}`);
       }
-    } else if (scale === 'cuarto') {
-      // 90 days scale (3 months): grouped by weeks (12 columns)
-      start.setDate(now.getDate() - 14); // 2 weeks back
-      end.setDate(now.getDate() + 76);
-
-      for (let i = 0; i < 13; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i * 7);
+    } else if (scale === 'quarter') {
+      // Add 2 weeks buffer
+      start.setDate(start.getDate() - 14);
+      end.setDate(end.getDate() + 14);
+      
+      const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const totalWeeks = Math.ceil(totalDays / 7);
+      for (let i = 0; i < totalWeeks; i++) {
         colLabels.push(`S${i + 1}`);
       }
     } else {
-      // 1 year scale: 12 months starting from January of current year
-      start = new Date(now.getFullYear(), 0, 1);
-      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-
+      // year - Add 1 month buffer
+      start.setMonth(start.getMonth() - 1);
+      end.setMonth(end.getMonth() + 1);
+      
       const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      colLabels = months;
+      // simple year column labels
+      for (let m = new Date(start); m <= end; m.setMonth(m.getMonth() + 1)) {
+        colLabels.push(`${months[m.getMonth()]} '${m.getFullYear().toString().slice(2)}`);
+      }
     }
 
     return { timelineStart: start, timelineEnd: end, cols: colLabels };
-  }, [scale]);
+  }, [scale, periodStart, periodEnd]);
 
   // Map dates to percentage widths and positions
   const getTaskDates = (t: AppTask) => {

@@ -14,11 +14,13 @@ const SintoniaView = lazy(() => import('./SintoniaView'));
 const EstrategiaView = lazy(() => import('./EstrategiaView'));
 const BitacoraView = lazy(() => import('./BitacoraView'));
 const ConfiguracionView = lazy(() => import('./ConfiguracionView'));
+const IntentionForm = lazy(() => import('./IntentionForm'));
 
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
   const [currentView, setCurrentView] = useState<'hoy' | 'sintonia' | 'estrategia' | 'bitacora' | 'configuracion'>('hoy');
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
+  const [showIntentionForm, setShowIntentionForm] = useState(false);
   
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
@@ -35,7 +37,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData } = useData(user.uid);
+  const { config, tasks, history, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -467,6 +469,11 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 config={config} 
                 tasks={tasks}
                 history={history}
+                intentions={intentions}
+                onAddIntention={addIntention}
+                onUpdateIntention={updateIntention}
+                onDeleteIntention={deleteIntention}
+                onOpenIntentions={() => setShowIntentionForm(true)}
                 onToggleTask={handleToggleTask}
                 onDeleteTask={deleteTask}
                 onAddTask={addTask}
@@ -558,6 +565,22 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           onClose={() => setShowOnboarding(false)} 
           onBackToLogin={onSignOut}
         />
+      )}
+
+      {showIntentionForm && config && (
+        <Suspense fallback={null}>
+          <IntentionForm
+            isOpen={showIntentionForm}
+            onClose={() => setShowIntentionForm(false)}
+            config={config}
+            tasks={tasks}
+            history={history}
+            intentions={intentions}
+            onSave={addIntention}
+            onUpdate={updateIntention}
+            onDelete={deleteIntention}
+          />
+        </Suspense>
       )}
       </div>
     </ToastProvider>

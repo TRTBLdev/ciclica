@@ -3,6 +3,7 @@
 
 @theme {
   --color-base: var(--base-bg);
+  --color-base-bg: var(--base-bg);
   --color-base-dim: var(--base-bg-dim);
   --color-primary: var(--primary-accent);
   --color-accent: var(--accent-highlight);

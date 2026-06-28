@@ -77,6 +77,7 @@ export default function CompletadasView({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showSimple, setShowSimple] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
+  const [showPulses, setShowPulses] = useState(true);
   const [subTasksMarkCompleted, setSubTasksMarkCompleted] = useState<Record<string, boolean>>({});
 
   const selectedTask = tasks.find(t => t.id === retroTaskId);
@@ -176,7 +177,7 @@ export default function CompletadasView({
     return filteredHistoryByDate.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return false;
-      if (task.type !== 'Hábito' && task.type !== 'Rutina' && task.type !== 'Pulso') return false;
+      if (task.type !== 'Hábito' && task.type !== 'Rutina') return false;
 
       // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
       if (task.parentId) {
@@ -185,6 +186,15 @@ export default function CompletadasView({
         );
         if (parentHasLogSameDay) return false;
       }
+      return true;
+    });
+  }, [filteredHistoryByDate, tasks]);
+
+  const pulseExecs = useMemo(() => {
+    return filteredHistoryByDate.filter(h => {
+      const task = tasks.find(t => t.id === h.taskId);
+      if (!task) return false;
+      if (task.type !== 'Pulso') return false;
       return true;
     });
   }, [filteredHistoryByDate, tasks]);
@@ -1119,7 +1129,7 @@ export default function CompletadasView({
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* SIMPLE ITEMS (TASKS/EVENTS) */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
@@ -1128,16 +1138,16 @@ export default function CompletadasView({
             className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
           >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
-              Ítems Simples
+              Proyectos y Tareas
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
                 {simpleExecs.length.toString().padStart(2, '0')}
               </span>
             </h3>
             <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
-              Tareas y Proyectos {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showSimple && renderHistoryList(simpleExecs, "Aún no has completado tareas simples.", false)}
+          {showSimple && renderHistoryList(simpleExecs, "Sin tareas o proyectos completados.", false)}
         </div>
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}
@@ -1147,16 +1157,35 @@ export default function CompletadasView({
             className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
           >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
-              Ítems Recurrentes
+              Hábitos y Rutinas
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
                 {recurringExecs.length.toString().padStart(2, '0')}
               </span>
             </h3>
             <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
-              Hábitos y Rutinas {showRecurring ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showRecurring ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showRecurring && renderHistoryList(recurringExecs, "Aún no se registran hábitos o rutinas ejecutadas.", true)}
+          {showRecurring && renderHistoryList(recurringExecs, "Sin hábitos o rutinas registradas.", true)}
+        </div>
+
+        {/* PULSES */}
+        <div className="flex flex-col gap-4 h-fit bg-transparent">
+          <div 
+            onClick={() => setShowPulses(!showPulses)}
+            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+          >
+            <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
+              Pulsos
+              <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
+                {pulseExecs.length.toString().padStart(2, '0')}
+              </span>
+            </h3>
+            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
+              {showPulses ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </span>
+          </div>
+          {showPulses && renderHistoryList(pulseExecs, "Sin pulsos registrados.", false)}
         </div>
 
       </div>

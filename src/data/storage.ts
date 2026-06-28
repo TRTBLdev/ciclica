@@ -2,6 +2,7 @@ export const getDataKeys = (userId: string) => ({
   tasks: `ciclica_local_tasks_${userId}`,
   config: `ciclica_local_config_${userId}`,
   history: `ciclica_local_history_${userId}`,
+  intentions: `ciclica_local_intentions_${userId}`,
 });
 
 export const getLocal = <T>(key: string, fallback: T): T => {

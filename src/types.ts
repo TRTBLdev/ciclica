@@ -87,3 +87,33 @@ export interface HistoryRecord {
   isCompletion?: boolean;
 }
 
+// --- Intention System (Fase 3) ---
+
+export type IntentionScale = 'phase' | 'cycle' | 'quarter' | 'year';
+
+export interface IntentionItem {
+  id: string;                    // 'ii_{timestamp}_{random7}'
+  targetType: 'hours' | 'consistency' | 'completion';
+  // Vinculación (4 niveles, en cascada):
+  areaName?: string;             // Nivel 1: área completa (ej. 'BODY')
+  subCategory?: string;          // Nivel 2: subcategoría (ej. 'EJERCICIO') — requiere areaName
+  projectId?: string;            // Nivel 3: proyecto específico
+  taskId?: string;               // Nivel 4: tarea/hábito/rutina/pulso específico
+  // Para 'hours':
+  targetHours?: number;          // Horas target para el período completo
+  // Para 'consistency':
+  targetDays?: number;           // Días target en el período completo
+  // 'completion' no necesita campos extra — se lee completed del task/proyecto
+}
+
+export interface Intention {
+  id: string;                    // 'int_{timestamp}_{random7}'
+  userId: string;
+  scale: IntentionScale;
+  periodStart: string;           // ISO Date 'YYYY-MM-DD'
+  periodEnd: string;             // ISO Date 'YYYY-MM-DD'
+  theme?: string;                // Norte narrativo (opcional, todas las escalas)
+  items: IntentionItem[];
+  createdAt: string;             // ISO DateTime
+  updatedAt?: string;            // ISO DateTime
+}

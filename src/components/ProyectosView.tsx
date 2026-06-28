@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus, X, Edit2, Trash2, Save, ArrowUp, ArrowDown } from 'lucide-react';
 import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
-import GanttChart from './GanttChart';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
@@ -47,7 +46,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [addingTaskId, setAddingTaskId] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState('');
   const [expandedProjs, setExpandedProjs] = useState<string[]>([]);
-  const [showGantt, setShowGantt] = useState(false);
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
   const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
   const [menuProjUpwards, setMenuProjUpwards] = useState(false);
@@ -594,13 +592,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
           </div>
           
-          <button 
-            onClick={() => setShowGantt(!showGantt)} 
-            className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
-          >
-            {showGantt ? '✕ ocultar cronograma' : '📅 ver cronograma'}
-          </button>
-          
           {!isAdding && !isAddingTask && (
             <div className="flex gap-4">
               <button 
@@ -629,12 +620,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           </div>
         )}
       />
-
-      {showGantt && (
-        <div className="w-full mb-6">
-          <GanttChart config={config} tasks={filteredTasksForGantt} onUpdateTask={onUpdateTask} />
-        </div>
-      )}
 
       {isAddingTask && (
         <form 

@@ -57,6 +57,8 @@ export default function CalendarioView({ config, tasks, history }: Props) {
   const maintHabitsRaw = allHabits.filter(h => getFrecuenciaInDays(h.frecuencia, h.frecuenciaUnidad) > 7 && h.type !== 'Pulso');
   
   const topLevelDaily = dailyHabitsRaw.filter(h => h.type !== 'Hábito' || !dailyHabitsRaw.some(r => r.type === 'Rutina' && r.id === h.parentId));
+  const topLevelHabits = topLevelDaily.filter(h => h.type !== 'Pulso');
+  const topLevelPulses = topLevelDaily.filter(h => h.type === 'Pulso');
   const topLevelMaint = maintHabitsRaw.filter(h => h.type !== 'Hábito' || !maintHabitsRaw.some(r => r.type === 'Rutina' && r.id === h.parentId));
 
   const days: Date[] = [];
@@ -97,10 +99,10 @@ export default function CalendarioView({ config, tasks, history }: Props) {
         </div>
       </div>
 
-      {topLevelDaily.length > 0 && (
+      {topLevelHabits.length > 0 && (
         <div className="bg-transparent py-4 md:py-6 border-b border-border-line/40 mb-8 text-left">
           <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 pb-2 border-b border-border-line/20 flex items-center gap-2">
-            Hábitos Diarios y Eventos
+            Hábitos y Rutinas Diarias
           </h3>
           
           <div ref={dailyScrollRef} className="overflow-x-auto pb-4">
@@ -119,7 +121,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {topLevelDaily.map(item => {
+                {topLevelHabits.map(item => {
                   const isRoutine = item.type === 'Rutina';
                   const isExpanded = expandedRoutines.includes(item.id);
                   const subtasks = dailyHabitsRaw.filter(t => t.parentId === item.id && t.type === 'Hábito');
@@ -229,6 +231,90 @@ export default function CalendarioView({ config, tasks, history }: Props) {
         </div>
       )}
 
+      {topLevelPulses.length > 0 && (
+        <div className="bg-transparent py-4 md:py-6 border-b border-border-line/40 mb-8 text-left">
+          <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 pb-2 border-b border-border-line/20 flex items-center gap-2">
+            Pulsos (Eventos Frecuentes)
+          </h3>
+          
+          <div className="overflow-x-auto pb-4">
+            <table className="w-full text-sm text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr>
+                  <th className="py-2 px-3 border-b border-border-line/40 text-text-dim font-mono text-xs uppercase tracking-wider w-48 sticky left-0 bg-base z-10">Elemento</th>
+                  {days.map((d, i) => {
+                    const isToday = d.toDateString() === new Date().toDateString();
+                    return (
+                      <th key={i} className={cn("py-2 border-b border-border-line/30 text-center text-xs font-mono w-8", isToday ? "text-primary font-bold bg-[var(--color-primary)]/10" : "text-text-dim/70")}>
+                        {d.getDate()}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {topLevelPulses.map(item => {
+                  return (
+                    <tr key={item.id} className="hover:bg-base-dim/30 transition-colors">
+                      <td className="py-2.5 px-3 border-b border-border-line/20 text-text-main font-normal truncate max-w-[12rem] sticky left-0 bg-base z-10">
+                        <div className="flex items-center gap-1">
+                          <div className="w-[18px] shrink-0"></div>
+                          <span className="text-xs text-primary font-mono min-w-8">{extractSafeTime(item.hora) || '-'}</span>
+                          <Activity className="inline w-3.5 h-3.5 text-primary/80 mr-1" />
+                          <span className="truncate font-light">{item.text}</span>
+                        </div>
+                      </td>
+                      {days.map((d, i) => {
+                        const execs = history.filter(h => h.taskId === item.id && isSameDay(h.date, d.toISOString()));
+                        const count = execs.length;
+                        
+                        const target = item.targetCount || item.objetivo || 1;
+                        const isAbandonar = item.polaridad === 'Abandonar';
+                        let cellContent = null;
+                        
+                        if (isAbandonar) {
+                          const isOver = count > target;
+                          cellContent = (
+                            <div 
+                              className={cn(
+                                "w-5 h-5 mx-auto rounded-none flex items-center justify-center font-mono text-[9px] font-bold",
+                                count === 0 ? "text-text-main/20 bg-transparent" :
+                                isOver ? "bg-red-500/20 text-red-600 border border-red-500/25" :
+                                "bg-amber-500/20 text-amber-600 border border-amber-500/25"
+                              )}
+                              title={`Log: ${count}/${target}`}
+                            >
+                              {count > 0 ? count : '-'}
+                            </div>
+                          );
+                        } else {
+                          const isDone = count >= target;
+                          cellContent = (
+                            <div 
+                              className={cn(
+                                "w-5 h-5 mx-auto rounded-none flex items-center justify-center font-mono text-[9px] font-bold",
+                                count === 0 ? "text-text-main/20 bg-transparent" :
+                                isDone ? "bg-primary/20 text-primary border border-primary/30" :
+                                "bg-primary/10 text-primary/80 border border-primary/10"
+                              )}
+                              title={`Log: ${count}/${target}`}
+                            >
+                              {count > 0 ? count : '-'}
+                            </div>
+                          );
+                        }
+                        
+                        return <td key={i} className="py-2 border-b border-border-line/20 text-center">{cellContent}</td>;
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {topLevelMaint.length > 0 && (
         <div className="bg-transparent py-4 md:py-6 border-b border-border-line/40 text-left">
           <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 pb-2 border-b border-border-line/20 flex items-center gap-2">
@@ -240,6 +326,9 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                 <tr>
                   <th className="py-2 px-3 border-b border-border-line/40 text-text-dim font-mono text-xs uppercase w-56 sticky left-0 bg-base z-10">Hábito</th>
                   <th className="py-2 px-3 border-b border-border-line/40 text-text-dim font-mono text-xs uppercase w-28 text-center font-bold">Plan</th>
+                  {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                    <th key={q} className="py-2 border-b border-border-line/40 text-center text-xs font-mono font-bold text-primary/80 w-12 bg-base-dim/10">{q}</th>
+                  ))}
                   {months.map(m => (
                     <th key={m} className="py-2 border-b border-border-line/40 text-center text-xs font-mono text-text-dim/70 w-10">{m}</th>
                   ))}
@@ -290,6 +379,28 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                             {hText}
                           </span>
                         </td>
+                        {[0, 1, 2, 3].map(qIndex => {
+                          const startMonth = qIndex * 3;
+                          const qExecs = isRoutine 
+                            ? history.filter(h => {
+                                const tkIdMatch = subtasks.length > 0 ? subtasks.some(st => st.id === h.taskId) : h.taskId === habit.id;
+                                const d = new Date(h.date);
+                                return tkIdMatch && d.getMonth() >= startMonth && d.getMonth() < startMonth + 3 && d.getFullYear() === currentYear;
+                              })
+                            : execs.filter(h => {
+                                const d = new Date(h.date);
+                                return d.getMonth() >= startMonth && d.getMonth() < startMonth + 3 && d.getFullYear() === currentYear;
+                              });
+                          return (
+                            <td key={`q-${qIndex}`} className="py-2 border-b border-border-line/20 text-center bg-base-dim/5">
+                              {qExecs.length > 0 ? (
+                                <span className="font-mono font-bold text-[11px] text-primary">{qExecs.length}</span>
+                              ) : (
+                                <span className="text-[var(--color-border-line)]/40 text-[10px] font-mono">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         {months.map((m, index) => {
                           let monthExecs;
                           if (isRoutine) {
@@ -329,6 +440,22 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                                </div>
                             </td>
                             <td className="py-2 px-3 border-b border-border-line/15 text-center"></td>
+                            {[0, 1, 2, 3].map(qIndex => {
+                               const startMonth = qIndex * 3;
+                               const qExecs = stExecs.filter(h => {
+                                 const d = new Date(h.date);
+                                 return d.getMonth() >= startMonth && d.getMonth() < startMonth + 3 && d.getFullYear() === currentYear;
+                               });
+                               return (
+                                 <td key={`st-q-${qIndex}`} className="py-2 border-b border-border-line/15 text-center bg-base-dim/5">
+                                   {qExecs.length > 0 ? (
+                                     <span className="text-text-main font-mono font-bold text-xs">{qExecs.length}</span>
+                                   ) : (
+                                     <span className="text-[var(--color-border-line)]/40 text-xs font-mono">-</span>
+                                   )}
+                                 </td>
+                               );
+                            })}
                             {months.map((m, index) => {
                               const mExecs = stExecs.filter(h => {
                                 const d = new Date(h.date);

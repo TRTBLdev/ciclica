@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { createDefaultConfig, createDemoTasks } from '../data/defaults';
 import { getDataKeys, getLocal, setLocal } from '../data/storage';
 import { rescheduleOverdueRecurringTasks } from '../data/taskScheduling';
-import { AppTask, Config, HistoryRecord } from '../types';
+import { AppTask, Config, HistoryRecord, Intention } from '../types';
 import { migrateDatabase } from '../data/migration';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<AppTask[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [intentions, setIntentions] = useState<Intention[]>([]);
   const [loading, setLoading] = useState(true);
   const [initChecked, setInitChecked] = useState(false);
 
@@ -21,6 +22,7 @@ export function useData(userId: string) {
     let rawTasks = getLocal<any[]>(keys.tasks, []);
     const rawConfig = getLocal<any>(keys.config, null);
     const rawHistory = getLocal<any[]>(keys.history, []);
+    const rawIntentions = getLocal<Intention[]>(keys.intentions, []);
 
     if (rawTasks.length === 0 && !rawConfig) {
       // Pre-load clean defaults on absolute first run.
@@ -36,11 +38,13 @@ export function useData(userId: string) {
     setConfig(migrated.config);
     setTasks(migrated.tasks);
     setHistory(migrated.history);
+    setIntentions(rawIntentions);
 
     // Persist migrated clean state.
     setLocal(keys.config, migrated.config);
     setLocal(keys.tasks, migrated.tasks);
     setLocal(keys.history, migrated.history);
+    setLocal(keys.intentions, rawIntentions);
 
     setLoading(false);
   }, [effectiveUserId]);
@@ -258,5 +262,31 @@ export function useData(userId: string) {
     }
   };
 
-  return { config, tasks, history, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData };
+  const addIntention = async (intentionData: Omit<Intention, 'id'>) => {
+    const newId = `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const newIntention = { id: newId, ...intentionData, userId: effectiveUserId } as Intention;
+    setIntentions(prev => {
+      const next = [...prev, newIntention];
+      setLocal(getDataKeys(effectiveUserId).intentions, next);
+      return next;
+    });
+  };
+
+  const updateIntention = async (intentionId: string, updates: Partial<Intention>) => {
+    setIntentions(prev => {
+      const next = prev.map(i => i.id === intentionId ? { ...i, ...updates, updatedAt: new Date().toISOString() } : i);
+      setLocal(getDataKeys(effectiveUserId).intentions, next);
+      return next;
+    });
+  };
+
+  const deleteIntention = async (intentionId: string) => {
+    setIntentions(prev => {
+      const next = prev.filter(i => i.id !== intentionId);
+      setLocal(getDataKeys(effectiveUserId).intentions, next);
+      return next;
+    });
+  };
+
+  return { config, tasks, history, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
 }
