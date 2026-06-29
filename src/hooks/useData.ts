@@ -148,17 +148,20 @@ export function useData(userId: string) {
     });
   };
 
-  const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config) => {
+  const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config, importedIntentions?: Intention[]) => {
     const keys = getDataKeys(effectiveUserId);
     setTasks(importedTasks);
     setHistory(importedHistory);
     setConfig(importedConfig);
+    if (importedIntentions) setIntentions(importedIntentions);
+    
     setLocal(keys.tasks, importedTasks);
     setLocal(keys.history, importedHistory);
     setLocal(keys.config, importedConfig);
+    if (importedIntentions) setLocal(keys.intentions, importedIntentions);
   };
 
-  const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null) => {
+  const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null, importedIntentions?: Intention[]) => {
     const keys = getDataKeys(effectiveUserId);
     
     if (importedTasks && importedTasks.length > 0) {
@@ -207,9 +210,25 @@ export function useData(userId: string) {
         return next;
       });
     }
+
+    if (importedIntentions && importedIntentions.length > 0) {
+      setIntentions(prev => {
+        const next = [...prev];
+        importedIntentions.forEach(impIntention => {
+          const idx = next.findIndex(i => i.id === impIntention.id);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], ...impIntention, updatedAt: new Date().toISOString() };
+          } else {
+            next.push(impIntention);
+          }
+        });
+        setLocal(keys.intentions, next);
+        return next;
+      });
+    }
   };
 
-  const clearPartialData = (type: 'ciclos' | 'habitos' | 'tareas') => {
+  const clearPartialData = (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => {
     const keys = getDataKeys(effectiveUserId);
     
     if (type === 'ciclos') {
@@ -259,12 +278,24 @@ export function useData(userId: string) {
         setLocal(keys.config, next);
         return next;
       });
+    } else if (type === 'intenciones') {
+      setIntentions([]);
+      setLocal(keys.intentions, []);
     }
   };
 
   const addIntention = async (intentionData: Omit<Intention, 'id'>) => {
     const newId = `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const newIntention = { id: newId, ...intentionData, userId: effectiveUserId } as Intention;
+    const updatedLinkedItems = intentionData.linkedItems?.map(link => ({
+      ...link,
+      childIntentionId: newId
+    }));
+    const newIntention = { 
+      id: newId, 
+      ...intentionData, 
+      linkedItems: updatedLinkedItems,
+      userId: effectiveUserId 
+    } as Intention;
     setIntentions(prev => {
       const next = [...prev, newIntention];
       setLocal(getDataKeys(effectiveUserId).intentions, next);

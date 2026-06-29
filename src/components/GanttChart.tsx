@@ -17,9 +17,14 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgLines, setSvgLines] = useState<{ d: string; id: string }[]>([]);
 
-  // Get active projects and their subtasks
-  const projects = useMemo(() => tasks.filter(t => t.type === 'Proyecto' && !t.completed), [tasks]);
-  const projectTasks = useMemo(() => tasks.filter(t => t.type === 'Tarea' && !t.completed && t.parentId), [tasks]);
+  // Get active parent items (projects and top-level tasks) and all subtasks
+  const parentItems = useMemo(() => {
+    return tasks.filter(t => (t.type === 'Proyecto' || (t.type === 'Tarea' && !t.parentId)) && !t.completed);
+  }, [tasks]);
+
+  const subtasks = useMemo(() => {
+    return tasks.filter(t => t.type === 'Tarea' && !t.completed && t.parentId);
+  }, [tasks]);
 
   const toggleProject = (projId: string) => {
     setExpandedProjects(prev =>
@@ -27,10 +32,10 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
     );
   };
 
-  // Automatically expand projects initially
+  // Automatically expand parent items initially
   useEffect(() => {
-    setExpandedProjects(projects.map(p => p.id));
-  }, [projects]);
+    setExpandedProjects(parentItems.map(p => p.id));
+  }, [parentItems]);
 
   // Parse period dates and add buffer for context navigation (past/future)
   const { timelineStart, timelineEnd, cols } = useMemo(() => {
@@ -87,7 +92,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
     }
 
     // Dynamic Project timeline expansion based on active subtasks' date bounds
-    if (t.type === 'Proyecto') {
+    if (t.type === 'Proyecto' || (t.type === 'Tarea' && !t.parentId)) {
       const sub = tasks.filter(st => st.parentId === t.id && !st.completed);
       if (sub.length > 0) {
         let minStart = start;
@@ -240,21 +245,28 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
           </div>
 
           <div className="flex flex-col">
-            {projects.map(proj => {
-              const isExpanded = expandedProjects.includes(proj.id);
-              const sub = projectTasks.filter(t => t.parentId === proj.id);
+            {parentItems.map(parentItem => {
+              const isExpanded = expandedProjects.includes(parentItem.id);
+              const sub = subtasks.filter(t => t.parentId === parentItem.id);
 
               return (
-                <div key={proj.id} className="flex flex-col">
-                  {/* Project Row Label */}
+                <div key={parentItem.id} className="flex flex-col">
+                  {/* Parent Row Label */}
                   <div 
-                    onClick={() => toggleProject(proj.id)}
-                    className="h-10 border-b border-border-line/20 px-2 flex items-center gap-1.5 hover:bg-base-dim/30 cursor-pointer group text-xs font-medium text-text-main"
+                    onClick={() => sub.length > 0 && toggleProject(parentItem.id)}
+                    className={cn(
+                      "h-10 border-b border-border-line/20 px-2 flex items-center gap-1.5 hover:bg-base-dim/30 group text-xs font-medium text-text-main",
+                      sub.length > 0 ? "cursor-pointer" : "cursor-default"
+                    )}
                   >
-                    <span className="text-text-dim hover:text-text-main shrink-0 p-0.5">
-                      {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    <span className="text-text-dim hover:text-text-main shrink-0 p-0.5 w-4 h-4 flex items-center justify-center">
+                      {sub.length > 0 ? (
+                        isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3.5 h-3.5" />
+                      ) : (
+                        <span className="w-3.5 h-3.5" />
+                      )}
                     </span>
-                    <span className="truncate group-hover:text-accent transition-colors" title={proj.text}>{proj.text}</span>
+                    <span className="truncate group-hover:text-accent transition-colors" title={parentItem.text}>{parentItem.text}</span>
                   </div>
 
                   {/* Subtask Row Labels */}
@@ -270,8 +282,8 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
                 </div>
               );
             })}
-            {projects.length === 0 && (
-              <div className="text-[10px] font-mono text-text-dim uppercase italic py-8 text-center">No hay proyectos activos</div>
+            {parentItems.length === 0 && (
+              <div className="text-[10px] font-mono text-text-dim uppercase italic py-8 text-center">No hay proyectos o tareas activas</div>
             )}
           </div>
         </div>
@@ -333,21 +345,21 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
 
             {/* Row Tracks */}
             <div className="flex flex-col w-full relative">
-              {projects.map(proj => {
-                const isExpanded = expandedProjects.includes(proj.id);
-                const sub = projectTasks.filter(t => t.parentId === proj.id);
-                const areaProps = config?.areas?.[proj.category || ''];
+              {parentItems.map(parentItem => {
+                const isExpanded = expandedProjects.includes(parentItem.id);
+                const sub = subtasks.filter(t => t.parentId === parentItem.id);
+                const areaProps = config?.areas?.[parentItem.category || ''];
                 const pColor = typeof areaProps === 'string' ? areaProps : (areaProps?.color || 'slate');
                 
-                const projPos = getPercentPosition(proj);
+                const parentPos = getPercentPosition(parentItem);
 
                 return (
-                  <div key={proj.id} className="flex flex-col w-full">
-                    {/* Project Bar Row */}
+                  <div key={parentItem.id} className="flex flex-col w-full">
+                    {/* Parent Bar Row */}
                     <div className="h-10 border-b border-border-line/20 w-full flex items-center relative hover:bg-base-dim/10">
-                      {/* Project Horizontal Bar */}
+                      {/* Parent Horizontal Bar */}
                       <div 
-                        id={`gantt-bar-${proj.id}`}
+                        id={`gantt-bar-${parentItem.id}`}
                         className={cn(
                           "absolute h-2.5 rounded-full border transition-all duration-300 shadow-sm",
                           pColor === 'emerald' ? 'bg-emerald-500/20 border-emerald-500/50' :
@@ -355,8 +367,8 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
                           pColor === 'amber' ? 'bg-amber-500/20 border-amber-500/50' :
                           'bg-slate-500/20 border-slate-500/50'
                         )}
-                        style={{ left: projPos.left, width: projPos.width }}
-                        title={`${proj.text} (Planificado a ${proj.fechaPlanificada?.substring(0, 10)})`}
+                        style={{ left: parentPos.left, width: parentPos.width }}
+                        title={`${parentItem.text} (Planificado a ${parentItem.fechaPlanificada?.substring(0, 10)})`}
                       />
                     </div>
 

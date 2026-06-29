@@ -111,3 +111,107 @@ describe('calculateCompletionProgress', () => {
     expect(result.taskName).toBe('Subtarea');
   });
 });
+
+describe('calculateItemProgress recursive (cascade)', () => {
+  const mockTasks: AppTask[] = [
+    { id: 't1', userId: 'user', text: 'Task 1', type: 'Tarea', completed: true, createdAt: '' },
+    { id: 't2', userId: 'user', text: 'Task 2', type: 'Tarea', completed: false, createdAt: '' },
+  ];
+
+  const mockHistory: HistoryRecord[] = [
+    { id: 'h1', userId: 'user', taskId: 't1', date: '2026-06-15T08:00:00Z', duration: 2.0, createdAt: '' },
+    { id: 'h2', userId: 'user', taskId: 't2', date: '2026-07-16T08:00:00Z', duration: 3.0, createdAt: '' },
+  ];
+
+  it('aggregates hours recursively from children items', () => {
+    const parentItem: IntentionItem = { id: 'parent-hours', targetType: 'hours', targetHours: 10 };
+    const childItem1: IntentionItem = { id: 'child-hours-1', targetType: 'hours', taskId: 't1', targetHours: 5 };
+    const childItem2: IntentionItem = { id: 'child-hours-2', targetType: 'hours', taskId: 't2', targetHours: 5 };
+
+    const parentIntention = {
+      id: 'parent-int',
+      userId: 'user',
+      scale: 'year' as const,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-12-31',
+      items: [parentItem],
+      createdAt: ''
+    };
+
+    const childIntention1 = {
+      id: 'child-int-1',
+      userId: 'user',
+      scale: 'quarter' as const,
+      periodStart: '2026-04-01',
+      periodEnd: '2026-06-30',
+      items: [childItem1],
+      linkedItems: [
+        { parentItemId: 'parent-hours', childIntentionId: 'child-int-1', childItemId: 'child-hours-1' }
+      ],
+      createdAt: ''
+    };
+
+    const childIntention2 = {
+      id: 'child-int-2',
+      userId: 'user',
+      scale: 'quarter' as const,
+      periodStart: '2026-07-01',
+      periodEnd: '2026-09-30',
+      items: [childItem2],
+      linkedItems: [
+        { parentItemId: 'parent-hours', childIntentionId: 'child-int-2', childItemId: 'child-hours-2' }
+      ],
+      createdAt: ''
+    };
+
+    const intentions = [parentIntention, childIntention1, childIntention2];
+
+    const result = calculateItemProgress(parentItem, mockTasks, mockHistory, '2026-01-01', '2026-12-31', intentions);
+    expect(result.type).toBe('hours');
+    expect(result.hours?.current).toBe(5.0); // 2.0 (t1) + 3.0 (t2)
+    expect(result.hours?.target).toBe(10);
+    expect(result.hours?.percent).toBe(50);
+  });
+
+  it('aggregates completion recursively: true only if all child items are completed', () => {
+    const parentItem: IntentionItem = { id: 'parent-comp', targetType: 'completion', taskId: 't1' }; // parent is completion
+    const childItem1: IntentionItem = { id: 'child-comp-1', targetType: 'completion', taskId: 't1' }; // completed
+    const childItem2: IntentionItem = { id: 'child-comp-2', targetType: 'completion', taskId: 't2' }; // not completed
+
+    const parentIntention = {
+      id: 'parent-int',
+      userId: 'user',
+      scale: 'year' as const,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-12-31',
+      items: [parentItem],
+      createdAt: ''
+    };
+
+    const childIntention = {
+      id: 'child-int',
+      userId: 'user',
+      scale: 'quarter' as const,
+      periodStart: '2026-04-01',
+      periodEnd: '2026-06-30',
+      items: [childItem1, childItem2],
+      linkedItems: [
+        { parentItemId: 'parent-comp', childIntentionId: 'child-int', childItemId: 'child-comp-1' },
+        { parentItemId: 'parent-comp', childIntentionId: 'child-int', childItemId: 'child-comp-2' }
+      ],
+      createdAt: ''
+    };
+
+    const intentions = [parentIntention, childIntention];
+
+    // t2 is not completed, so aggregate completion should be false
+    let result = calculateItemProgress(parentItem, mockTasks, mockHistory, '2026-01-01', '2026-12-31', intentions);
+    expect(result.type).toBe('completion');
+    expect(result.completion?.completed).toBe(false);
+
+    // If we mark t2 as completed
+    const updatedTasks = mockTasks.map(t => t.id === 't2' ? { ...t, completed: true } : t);
+    result = calculateItemProgress(parentItem, updatedTasks, mockHistory, '2026-01-01', '2026-12-31', intentions);
+    expect(result.completion?.completed).toBe(true);
+  });
+});

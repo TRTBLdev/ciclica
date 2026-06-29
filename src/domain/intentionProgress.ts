@@ -1,4 +1,4 @@
-import { AppTask, HistoryRecord, IntentionItem } from '../types';
+import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem } from '../types';
 
 export function getTaskIdsForItem(item: IntentionItem, tasks: AppTask[]): string[] {
   if (item.taskId) {
@@ -96,23 +96,109 @@ export function calculateItemProgress(
   tasks: AppTask[],
   history: HistoryRecord[],
   periodStart: string,
-  periodEnd: string
-) {
+  periodEnd: string,
+  intentions: Intention[] = []
+): {
+  type: 'hours' | 'consistency' | 'completion';
+  hours?: { current: number; target: number; percent: number };
+  consistency?: { current: number; target: number; percent: number };
+  completion?: { completed: boolean; taskName: string };
+} {
+  // Find all child items linked to this parent item across all intentions
+  const childLinks: LinkedItem[] = [];
+  intentions.forEach(intent => {
+    if (intent.linkedItems) {
+      intent.linkedItems.forEach(link => {
+        if (link.parentItemId === item.id) {
+          childLinks.push(link);
+        }
+      });
+    }
+  });
+
+  if (childLinks.length > 0) {
+    let currentSum = 0;
+    let completedCount = 0;
+
+    childLinks.forEach(link => {
+      // Find the child intention
+      const childIntention = intentions.find(i => i.id === link.childIntentionId);
+      if (!childIntention) return;
+      const childItem = childIntention.items.find(it => it.id === link.childItemId);
+      if (!childItem) return;
+
+      // Calculate child item's progress recursively
+      const childProgress = calculateItemProgress(
+        childItem,
+        tasks,
+        history,
+        childIntention.periodStart,
+        childIntention.periodEnd,
+        intentions
+      );
+
+      if (childProgress.type === 'hours' && childProgress.hours) {
+        currentSum += childProgress.hours.current;
+      } else if (childProgress.type === 'consistency' && childProgress.consistency) {
+        currentSum += childProgress.consistency.current;
+      } else if (childProgress.type === 'completion' && childProgress.completion) {
+        if (childProgress.completion.completed) {
+          completedCount++;
+        }
+      }
+    });
+
+    if (item.targetType === 'hours') {
+      const targetHours = item.targetHours || 0;
+      return {
+        type: 'hours',
+        hours: {
+          current: currentSum,
+          target: targetHours,
+          percent: targetHours > 0 ? Math.min(100, (currentSum / targetHours) * 100) : 0
+        }
+      };
+    } else if (item.targetType === 'consistency') {
+      const targetDays = item.targetDays || 0;
+      return {
+        type: 'consistency',
+        consistency: {
+          current: currentSum,
+          target: targetDays,
+          percent: targetDays > 0 ? Math.min(100, (currentSum / targetDays) * 100) : 0
+        }
+      };
+    } else {
+      // item.targetType === 'completion'
+      const completed = childLinks.length > 0 && completedCount === childLinks.length;
+      return {
+        type: 'completion',
+        completion: {
+          completed,
+          taskName: item.projectId 
+            ? (tasks.find(t => t.id === item.projectId)?.text || 'Proyecto')
+            : (tasks.find(t => t.id === item.taskId)?.text || 'Tarea')
+        }
+      };
+    }
+  }
+
+  // Direct calculation (fallback when no child items are linked)
   if (item.targetType === 'hours') {
     return {
-      type: 'hours' as const,
+      type: 'hours',
       hours: calculateHoursProgress(item, tasks, history, periodStart, periodEnd)
     };
   }
   if (item.targetType === 'consistency') {
     return {
-      type: 'consistency' as const,
+      type: 'consistency',
       consistency: calculateConsistencyProgress(item, tasks, history, periodStart, periodEnd)
     };
   }
   // item.targetType === 'completion'
   return {
-    type: 'completion' as const,
+    type: 'completion',
     completion: calculateCompletionProgress(item, tasks)
   };
 }

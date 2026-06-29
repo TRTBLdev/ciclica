@@ -453,6 +453,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 config={config} 
                 tasks={tasks}
                 history={history}
+                intentions={intentions}
                 onUpdateConfig={updateConfig}
                 onToggleTask={handleToggleTask}
                 onDeleteTask={deleteTask}
@@ -490,6 +491,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 onUpdateConfig={updateConfig} 
                 tasks={tasks}
                 history={history}
+                intentions={intentions}
                 onSignOut={onSignOut}
                 importLocalData={importLocalData}
                 mergeLocalData={mergeLocalData}

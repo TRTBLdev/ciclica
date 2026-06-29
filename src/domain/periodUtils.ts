@@ -169,21 +169,89 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
   };
 }
 
-export function getQuarterRange(todayDate = new Date()) {
-  const year = todayDate.getFullYear();
-  const month = todayDate.getMonth();
+export function getQuarterRange(configOrDate?: Config | Date | null, todayDate = new Date()) {
+  let config: Config | null = null;
+  let today = todayDate;
+
+  if (configOrDate instanceof Date) {
+    today = configOrDate;
+  } else if (configOrDate !== undefined) {
+    config = configOrDate;
+  }
+
+  // If custom config is personal and defined
+  if (config?.quarterConfig?.type === 'personal') {
+    const Y = today.getFullYear();
+    const qc = config.quarterConfig;
+    const quarters: Array<{ key: 'Q1' | 'Q2' | 'Q3' | 'Q4'; range?: { start: string; end: string } }> = [
+      { key: 'Q1', range: qc.q1 },
+      { key: 'Q2', range: qc.q2 },
+      { key: 'Q3', range: qc.q3 },
+      { key: 'Q4', range: qc.q4 },
+    ];
+
+    for (const q of quarters) {
+      if (!q.range) continue;
+      const [startM, startD] = q.range.start.split('-').map(Number);
+      const [endM, endD] = q.range.end.split('-').map(Number);
+
+      if (startM <= endM) {
+        // Range does not cross year boundary
+        const startCand = new Date(Y, startM - 1, startD);
+        const endCand = new Date(Y, endM - 1, endD, 23, 59, 59, 999);
+        if (today >= startCand && today <= endCand) {
+          return {
+            start: formatLocalDate(startCand),
+            end: formatLocalDate(endCand),
+            qKey: q.key
+          };
+        }
+      } else {
+        // Range crosses year boundary
+        // Candidate 1: starts in Y-1, ends in Y
+        const startCand1 = new Date(Y - 1, startM - 1, startD);
+        const endCand1 = new Date(Y, endM - 1, endD, 23, 59, 59, 999);
+        if (today >= startCand1 && today <= endCand1) {
+          return {
+            start: formatLocalDate(startCand1),
+            end: formatLocalDate(endCand1),
+            qKey: q.key
+          };
+        }
+
+        // Candidate 2: starts in Y, ends in Y+1
+        const startCand2 = new Date(Y, startM - 1, startD);
+        const endCand2 = new Date(Y + 1, endM - 1, endD, 23, 59, 59, 999);
+        if (today >= startCand2 && today <= endCand2) {
+          return {
+            start: formatLocalDate(startCand2),
+            end: formatLocalDate(endCand2),
+            qKey: q.key
+          };
+        }
+      }
+    }
+  }
+
+  // Fallback to standard calendar quarters
+  const year = today.getFullYear();
+  const month = today.getMonth();
   let startMonth = 0;
   let endMonth = 2;
+  let qKey: 'Q1' | 'Q2' | 'Q3' | 'Q4' = 'Q1';
 
   if (month >= 3 && month <= 5) {
     startMonth = 3;
     endMonth = 5;
+    qKey = 'Q2';
   } else if (month >= 6 && month <= 8) {
     startMonth = 6;
     endMonth = 8;
+    qKey = 'Q3';
   } else if (month >= 9 && month <= 11) {
     startMonth = 9;
     endMonth = 11;
+    qKey = 'Q4';
   }
 
   const startDate = new Date(year, startMonth, 1);
@@ -191,7 +259,8 @@ export function getQuarterRange(todayDate = new Date()) {
 
   return {
     start: formatLocalDate(startDate),
-    end: formatLocalDate(endDate)
+    end: formatLocalDate(endDate),
+    qKey
   };
 }
 
@@ -206,7 +275,7 @@ export function getYearRange(todayDate = new Date()) {
   };
 }
 
-export function generatePeriodLabel(scale: IntentionScale, start: string, end: string, phaseName?: BiologicalPhase): string {
+export function generatePeriodLabel(scale: IntentionScale, start: string, end: string, phaseName?: BiologicalPhase, qKey?: string): string {
   if (scale === 'phase' && phaseName) {
     const formattedPhase = phaseName.charAt(0).toUpperCase() + phaseName.slice(1);
     return `Fase ${formattedPhase} — ${formatRangeText(start, end)}`;
@@ -215,6 +284,9 @@ export function generatePeriodLabel(scale: IntentionScale, start: string, end: s
     return `Ciclo ${formatRangeText(start, end)}`;
   }
   if (scale === 'quarter') {
+    if (qKey) {
+      return `${qKey} ${start.split('-')[0]}`;
+    }
     const startParts = start.split('-');
     const year = startParts[0];
     const month = parseInt(startParts[1], 10);
@@ -242,8 +314,8 @@ export function getCurrentPeriod(scale: IntentionScale, config: Config | null, t
     return { start: range.start, end: range.end, label };
   }
   if (scale === 'quarter') {
-    const range = getQuarterRange(todayDate);
-    const label = generatePeriodLabel('quarter', range.start, range.end);
+    const range = getQuarterRange(config, todayDate);
+    const label = generatePeriodLabel('quarter', range.start, range.end, undefined, range.qKey);
     return { start: range.start, end: range.end, label };
   }
   // scale === 'year'

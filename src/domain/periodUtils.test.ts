@@ -41,6 +41,42 @@ describe('getQuarterRange', () => {
     expect(q4.start).toBe('2026-10-01');
     expect(q4.end).toBe('2026-12-31');
   });
+
+  it('supports custom range quarters from config', () => {
+    const config: Config = {
+      userId: 'user',
+      theme: 'muji',
+      cycleConfig: { trackingType: 'none' },
+      areas: {},
+      separators: [],
+      quarterConfig: {
+        type: 'personal',
+        q1: { start: '03-01', end: '05-31' },
+        q2: { start: '06-01', end: '08-31' },
+        q3: { start: '09-01', end: '11-30' },
+        q4: { start: '12-01', end: '02-28' }
+      },
+      createdAt: ''
+    };
+
+    // Test a date in custom Q1: April 15, 2026
+    const res1 = getQuarterRange(config, new Date(2026, 3, 15));
+    expect(res1.start).toBe('2026-03-01');
+    expect(res1.end).toBe('2026-05-31');
+    expect(res1.qKey).toBe('Q1');
+
+    // Test a date in custom Q4: January 15, 2026 (spans Dec 2025 - Feb 2026)
+    const res4 = getQuarterRange(config, new Date(2026, 0, 15));
+    expect(res4.start).toBe('2025-12-01');
+    expect(res4.end).toBe('2026-02-28');
+    expect(res4.qKey).toBe('Q4');
+
+    // Test a date in custom Q4: December 15, 2026 (spans Dec 2026 - Feb 2027)
+    const res4_dec = getQuarterRange(config, new Date(2026, 11, 15));
+    expect(res4_dec.start).toBe('2026-12-01');
+    expect(res4_dec.end).toBe('2027-02-28');
+    expect(res4_dec.qKey).toBe('Q4');
+  });
 });
 
 describe('getYearRange', () => {

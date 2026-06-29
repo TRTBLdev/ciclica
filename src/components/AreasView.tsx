@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
-import { Config, AreaConfig, AppTask, HistoryRecord } from '../types';
+import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
 import { cn, getAreaColorClasses } from '../lib/utils';
+import { calculateItemProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
 
 const COLORS = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
@@ -10,6 +11,7 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history?: HistoryRecord[];
+  intentions?: Intention[];
   onUpdateConfig: (c: Partial<Config>) => void;
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
@@ -19,7 +21,7 @@ interface Props {
   focusTaskId?: string | null;
 }
 
-export default function AreasView({ config, tasks, history, onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
+export default function AreasView({ config, tasks, history, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const areas = config?.areas || {};
 
@@ -41,6 +43,7 @@ export default function AreasView({ config, tasks, history, onUpdateConfig, onTo
         tasks={tasks}
         config={config}
         history={history}
+        intentions={intentions}
         areas={areas}
         onBack={() => setSelectedArea(null)}
         onUpdateAreas={handleUpdateAreas}
@@ -66,12 +69,26 @@ export default function AreasView({ config, tasks, history, onUpdateConfig, onTo
          </p>
       </div>
 
-      <AreasList areas={areas} tasks={tasks} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
+      <AreasList areas={areas} tasks={tasks} history={history} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
     </div>
   );
 }
 
-function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string, string | AreaConfig>, tasks: AppTask[], onSelect: (key: string) => void, onUpdate: (areas: Record<string, string | AreaConfig>) => void }) {
+function AreasList({ 
+  areas, 
+  tasks, 
+  history = [], 
+  intentions = [], 
+  onSelect, 
+  onUpdate 
+}: { 
+  areas: Record<string, string | AreaConfig>, 
+  tasks: AppTask[], 
+  history?: HistoryRecord[], 
+  intentions?: Intention[], 
+  onSelect: (key: string) => void, 
+  onUpdate: (areas: Record<string, string | AreaConfig>) => void 
+}) {
   const [isAdding, setIsAdding] = useState(false);
   const [editForm, setEditForm] = useState<{ name: string, color: string, categories: string[] }>({ name: '', color: 'teal', categories: [] });
   const [newCat, setNewCat] = useState('');
@@ -187,23 +204,53 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
             const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
             const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed);
 
+            // Gather active commitments for this specific area name
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const areaIntentions: Array<{ item: IntentionItem; scale: string; periodStart: string; periodEnd: string }> = [];
+
+            intentions.forEach(intent => {
+              if (intent.periodStart <= todayStr && intent.periodEnd >= todayStr) {
+                intent.items.forEach(item => {
+                  let isMatch = false;
+                  if (item.areaName === key) {
+                    isMatch = true;
+                  } else if (item.projectId) {
+                    const p = tasks.find(t => t.id === item.projectId);
+                    if (p?.category === key) isMatch = true;
+                  } else if (item.taskId) {
+                    const t = tasks.find(t => t.id === item.taskId);
+                    if (t?.category === key) isMatch = true;
+                  }
+
+                  if (isMatch) {
+                    areaIntentions.push({
+                      item,
+                      scale: intent.scale,
+                      periodStart: intent.periodStart,
+                      periodEnd: intent.periodEnd
+                    });
+                  }
+                });
+              }
+            });
+
             return (
               <button
                 key={key}
                 onClick={() => onSelect(key)}
-                className="relative text-left group flex flex-col p-6 md:p-10 transition-colors hover:bg-base-dim/30 min-h-[240px] cursor-pointer"
+                className="relative text-left group flex flex-col p-6 md:p-10 transition-colors hover:bg-base-dim/30 min-h-[280px] cursor-pointer"
               >
                 <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
                 {index % 2 === 0 && <div className="absolute right-0 top-6 bottom-6 w-[1px] bg-[var(--color-border-line)] hidden md:block" />}
                 
-                <div className="flex items-center justify-between w-full mb-8">
+                <div className="flex items-center justify-between w-full mb-6">
                   <div className="flex items-center gap-4">
                     <span className="text-subtitle leading-none font-sans font-light">{key}</span>
                   </div>
                   <Circle className="w-1.5 h-1.5 text-text-main" strokeWidth={3} />
                 </div>
 
-                <div className="flex flex-col gap-2 w-full mb-8 text-xs font-mono text-text-dim">
+                <div className="flex flex-col gap-2 w-full mb-6 text-xs font-mono text-text-dim">
                   <div className="flex justify-between items-center w-full">
                     <span className="tracking-wide">RUTINAS</span>
                     <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
@@ -220,6 +267,67 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
                     <span className="text-text-main font-bold">{activeHabits.length.toString().padStart(2, '0')}</span>
                   </div>
                 </div>
+
+                {/* Active Intention Progress Section inside Area Card */}
+                {areaIntentions.length > 0 && (
+                  <div className="mt-2 mb-6 pt-3 border-t border-border-line/20 w-full flex flex-col gap-2 text-left font-mono">
+                    <span className="text-[9px] uppercase tracking-wider text-text-dim/80 font-bold">Progreso de Intención Activa:</span>
+                    <div className="flex flex-col gap-2">
+                      {areaIntentions.slice(0, 3).map(({ item, scale, periodStart, periodEnd }) => {
+                        const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
+                        let label = '';
+                        let percent = 0;
+                        let progressText = '';
+
+                        if (item.projectId) {
+                          label = tasks.find(t => t.id === item.projectId)?.text || 'Proyecto';
+                        } else if (item.taskId) {
+                          label = tasks.find(t => t.id === item.taskId)?.text || 'Tarea';
+                        } else if (item.subCategory) {
+                          label = item.subCategory;
+                        } else if (item.areaName) {
+                          label = item.areaName;
+                        }
+
+                        const scaleLabel = scale === 'phase' ? 'Fase' : scale === 'cycle' ? 'Ciclo' : scale === 'quarter' ? 'Cuarto' : 'Año';
+
+                        if (progress.type === 'hours' && progress.hours) {
+                          percent = progress.hours.percent;
+                          progressText = `${progress.hours.current}/${progress.hours.target}h`;
+                        } else if (progress.type === 'consistency' && progress.consistency) {
+                          percent = progress.consistency.percent;
+                          progressText = `${progress.consistency.current}/${progress.consistency.target}d`;
+                        } else if (progress.type === 'completion' && progress.completion) {
+                          percent = progress.completion.completed ? 100 : 0;
+                          progressText = progress.completion.completed ? '1/1' : '0/1';
+                        }
+
+                        return (
+                          <div key={item.id} className="flex flex-col gap-1 w-full text-[9px]">
+                            <div className="flex justify-between items-center text-text-main/90">
+                              <span className="truncate max-w-[170px]" title={`${scaleLabel}: ${label}`}>{scaleLabel}: {label}</span>
+                              <span className="font-bold text-right ml-2">{progressText} ({Math.round(percent)}%)</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-base-dim/40 rounded-full overflow-hidden border border-border-line/10">
+                              <div 
+                                className={cn(
+                                  "h-full transition-all duration-500 rounded-full",
+                                  percent >= 100 ? "bg-emerald-500" : "bg-primary/80"
+                                )}
+                                style={{ width: `${percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {areaIntentions.length > 3 && (
+                        <span className="text-[8px] text-text-dim text-right font-light italic">
+                          + {areaIntentions.length - 3} compromisos más
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-end justify-between w-full mt-auto">
                   <div className="flex flex-wrap gap-1.5">
@@ -238,21 +346,21 @@ function AreasList({ areas, tasks, onSelect, onUpdate }: { areas: Record<string,
                 </div>
               </button>
             );
-          })}
+            })}
 
-          <button 
-            onClick={startAdd} 
-            className="relative flex flex-col items-center justify-center p-6 md:p-10 text-primary hover:text-accent hover:bg-base-dim/30 transition-all min-h-[240px] cursor-pointer"
-          >
-            <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
-            {areaEntries.length % 2 === 0 && <div className="absolute right-0 top-6 bottom-6 w-[1px] bg-[var(--color-border-line)] hidden md:block" />}
-            
-            <div className="w-10 h-10 rounded-full flex items-center justify-center border border-[var(--color-primary)] mb-4 group-hover:border-[var(--color-accent)] transition-colors">
-              <Plus className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-mono tracking-widest uppercase">Iniciar Área</span>
-          </button>
-        </div>
+            <button 
+              onClick={startAdd} 
+              className="relative flex flex-col items-center justify-center p-6 md:p-10 text-primary hover:text-accent hover:bg-base-dim/30 transition-all min-h-[280px] cursor-pointer"
+            >
+              <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
+              {areaEntries.length % 2 === 0 && <div className="absolute right-0 top-6 bottom-6 w-[1px] bg-[var(--color-border-line)] hidden md:block" />}
+              
+              <div className="w-10 h-10 rounded-full flex items-center justify-center border border-[var(--color-primary)] mb-4 group-hover:border-[var(--color-accent)] transition-colors">
+                <Plus className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-mono tracking-widest uppercase">Iniciar Área</span>
+            </button>
+          </div>
         </>
       )}
     </div>
@@ -265,6 +373,7 @@ function AreaDetail({
   tasks, 
   config,
   history,
+  intentions = [],
   areas, 
   onBack, 
   onUpdateAreas,
@@ -279,6 +388,7 @@ function AreaDetail({
   tasks: AppTask[], 
   config: Config | null,
   history?: HistoryRecord[],
+  intentions?: Intention[],
   areas: Record<string, string | AreaConfig>, 
   onBack: () => void, 
   onUpdateAreas: (a: Record<string, string | AreaConfig>) => void,

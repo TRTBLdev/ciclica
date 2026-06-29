@@ -17,6 +17,19 @@ export interface UserCycleConfig {
   enableLunarMirror?: boolean;
 }
 
+export interface QuarterRange {
+  start: string; // "MM-DD"
+  end: string;   // "MM-DD"
+}
+
+export interface QuarterConfig {
+  type: 'calendar' | 'personal';
+  q1?: QuarterRange;
+  q2?: QuarterRange;
+  q3?: QuarterRange;
+  q4?: QuarterRange;
+}
+
 export interface Config {
   id?: string;
   userId: string;
@@ -24,6 +37,7 @@ export interface Config {
   cycleConfig: UserCycleConfig;
   areas: Record<string, string | AreaConfig>;
   separators: Separator[];
+  quarterConfig?: QuarterConfig;
   createdAt: string;
   updatedAt?: string;
 }
@@ -106,6 +120,12 @@ export interface IntentionItem {
   // 'completion' no necesita campos extra — se lee completed del task/proyecto
 }
 
+export interface LinkedItem {
+  parentItemId: string;     // ID del item en la escala mayor (padre)
+  childIntentionId: string; // ID de la intención de escala menor (hijo)
+  childItemId: string;      // ID del item en la escala menor (hijo)
+}
+
 export interface Intention {
   id: string;                    // 'int_{timestamp}_{random7}'
   userId: string;
@@ -114,6 +134,7 @@ export interface Intention {
   periodEnd: string;             // ISO Date 'YYYY-MM-DD'
   theme?: string;                // Norte narrativo (opcional, todas las escalas)
   items: IntentionItem[];
+  linkedItems?: LinkedItem[];    // Vinculaciones con la escala padre
   createdAt: string;             // ISO DateTime
   updatedAt?: string;            // ISO DateTime
 }

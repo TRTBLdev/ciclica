@@ -906,7 +906,7 @@ export default function TaskItem({
 
         <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
           {/* Chevron */}
-          {(!!task.notes || (task.checklist && task.checklist.length > 0)) && (
+          {(!!task.notes || (task.checklist && task.checklist.length > 0) || hasSubtasks) && (
             <button 
               onClick={() => setIsExpanded(!isExpanded)} 
               className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
@@ -1048,7 +1048,7 @@ export default function TaskItem({
             </div>
           )}
 
-          {/* Checklist display */}
+           {/* Checklist display */}
           {task.checklist && task.checklist.length > 0 && (
             <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main flex flex-col gap-2.5 mb-1">
               <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest font-bold">Guía de Pasos (Checklist)</div>
@@ -1067,6 +1067,32 @@ export default function TaskItem({
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Subtasks rendering */}
+          {hasSubtasks && (
+            <div className="flex flex-col gap-1.5 w-full mt-1.5 pl-2 border-l-2 border-border-line/20">
+              <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest mb-1 font-bold">Subtareas</div>
+              {getSubtasksWithOrders().map(sub => (
+                <TaskItem
+                  key={sub.id}
+                  task={sub}
+                  config={config}
+                  allTasks={allTasks}
+                  history={history}
+                  onToggle={onToggle}
+                  onDelete={() => onDeleteTask && onDeleteTask(sub.id)}
+                  onUpdate={onUpdate}
+                  onAddTask={onAddTask}
+                  onDeleteTask={onDeleteTask}
+                  isSubtask
+                  hideAreaCategory={true}
+                  activeTimer={activeTimer}
+                  onStartTimer={onStartTimer}
+                  showMoveArrows={showMoveArrows}
+                />
+              ))}
             </div>
           )}
 

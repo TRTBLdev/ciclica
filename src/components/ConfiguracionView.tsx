@@ -9,22 +9,23 @@ interface Props {
   onUpdateConfig: (c: Partial<Config>) => void;
   tasks: any[];
   history: any[];
+  intentions?: any[];
   onSignOut: () => void;
-  importLocalData: (tasks: any[], history: any[], config: any) => void;
-  mergeLocalData: (tasks: any[], history: any[], config: any) => void;
-  clearPartialData: (type: 'ciclos' | 'habitos' | 'tareas') => void;
+  importLocalData: (tasks: any[], history: any[], config: any, intentions?: any[]) => void;
+  mergeLocalData: (tasks: any[], history: any[], config: any, intentions?: any[]) => void;
+  clearPartialData: (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => void;
   onNavigate?: (view: any) => void;
 }
 
-export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
+export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, intentions, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  const handleExportData = (type: 'all' | 'ciclos' | 'habitos' | 'tareas') => {
+  const handleExportData = (type: 'all' | 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => {
     let dataToExport: any = {};
     let filename = `ciclica_vault_${new Date().toISOString().slice(0, 10)}.json`;
 
     if (type === 'all') {
-      dataToExport = { tasks, history, config };
+      dataToExport = { tasks, history, config, intentions };
     } else if (type === 'ciclos') {
       dataToExport = { config: { cycleConfig: config?.cycleConfig } };
       filename = `ciclica_ciclos_${new Date().toISOString().slice(0, 10)}.json`;
@@ -40,6 +41,9 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
       const projHistory = history.filter(h => projIds.includes(h.taskId));
       dataToExport = { tasks: projTasks, history: projHistory, config: { areas: config?.areas } };
       filename = `ciclica_tareas_${new Date().toISOString().slice(0, 10)}.json`;
+    } else if (type === 'intenciones') {
+      dataToExport = { intentions };
+      filename = `ciclica_intenciones_${new Date().toISOString().slice(0, 10)}.json`;
     }
 
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
@@ -62,9 +66,9 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     reader.onload = (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
-        if (imported.tasks || imported.history || imported.config) {
+        if (imported.tasks || imported.history || imported.config || imported.intentions) {
           if (window.confirm("⚠️ Importar Bóveda Completa reemplazará TODOS tus datos actuales. Si deseas combinar datos, usa las opciones parciales. ¿Continuar?")) {
-            importLocalData(imported.tasks || [], imported.history || [], imported.config || {});
+            importLocalData(imported.tasks || [], imported.history || [], imported.config || {}, imported.intentions || []);
             setImportStatus('success');
             showToast("¡Cíclica Vault importado con éxito!", "success");
             setTimeout(() => window.location.reload(), 1500);
@@ -89,8 +93,8 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     reader.onload = (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
-        if (imported.tasks || imported.history || imported.config) {
-          mergeLocalData(imported.tasks || [], imported.history || [], imported.config || null);
+        if (imported.tasks || imported.history || imported.config || imported.intentions) {
+          mergeLocalData(imported.tasks || [], imported.history || [], imported.config || null, imported.intentions || []);
           setImportStatus('success');
           showToast("Datos parciales combinados con éxito!", "success");
           setTimeout(() => window.location.reload(), 1500);
@@ -114,7 +118,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     }
   };
 
-  const handlePartialClear = (type: 'ciclos' | 'habitos' | 'tareas', name: string) => {
+  const handlePartialClear = (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones', name: string) => {
     if (window.confirm(`⚠️ ¿Estás segura de que deseas BORRAR los datos de ${name}? \n\nEsta acción eliminará de forma irreversible esa información, pero el resto de tus datos quedará intacto.`)) {
       clearPartialData(type);
       window.location.reload();
@@ -255,6 +259,94 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                 >
                   {config?.cycleConfig?.enableLunarMirror ? 'Habilitado' : 'Deshabilitado'}
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* SECTION 1.6: PLANIFICACIÓN Y CUARTOS OPERATIVOS */}
+        <div className="border-b border-border-line/30 pb-10">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
+            📅 CUARTOS OPERATIVOS Y ESCALAS
+          </h3>
+          <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
+            Calibre la escala de Cuarto (Trimestre). Seleccione el comportamiento de calendario estándar o defina fechas personalizadas que se alineen con sus ciclos estratégicos o personales.
+          </p>
+
+          <div className="flex flex-col gap-6 bg-base-dim/10 border border-border-line p-5 rounded-none text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-left max-w-md">
+                <span className="text-xs font-bold text-text-main font-sans block">Definición de Cuartos</span>
+                <span className="text-[10px] text-text-dim leading-relaxed font-sans font-light mt-0.5 block">
+                  Calendario Estándar: Ene-Mar (Q1), Abr-Jun (Q2), Jul-Sep (Q3), Oct-Dic (Q4).
+                  Personalizado: define libremente el inicio y fin de cada cuarto.
+                </span>
+              </div>
+              <select
+                value={config?.quarterConfig?.type || 'calendar'}
+                onChange={(e) => {
+                  const val = e.target.value as 'calendar' | 'personal';
+                  onUpdateConfig({
+                    quarterConfig: {
+                      type: val,
+                      q1: config?.quarterConfig?.q1 || { start: '03-01', end: '05-31' },
+                      q2: config?.quarterConfig?.q2 || { start: '06-01', end: '08-31' },
+                      q3: config?.quarterConfig?.q3 || { start: '09-01', end: '11-30' },
+                      q4: config?.quarterConfig?.q4 || { start: '12-01', end: '02-28' }
+                    }
+                  });
+                }}
+                className="bg-base border border-border-line text-xs font-mono px-3 py-1.5 rounded focus:outline-none cursor-pointer uppercase text-text-main"
+              >
+                <option value="calendar">Calendario Estándar</option>
+                <option value="personal">Cuartos Personalizados</option>
+              </select>
+            </div>
+
+            {config?.quarterConfig?.type === 'personal' && (
+              <div className="border-t border-border-line/40 pt-6 flex flex-col gap-4 animate-in fade-in duration-200">
+                <span className="text-xs font-bold text-text-main font-sans block">Rangos de Cuartos Personalizados</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {(['q1', 'q2', 'q3', 'q4'] as const).map((qKey) => {
+                    const qData = config?.quarterConfig?.[qKey] || { start: '01-01', end: '12-31' };
+                    const label = qKey.toUpperCase();
+                    return (
+                      <div key={qKey} className="flex flex-col gap-2 p-3 bg-base border border-border-line/40">
+                        <span className="text-[10px] font-mono font-bold text-primary">{label}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] text-text-dim uppercase font-mono">Inicio</span>
+                            <MonthDaySelect
+                              value={qData.start}
+                              onChange={(val) => {
+                                onUpdateConfig({
+                                  quarterConfig: {
+                                    ...config.quarterConfig!,
+                                    [qKey]: { ...qData, start: val }
+                                  }
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] text-text-dim uppercase font-mono">Fin</span>
+                            <MonthDaySelect
+                              value={qData.end}
+                              onChange={(val) => {
+                                onUpdateConfig({
+                                  quarterConfig: {
+                                    ...config.quarterConfig!,
+                                    [qKey]: { ...qData, end: val }
+                                  }
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -404,9 +496,9 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
 
             <div className="text-xs font-bold text-text-main font-sans mt-2">Datos Parciales (Combinar / Merge)</div>
             <p className="text-[10px] text-text-dim font-sans mb-2">Descarga o sube módulos individuales. Al importar, los datos se combinarán con los existentes.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Ciclos */}
-              <div className="border border-border-line p-3">
+              <div className="border border-border-line p-3 flex flex-col justify-between">
                 <div className="text-xs font-mono font-bold mb-3">CICLOS</div>
                 <div className="flex gap-2">
                   <button onClick={() => handleExportData('ciclos')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
@@ -418,7 +510,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
               </div>
 
               {/* Hábitos */}
-              <div className="border border-border-line p-3">
+              <div className="border border-border-line p-3 flex flex-col justify-between">
                 <div className="text-xs font-mono font-bold mb-3">HÁBITOS</div>
                 <div className="flex gap-2">
                   <button onClick={() => handleExportData('habitos')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
@@ -430,10 +522,22 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
               </div>
 
               {/* Tareas */}
-              <div className="border border-border-line p-3">
+              <div className="border border-border-line p-3 flex flex-col justify-between">
                 <div className="text-xs font-mono font-bold mb-3">TAREAS Y PROY.</div>
                 <div className="flex gap-2">
                   <button onClick={() => handleExportData('tareas')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
+                  <label className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10 text-center cursor-pointer">
+                    Importar
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Intenciones */}
+              <div className="border border-border-line p-3 flex flex-col justify-between">
+                <div className="text-xs font-mono font-bold mb-3">INTENCIONES</div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleExportData('intenciones')} className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10">Exportar</button>
                   <label className="flex-1 py-1.5 border border-border-line text-[10px] uppercase font-mono hover:bg-base-dim/10 text-center cursor-pointer">
                     Importar
                     <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
@@ -488,6 +592,13 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                   <div className="text-[10px] font-mono uppercase text-red-500 font-bold mb-1">Borrar Tareas</div>
                   <div className="text-[9px] text-text-dim leading-tight">Elimina tareas, proyectos y áreas.</div>
                 </button>
+                <button
+                  onClick={() => handlePartialClear('intenciones', 'Intenciones')}
+                  className="p-3 text-left border border-red-500/10 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
+                >
+                  <div className="text-[10px] font-mono uppercase text-red-500 font-bold mb-1">Borrar Intenciones</div>
+                  <div className="text-[9px] text-text-dim leading-tight">Elimina tus propósitos y compromisos.</div>
+                </button>
             </div>
 
             <button
@@ -501,6 +612,61 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
         </div>
 
       </div>
+    </div>
+  );
+}
+
+function MonthDaySelect({ 
+  value, 
+  onChange, 
+  disabled 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  disabled?: boolean 
+}) {
+  const [mStr, dStr] = value.split('-');
+  const month = parseInt(mStr, 10) || 1;
+  const day = parseInt(dStr, 10) || 1;
+
+  const months = [
+    { v: 1, l: 'Ene' }, { v: 2, l: 'Feb' }, { v: 3, l: 'Mar' }, { v: 4, l: 'Abr' },
+    { v: 5, l: 'May' }, { v: 6, l: 'Jun' }, { v: 7, l: 'Jul' }, { v: 8, l: 'Ago' },
+    { v: 9, l: 'Sep' }, { v: 10, l: 'Oct' }, { v: 11, l: 'Nov' }, { v: 12, l: 'Dic' }
+  ];
+
+  return (
+    <div className="flex gap-1 items-center font-mono mt-1">
+      <select
+        value={month}
+        disabled={disabled}
+        onChange={(e) => {
+          const newM = parseInt(e.target.value, 10);
+          const newMStr = newM.toString().padStart(2, '0');
+          const newDStr = day.toString().padStart(2, '0');
+          onChange(`${newMStr}-${newDStr}`);
+        }}
+        className="bg-base border border-border-line text-xs px-2 py-1 rounded focus:outline-none cursor-pointer uppercase text-text-main"
+      >
+        {months.map(m => (
+          <option key={m.v} value={m.v}>{m.l}</option>
+        ))}
+      </select>
+      <select
+        value={day}
+        disabled={disabled}
+        onChange={(e) => {
+          const newD = parseInt(e.target.value, 10);
+          const newMStr = month.toString().padStart(2, '0');
+          const newDStr = newD.toString().padStart(2, '0');
+          onChange(`${newMStr}-${newDStr}`);
+        }}
+        className="bg-base border border-border-line text-xs px-2 py-1 rounded focus:outline-none cursor-pointer text-text-main"
+      >
+        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+          <option key={d} value={d}>{d.toString().padStart(2, '0')}</option>
+        ))}
+      </select>
     </div>
   );
 }
