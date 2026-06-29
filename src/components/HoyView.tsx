@@ -39,9 +39,29 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [qcHora, setQcHora] = useState('');
   const [qcFrecuencia, setQcFrecuencia] = useState(1);
   const [qcFrecuenciaUnidad, setQcFrecuenciaUnidad] = useState('días');
-  const [qcTargetCount, setQcTargetCount] = useState(8);
-  const [qcUnitLabel, setQcUnitLabel] = useState('vasos');
+  const [qcTargetCount, setQcTargetCount] = useState(1);
+  const [qcUnitLabel, setQcUnitLabel] = useState('veces');
+  const [qcPolaridad, setQcPolaridad] = useState('Reforzar');
   const [qcAllocation, setQcAllocation] = useState<'fixed' | 'growth' | 'mixed'>('growth');
+
+  const handleTypeChange = (val: string) => {
+    setQcType(val);
+    if (val === 'Tarea') {
+      setQcAllocation('growth');
+      setQcPriority('Baja');
+    } else if (val === 'Hábito') {
+      setQcAllocation('fixed');
+      setQcFrecuencia(1);
+      setQcFrecuenciaUnidad('días');
+    } else if (val === 'Contador') {
+      setQcAllocation('fixed');
+      setQcTargetCount(1);
+      setQcUnitLabel('veces');
+      setQcPolaridad('Reforzar');
+    } else if (val === 'Rutina' || val === 'Proyecto') {
+      setQcAllocation('growth');
+    }
+  };
 
   // Editing pulso state
   const [editingPulsoId, setEditingPulsoId] = useState<string | null>(null);
@@ -425,6 +445,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                newTask.currentCount = 0;
                newTask.targetCount = qcTargetCount;
                newTask.unitLabel = qcUnitLabel || 'veces';
+               newTask.polaridad = qcPolaridad;
              }
              if (qcDest.startsWith('proj:')) {
                 const pId = qcDest.replace('proj:', '');
@@ -449,54 +470,59 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
           }}
           className="w-full max-w-2xl flex flex-col gap-3"
         >
-          <div className="relative flex items-center w-full">
-            <input 
-              type="text" 
-              placeholder="¿Qué hay que hacer hoy? (Presiona Enter para capturar)" 
-              className="w-full h-11 px-5 text-sm text-text-main bg-base-dim/20 border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] transition-all placeholder:text-text-dim/50"
-              value={qcText}
-              onChange={e => setQcText(e.target.value)}
-            />
-            
-            {/* Sutil settings expand button inside the bar */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className={cn(
-                "absolute right-4 p-1.5 rounded-full hover:bg-base-dim/50 transition-colors text-text-dim hover:text-text-main cursor-pointer",
-                showAdvanced && "text-[#73c2b8]"
-              )}
-              title="Ajustes avanzados de tarea"
-            >
-              {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
+          <div className="relative flex flex-col sm:flex-row items-center w-full gap-2">
+            {/* Inline stylized dropdown for Type */}
+            <div className="relative flex-shrink-0 w-full sm:w-auto flex items-center group bg-base-dim/20 hover:bg-base-dim/40 border border-border-line rounded-full h-11 px-4 transition-all cursor-pointer">
+              <select 
+                className="appearance-none bg-transparent text-text-main text-sm font-bold focus:outline-none cursor-pointer w-full absolute inset-0 opacity-0" 
+                value={qcType} 
+                onChange={e => handleTypeChange(e.target.value)}
+              >
+                <option value="Tarea">✏️ TAREA</option>
+                <option value="Hábito">🔄 HÁBITO</option>
+                <option value="Contador">📈 PULSO</option>
+                <option value="Proyecto">🎯 PROYECTO</option>
+                <option value="Rutina">🔁 RUTINA</option>
+              </select>
+              <div className="pointer-events-none flex justify-between sm:justify-center items-center gap-2 w-full">
+                <div className="flex items-center gap-2">
+                  <span>{qcType === 'Tarea' ? '✏️' : qcType === 'Hábito' ? '🔄' : qcType === 'Contador' ? '📈' : qcType === 'Proyecto' ? '🎯' : '🔁'}</span>
+                  <span className="text-sm font-bold tracking-wide">{qcType === 'Contador' ? 'PULSO' : qcType.toUpperCase()}</span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-text-dim group-hover:text-text-main transition-colors" />
+              </div>
+            </div>
+
+            {/* Main Input */}
+            <div className="relative flex-1 w-full flex items-center">
+              <input 
+                type="text" 
+                placeholder={qcType === 'Tarea' ? "¿Qué hay que hacer hoy?" : qcType === 'Hábito' ? "Nombre del hábito..." : qcType === 'Contador' ? "Nombre del pulso/ritmo..." : `Nombre del ${qcType.toLowerCase()}...`} 
+                className="w-full h-11 pl-5 pr-12 text-sm text-text-main bg-base-dim/20 border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] transition-all placeholder:text-text-dim/50 font-sans"
+                value={qcText}
+                onChange={e => setQcText(e.target.value)}
+              />
+              
+              {/* Sutil settings expand button inside the bar */}
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className={cn(
+                  "absolute right-2 p-2 rounded-full hover:bg-base-dim/50 transition-colors text-text-dim hover:text-text-main cursor-pointer",
+                  showAdvanced && "text-[#73c2b8]"
+                )}
+                title="Ajustes avanzados de tarea"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Advanced Collapsible Settings Panel */}
           <div className={cn("flex flex-col gap-4 bg-base-dim/10 border border-border-line p-4 rounded-2xl transition-all duration-300 overflow-hidden text-left", showAdvanced ? "opacity-100 max-h-[500px]" : "opacity-0 max-h-0 py-0 border-none pointer-events-none")}>
             <div className="flex flex-wrap gap-4 items-center">
               
-              {/* Task Type */}
-              <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-4">
-                <select 
-                  className="appearance-none bg-transparent text-text-main text-xs tracking-normal focus:outline-none cursor-pointer pr-4 font-mono font-bold" 
-                  value={qcType} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    setQcType(val);
-                    if (val === 'Hábito' || val === 'Rutina' || val === 'Contador') {
-                      setQcAllocation('fixed');
-                    } else {
-                      setQcAllocation('growth');
-                    }
-                  }}
-                >
-                  <option value="Tarea">✏️ TAREA</option>
-                  <option value="Hábito">🔄 HÁBITO SIMPLE</option>
-                  <option value="Contador">📈 RITMO (MULTI-DIARIO)</option>
-                </select>
-                <ChevronDown className="absolute right-0 w-3 h-3 text-text-main pointer-events-none" />
-              </div>
+
 
               {/* Priority */}
               {qcType === 'Tarea' && (
@@ -543,11 +569,18 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                     <span className="text-text-dim font-mono">UNIDAD:</span>
                     <input 
                       type="text" 
-                      placeholder="vasos/veces" 
+                      placeholder="veces" 
                       className="w-16 bg-transparent text-text-main text-center outline-none border-b border-border-line focus:border-[#a2b29f] font-bold" 
                       value={qcUnitLabel} 
                       onChange={e => setQcUnitLabel(e.target.value)}
                     />
+                  </div>
+                  <div className="relative flex items-center pr-4">
+                    <select className="appearance-none bg-transparent text-text-main focus:outline-none cursor-pointer pr-4 font-bold" value={qcPolaridad} onChange={e => setQcPolaridad(e.target.value)}>
+                      <option value="Reforzar">📈 Reforzar</option>
+                      <option value="Abandonar">📉 Abandonar</option>
+                    </select>
+                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-main pointer-events-none" />
                   </div>
                 </div>
               )}
