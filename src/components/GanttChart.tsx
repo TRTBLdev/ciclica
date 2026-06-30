@@ -12,18 +12,52 @@ interface GanttChartProps {
   periodEnd: string;
 }
 
+export type GanttScale = 'ciclo' | 'cuarto' | 'año';
+
 export default function GanttChart({ config, tasks, onUpdateTask, scale, periodStart, periodEnd }: GanttChartProps) {
   const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgLines, setSvgLines] = useState<{ d: string; id: string }[]>([]);
 
+  const mapPropToGanttScale = (s: string): GanttScale => {
+    if (s === 'phase' || s === 'cycle') return 'ciclo';
+    if (s === 'quarter') return 'cuarto';
+    return 'año';
+  };
+
+  const mapGanttScaleToPropScale = (s: GanttScale): 'phase' | 'cycle' | 'quarter' | 'year' => {
+    if (s === 'ciclo') return 'cycle';
+    if (s === 'cuarto') return 'quarter';
+    return 'year';
+  };
+
+  const [ganttScale, setGanttScale] = useState<GanttScale>(mapPropToGanttScale(scale));
+  const [selectedArea, setSelectedArea] = useState<string>('');
+
+  useEffect(() => {
+    setGanttScale(mapPropToGanttScale(scale));
+  }, [scale]);
+
   // Get active parent items (projects and top-level tasks) and all subtasks
   const parentItems = useMemo(() => {
-    return tasks.filter(t => (t.type === 'Proyecto' || (t.type === 'Tarea' && !t.parentId)) && !t.completed);
-  }, [tasks]);
+    return tasks.filter(t => {
+      const hasNoValidParent = !t.parentId || !tasks.some(pt => pt.id === t.parentId);
+      const isTopLevelAction = t.type === 'Tarea' && hasNoValidParent;
+      const matchesType = t.type === 'Proyecto' || isTopLevelAction;
+      if (!matchesType || t.completed) return false;
+      
+      if (selectedArea) {
+        return t.category === selectedArea;
+      }
+      return true;
+    });
+  }, [tasks, selectedArea]);
 
   const subtasks = useMemo(() => {
-    return tasks.filter(t => t.type === 'Tarea' && !t.completed && t.parentId);
+    return tasks.filter(t => {
+      const hasValidParent = t.parentId && tasks.some(pt => pt.id === t.parentId);
+      return t.type === 'Tarea' && !t.completed && hasValidParent;
+    });
   }, [tasks]);
 
   const toggleProject = (projId: string) => {
@@ -46,7 +80,9 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
     
     let colLabels: string[] = [];
 
-    if (scale === 'phase' || scale === 'cycle') {
+    const internalScale = mapGanttScaleToPropScale(ganttScale);
+
+    if (internalScale === 'phase' || internalScale === 'cycle') {
       // Add 10 days buffer on each side for context
       start.setDate(start.getDate() - 10);
       end.setDate(end.getDate() + 10);
@@ -57,7 +93,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
         d.setDate(start.getDate() + i);
         colLabels.push(`${d.getDate()}/${d.getMonth() + 1}`);
       }
-    } else if (scale === 'quarter') {
+    } else if (internalScale === 'quarter') {
       // Add 2 weeks buffer
       start.setDate(start.getDate() - 14);
       end.setDate(end.getDate() + 14);
@@ -80,7 +116,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
     }
 
     return { timelineStart: start, timelineEnd: end, cols: colLabels };
-  }, [scale, periodStart, periodEnd]);
+  }, [ganttScale, periodStart, periodEnd]);
 
   // Map dates to percentage widths and positions
   const getTaskDates = (t: AppTask) => {
@@ -151,7 +187,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
 
   // Re-calculate SVG Bezier Curves for Dependencies
   const calculateDependencies = () => {
-    if (!containerRef.current || scale === 'año') {
+    if (!containerRef.current || ganttScale === 'año') {
       setSvgLines([]);
       return;
     }
@@ -206,7 +242,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
       window.removeEventListener('resize', calculateDependencies);
       containerRef.current?.removeEventListener('scroll', calculateDependencies);
     };
-  }, [tasks, scale, expandedProjects]);
+  }, [tasks, ganttScale, expandedProjects]);
 
   return (
     <div className="flex flex-col gap-4 border border-border-line p-4 animate-in fade-in duration-300 rounded-none bg-transparent">
@@ -217,20 +253,39 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
           <span className="text-xs font-mono font-bold tracking-widest text-primary uppercase">CRONOGRAMA DE PROYECTOS</span>
         </div>
         
-        {/* Scale Switchers */}
-        <div className="flex gap-4 font-mono text-[10px] uppercase font-bold tracking-wider">
-          {(['ciclo', 'cuarto', 'año'] as GanttScale[]).map(s => (
-            <button
-              key={s}
-              onClick={() => setScale(s)}
-              className={cn(
-                "hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors",
-                scale === s ? "text-accent font-black underline decoration-2 underline-offset-4" : "text-text-dim hover:text-text-main"
-              )}
-            >
-              {s === 'ciclo' ? 'Ciclo (30d)' : s === 'cuarto' ? 'Trimestre' : 'Año'}
-            </button>
-          ))}
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Area Filter Dropdown */}
+          {config && (
+            <div className="relative flex items-center">
+              <select
+                value={selectedArea}
+                onChange={(e) => setSelectedArea(e.target.value)}
+                className="appearance-none bg-transparent text-text-dim hover:text-text-main text-[10px] font-mono border border-border-line/60 rounded-none px-3 py-1 pr-6 focus:outline-none focus:border-primary cursor-pointer transition-colors"
+              >
+                <option value="">Todas las Áreas</option>
+                {Object.keys(config.areas).map(areaKey => (
+                  <option key={areaKey} value={areaKey}>{areaKey}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+            </div>
+          )}
+
+          {/* Scale Switchers */}
+          <div className="flex gap-4 font-mono text-[10px] uppercase font-bold tracking-wider">
+            {(['ciclo', 'cuarto', 'año'] as GanttScale[]).map(s => (
+              <button
+                key={s}
+                onClick={() => setGanttScale(s)}
+                className={cn(
+                  "hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors",
+                  ganttScale === s ? "text-accent font-black underline decoration-2 underline-offset-4" : "text-text-dim hover:text-text-main"
+                )}
+              >
+                {s === 'ciclo' ? 'Ciclo (30d)' : s === 'cuarto' ? 'Trimestre' : 'Año'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -298,7 +353,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
           <div 
             className="flex flex-col relative select-none"
             style={{ 
-              width: scale === 'ciclo' ? '1200px' : scale === 'cuarto' ? '1000px' : '1000px',
+              width: ganttScale === 'ciclo' ? '1200px' : ganttScale === 'cuarto' ? '1000px' : '1000px',
               minWidth: '100%' 
             }}
           >

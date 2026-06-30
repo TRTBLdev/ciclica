@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronDown, Plus, Trash2, HelpCircle } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Plus, Trash2, HelpCircle } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScale, LinkedItem } from '../types';
 import { cn } from '../lib/utils';
 import { getCurrentPeriod, findIntentionForPeriod, parseLocalDate } from '../domain/periodUtils';
@@ -54,6 +54,8 @@ export default function IntentionForm({
   const [isEditing, setIsEditing] = useState(false);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [isSavingNew, setIsSavingNew] = useState(false);
+  const [isCommitmentsExpanded, setIsCommitmentsExpanded] = useState(true);
+  const [isGanttExpanded, setIsGanttExpanded] = useState(true);
 
   useEffect(() => {
     if (existingId && isSavingNew) {
@@ -299,16 +301,28 @@ export default function IntentionForm({
             />
           </div>
 
-          {/* Commitments list or Gantt Chart depending on scale */}
-          {(scale === 'phase' || scale === 'cycle') ? (
-            <div className="space-y-4">
-            <div className="flex justify-between items-center border-b border-border-line/60 pb-2">
-              <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light">
-                Compromisos ({items.length})
-              </span>
-              {!isPastPeriod && (
+          {/* Commitments list (now for all scales, collapsible) */}
+          <div className="space-y-4 pt-4 border-t border-border-line/40">
+            <div 
+              onClick={() => setIsCommitmentsExpanded(!isCommitmentsExpanded)}
+              className="flex justify-between items-center pb-2 cursor-pointer select-none group"
+            >
+              <div className="flex items-center gap-2">
+                {isCommitmentsExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                )}
+                <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+                  Compromisos ({items.length})
+                </span>
+              </div>
+              {isCommitmentsExpanded && !isPastPeriod && (
                 <button
-                  onClick={handleAddItem}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddItem();
+                  }}
                   className="flex items-center gap-1.5 text-[10px] font-sans uppercase tracking-widest text-primary font-light hover:text-text-main transition-colors cursor-pointer border-0 bg-transparent p-2 -m-2"
                 >
                   <Plus className="w-3.5 h-3.5" /> Agregar
@@ -316,107 +330,87 @@ export default function IntentionForm({
               )}
             </div>
 
-            {items.length === 0 ? (
-              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans">
-                Ningún compromiso definido. Haz click en Agregar para comenzar.
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.keys(itemsByArea).map(area => (
-                  <div key={area} className="space-y-3">
-                    {/* Area separator header */}
-                    <div className="text-[10px] font-sans uppercase tracking-widest text-primary font-light border-b border-border-line/30 pb-1">
-                      {area === 'General' ? 'Otros / General' : area}
-                    </div>
+            {isCommitmentsExpanded && (
+              items.length === 0 ? (
+                <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+                  Ningún compromiso definido. Haz click en Agregar para comenzar.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.keys(itemsByArea).map(area => (
+                    <div key={area} className="space-y-3">
+                      {/* Area separator header */}
+                      <div className="text-[10px] font-sans uppercase tracking-widest text-primary font-light border-b border-border-line/30 pb-1">
+                        {area === 'General' ? 'Otros / General' : area}
+                      </div>
 
-                    <div className="space-y-3">
-                      {itemsByArea[area].map((item) => {
-                        // Check if we are binding to area, subcategory, project, or task
-                        let bindLevel: 'area' | 'subCategory' | 'project' | 'task' = 'area';
-                        if (item.taskId) bindLevel = 'task';
-                        else if (item.projectId) bindLevel = 'project';
-                        else if (item.subCategory) bindLevel = 'subCategory';
+                      <div className="space-y-3">
+                        {itemsByArea[area].map((item) => {
+                          // Check if we are binding to area, subcategory, project, or task
+                          let bindLevel: 'area' | 'subCategory' | 'project' | 'task' = 'area';
+                          if (item.taskId) bindLevel = 'task';
+                          else if (item.projectId) bindLevel = 'project';
+                          else if (item.subCategory) bindLevel = 'subCategory';
 
-                        return (
-                          <div 
-                            key={item.id} 
-                            className="flex flex-col gap-2 py-4 border-b border-border-line/10 last:border-b-0 relative group"
-                          >
-                            <div className="grid grid-cols-1 md:grid-cols-[110px_110px_1fr_auto_auto] gap-3 md:gap-4 w-full items-center">
-                              {/* Selectors Wrapper: inline grid/flex on mobile, display contents on desktop */}
-                              <div className="flex flex-wrap sm:grid sm:grid-cols-[110px_110px_1fr] md:contents gap-2 items-center w-full">
-                                {/* Type dropdown */}
-                                <div className="relative flex items-center w-[110px] sm:w-auto">
-                                  <select
-                                    value={item.targetType}
-                                    onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
-                                    disabled={isPastPeriod}
-                                    className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                  >
-                                    <option value="hours">Horas</option>
-                                    <option value="consistency">Consistencia</option>
-                                    <option value="completion">Completación</option>
-                                  </select>
-                                  <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                                </div>
+                          return (
+                            <div 
+                              key={item.id} 
+                              className="flex flex-col gap-2 py-4 border-b border-border-line/10 last:border-b-0 relative group/item"
+                            >
+                              <div className="grid grid-cols-1 md:grid-cols-[110px_110px_1fr_auto_auto] gap-3 md:gap-4 w-full items-center">
+                                {/* Selectors Wrapper: inline grid/flex on mobile, display contents on desktop */}
+                                <div className="flex flex-wrap sm:grid sm:grid-cols-[110px_110px_1fr] md:contents gap-2 items-center w-full">
+                                  {/* Type dropdown */}
+                                  <div className="relative flex items-center w-[110px] sm:w-auto">
+                                    <select
+                                      value={item.targetType}
+                                      onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
+                                      disabled={isPastPeriod}
+                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                    >
+                                      <option value="hours">Horas</option>
+                                      <option value="consistency">Consistencia</option>
+                                      <option value="completion">Completación</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                  </div>
 
-                                {/* Bind level selector */}
-                                <div className="relative flex items-center w-[110px] sm:w-auto">
-                                  <select
-                                    value={bindLevel}
-                                    onChange={(e) => {
-                                      const lvl = e.target.value;
-                                      if (lvl === 'area') {
-                                        handleUpdateItem(item.id, { areaName: areaNames[0] || '', subCategory: undefined, projectId: undefined, taskId: undefined });
-                                      } else if (lvl === 'subCategory') {
-                                        const firstArea = areaNames[0] || '';
-                                        const cats = getAreaCategories(firstArea);
-                                        handleUpdateItem(item.id, { areaName: firstArea, subCategory: cats[0] || '', projectId: undefined, taskId: undefined });
-                                      } else if (lvl === 'project') {
-                                        handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: projects[0]?.id || '', taskId: undefined });
-                                      } else {
-                                        handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: undefined, taskId: taskOptions[0]?.id || '' });
-                                      }
-                                    }}
-                                    disabled={isPastPeriod}
-                                    className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                  >
-                                    <option value="area">Área</option>
-                                    <option value="subCategory">Categoría</option>
-                                    <option value="project">Proyecto</option>
-                                    <option value="task">Tarea/Hábito</option>
-                                  </select>
-                                  <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                                </div>
+                                  {/* Bind level selector */}
+                                  <div className="relative flex items-center w-[110px] sm:w-auto">
+                                    <select
+                                      value={bindLevel}
+                                      onChange={(e) => {
+                                        const lvl = e.target.value;
+                                        if (lvl === 'area') {
+                                          handleUpdateItem(item.id, { areaName: areaNames[0] || '', subCategory: undefined, projectId: undefined, taskId: undefined });
+                                        } else if (lvl === 'subCategory') {
+                                          const firstArea = areaNames[0] || '';
+                                          const cats = getAreaCategories(firstArea);
+                                          handleUpdateItem(item.id, { areaName: firstArea, subCategory: cats[0] || '', projectId: undefined, taskId: undefined });
+                                        } else if (lvl === 'project') {
+                                          handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: projects[0]?.id || '', taskId: undefined });
+                                        } else {
+                                          handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: undefined, taskId: taskOptions[0]?.id || '' });
+                                        }
+                                      }}
+                                      disabled={isPastPeriod}
+                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                    >
+                                      <option value="area">Área</option>
+                                      <option value="subCategory">Categoría</option>
+                                      <option value="project">Proyecto</option>
+                                      <option value="task">Tarea/Hábito</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                  </div>
 
-                                {/* Target selection values */}
-                                <div className="flex items-center gap-2 flex-grow flex-1 min-w-[150px] sm:w-auto">
-                                  {bindLevel === 'area' && (
-                                    <div className="relative flex-1 flex items-center">
-                                      <select
-                                        value={item.areaName || ''}
-                                        onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
-                                        disabled={isPastPeriod}
-                                        className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                      >
-                                        {areaNames.map(name => (
-                                          <option key={name} value={name}>{name}</option>
-                                        ))}
-                                      </select>
-                                      <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                                    </div>
-                                  )}
-
-                                  {bindLevel === 'subCategory' && (
-                                    <>
+                                  {/* Target selection values */}
+                                  <div className="flex items-center gap-2 flex-grow flex-1 min-w-[150px] sm:w-auto">
+                                    {bindLevel === 'area' && (
                                       <div className="relative flex-1 flex items-center">
                                         <select
                                           value={item.areaName || ''}
-                                          onChange={(e) => {
-                                            const area = e.target.value;
-                                            const cats = getAreaCategories(area);
-                                            handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
-                                          }}
+                                          onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
                                           disabled={isPastPeriod}
                                           className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                         >
@@ -426,205 +420,236 @@ export default function IntentionForm({
                                         </select>
                                         <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                                       </div>
-                                      <div className="relative flex-1 flex items-center">
-                                        <select
-                                          value={item.subCategory || ''}
-                                          onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
+                                    )}
+
+                                    {bindLevel === 'subCategory' && (
+                                      <>
+                                        <div className="relative flex-1 flex items-center">
+                                          <select
+                                            value={item.areaName || ''}
+                                            onChange={(e) => {
+                                              const area = e.target.value;
+                                              const cats = getAreaCategories(area);
+                                              handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
+                                            }}
+                                            disabled={isPastPeriod}
+                                            className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                          >
+                                            {areaNames.map(name => (
+                                              <option key={name} value={name}>{name}</option>
+                                            ))}
+                                          </select>
+                                          <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                        </div>
+                                        <div className="relative flex-1 flex items-center">
+                                          <select
+                                            value={item.subCategory || ''}
+                                            onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
+                                            disabled={isPastPeriod}
+                                            className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                          >
+                                            {getAreaCategories(item.areaName || '').map(cat => (
+                                              <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                          </select>
+                                          <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                        </div>
+                                      </>
+                                    )}
+
+                                    {bindLevel === 'project' && (
+                                      <div className="relative flex-1 flex items-center w-full min-w-[150px]">
+                                        <Combobox
+                                          value={item.projectId || ''}
+                                          onChange={(val) => handleUpdateItem(item.id, { projectId: val })}
                                           disabled={isPastPeriod}
-                                          className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                        >
-                                          {getAreaCategories(item.areaName || '').map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                          ))}
-                                        </select>
-                                        <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                          placeholder={projects.length === 0 ? "No hay proyectos" : "Seleccionar proyecto..."}
+                                          options={projects.map(p => ({ value: p.id, label: p.text }))}
+                                        />
                                       </div>
-                                    </>
-                                  )}
+                                    )}
 
-                                  {bindLevel === 'project' && (
-                                    <div className="relative flex-1 flex items-center w-full min-w-[150px]">
-                                      <Combobox
-                                        value={item.projectId || ''}
-                                        onChange={(val) => handleUpdateItem(item.id, { projectId: val })}
-                                        disabled={isPastPeriod}
-                                        placeholder={projects.length === 0 ? "No hay proyectos" : "Seleccionar proyecto..."}
-                                        options={projects.map(p => ({ value: p.id, label: p.text }))}
-                                      />
-                                    </div>
-                                  )}
-
-                                  {bindLevel === 'task' && (
-                                    <div className="relative flex-1 flex items-center w-full min-w-[150px]">
-                                      <Combobox
-                                        value={item.taskId || ''}
-                                        onChange={(val) => handleUpdateItem(item.id, { taskId: val })}
-                                        disabled={isPastPeriod}
-                                        placeholder={taskOptions.length === 0 ? "No hay tareas" : "Seleccionar tarea..."}
-                                        options={taskOptions.map(t => ({ value: t.id, label: `[${t.type}] ${t.text}` }))}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Target Values & Actions Wrapper: flex on mobile, display contents on desktop */}
-                              <div className="flex items-center justify-between md:contents w-full gap-2">
-                                {/* Targets input values */}
-                                <div className="flex items-center gap-2 md:justify-end">
-                                  {item.targetType === 'hours' && (
-                                    <div className="flex items-center gap-1.5">
-                                      <input
-                                        type="number"
-                                        min="0.5"
-                                        step="0.5"
-                                        value={item.targetHours || ''}
-                                        onChange={(e) => handleUpdateItem(item.id, { targetHours: parseFloat(e.target.value) || 0 })}
-                                        disabled={isPastPeriod}
-                                        className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
-                                      />
-                                      <span className="font-mono text-[10px] text-text-dim uppercase">hrs</span>
-                                    </div>
-                                  )}
-
-                                  {item.targetType === 'consistency' && (
-                                    <div className="flex items-center gap-1.5">
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        value={item.targetDays || ''}
-                                        onChange={(e) => handleUpdateItem(item.id, { targetDays: parseInt(e.target.value, 10) || 0 })}
-                                        disabled={isPastPeriod}
-                                        className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
-                                      />
-                                      <span className="font-mono text-[10px] text-text-dim uppercase">días</span>
-                                    </div>
-                                  )}
-
-                                  {item.targetType === 'completion' && (
-                                    <span className="font-mono text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-none border border-primary/25 font-light uppercase animate-none">
-                                      Hito
-                                    </span>
-                                  )}
-
-                                  {/* Progress details shown inline */}
-                                  {isEditing && (
-                                    <div className="text-[10px] font-mono text-text-dim ml-1">
-                                      {(() => {
-                                        const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
-                                        if (progress.type === 'hours' && progress.hours) {
-                                          return `(${progress.hours.current}/${progress.hours.target}h)`;
-                                        }
-                                        if (progress.type === 'consistency' && progress.consistency) {
-                                          return `(${progress.consistency.current}/${progress.consistency.target}d)`;
-                                        }
-                                        if (progress.type === 'completion' && progress.completion) {
-                                          return progress.completion.completed ? '✓' : '✗';
-                                        }
-                                        return '';
-                                      })()}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Trash button */}
-                                {!isPastPeriod ? (
-                                  <div className="flex items-center justify-end w-8 md:w-auto">
-                                    <button
-                                      onClick={() => handleRemoveItem(item.id)}
-                                      className="p-2 -m-2 text-text-dim hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {bindLevel === 'task' && (
+                                      <div className="relative flex-1 flex items-center w-full min-w-[150px]">
+                                        <Combobox
+                                          value={item.taskId || ''}
+                                          onChange={(val) => handleUpdateItem(item.id, { taskId: val })}
+                                          disabled={isPastPeriod}
+                                          placeholder={taskOptions.length === 0 ? "No hay tareas" : "Seleccionar tarea..."}
+                                          options={taskOptions.map(t => ({ value: t.id, label: `[${t.type}] ${t.text}` }))}
+                                        />
+                                      </div>
+                                    )}
                                   </div>
-                                ) : (
-                                  <div className="w-8 md:w-auto" />
-                                )}
-                              </div>
-                            </div>
+                                </div>
 
-                            {/* Upper scale linking dropdown */}
-                            {parentIntention && (
-                              <div className="flex items-center gap-2 pt-2 font-mono text-[9px] w-full text-left">
-                                <span className="text-text-dim uppercase">Vincular a norte superior:</span>
-                                <div className="relative flex items-center">
-                                  <select
-                                    value={linkedItems.find(l => l.childItemId === item.id)?.parentItemId || ''}
-                                    onChange={(e) => {
-                                      const pItemId = e.target.value;
-                                      if (pItemId) {
-                                        const exists = linkedItems.some(l => l.childItemId === item.id);
-                                        if (exists) {
-                                          setLinkedItems(linkedItems.map(l => 
-                                            l.childItemId === item.id ? { ...l, parentItemId: pItemId } : l
-                                          ));
-                                        } else {
-                                          setLinkedItems([...linkedItems, {
-                                            parentItemId: pItemId,
-                                            childIntentionId: existingId || '',
-                                            childItemId: item.id
-                                          }]);
-                                        }
-                                      } else {
-                                        setLinkedItems(linkedItems.filter(l => l.childItemId !== item.id));
-                                      }
-                                    }}
-                                    disabled={isPastPeriod}
-                                    className="appearance-none bg-transparent text-text-main text-[9px] font-mono border-b border-border-line px-0 py-0.5 focus:outline-none focus:border-primary cursor-pointer pr-4 max-w-[250px] truncate transition-colors"
-                                  >
-                                    <option value="">Ninguno</option>
-                                    {parentIntention.items.map(parentIt => {
-                                      let label = `[${parentIt.targetType === 'hours' ? 'hrs' : parentIt.targetType === 'consistency' ? 'días' : 'hito'}] `;
-                                      if (parentIt.projectId) {
-                                        label += tasks.find(t => t.id === parentIt.projectId)?.text || 'Proyecto';
-                                      } else if (parentIt.taskId) {
-                                        label += tasks.find(t => t.id === parentIt.taskId)?.text || 'Tarea';
-                                      } else if (parentIt.subCategory) {
-                                        label += `${parentIt.areaName} ➔ ${parentIt.subCategory}`;
-                                      } else if (parentIt.areaName) {
-                                        label += parentIt.areaName;
-                                      }
-                                      return (
-                                        <option key={parentIt.id} value={parentIt.id}>{label}</option>
-                                      );
-                                    })}
-                                  </select>
-                                  <ChevronDown className="absolute right-0 w-2.5 h-2.5 text-text-dim pointer-events-none" />
+                                {/* Target Values & Actions Wrapper: flex on mobile, display contents on desktop */}
+                                <div className="flex items-center justify-between md:contents w-full gap-2">
+                                  {/* Targets input values */}
+                                  <div className="flex items-center gap-2 md:justify-end">
+                                    {item.targetType === 'hours' && (
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="number"
+                                          min="0.5"
+                                          step="0.5"
+                                          value={item.targetHours || ''}
+                                          onChange={(e) => handleUpdateItem(item.id, { targetHours: parseFloat(e.target.value) || 0 })}
+                                          disabled={isPastPeriod}
+                                          className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
+                                        />
+                                        <span className="font-mono text-[10px] text-text-dim uppercase">hrs</span>
+                                      </div>
+                                    )}
+
+                                    {item.targetType === 'consistency' && (
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="1"
+                                          value={item.targetDays || ''}
+                                          onChange={(e) => handleUpdateItem(item.id, { targetDays: parseInt(e.target.value, 10) || 0 })}
+                                          disabled={isPastPeriod}
+                                          className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
+                                        />
+                                        <span className="font-mono text-[10px] text-text-dim uppercase">días</span>
+                                      </div>
+                                    )}
+
+                                    {item.targetType === 'completion' && (
+                                      <span className="font-mono text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-none border border-primary/25 font-light uppercase animate-none">
+                                        Hito
+                                      </span>
+                                    )}
+
+                                    {/* Progress details shown inline */}
+                                    {isEditing && (
+                                      <div className="text-[10px] font-mono text-text-dim ml-1">
+                                        {(() => {
+                                          const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
+                                          if (progress.type === 'hours' && progress.hours) {
+                                            return `(${progress.hours.current}/${progress.hours.target}h)`;
+                                          }
+                                          if (progress.type === 'consistency' && progress.consistency) {
+                                            return `(${progress.consistency.current}/${progress.consistency.target}d)`;
+                                          }
+                                          if (progress.type === 'completion' && progress.completion) {
+                                            return progress.completion.completed ? '✓' : '✗';
+                                          }
+                                          return '';
+                                        })()}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Trash button */}
+                                  {!isPastPeriod ? (
+                                    <div className="flex items-center justify-end w-8 md:w-auto">
+                                      <button
+                                        onClick={() => handleRemoveItem(item.id)}
+                                        className="p-2 -m-2 text-text-dim hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="w-8 md:w-auto" />
+                                  )}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+
+                              {/* Upper scale linking dropdown */}
+                              {parentIntention && (
+                                <div className="flex items-center gap-2 pt-2 font-mono text-[9px] w-full text-left">
+                                  <span className="text-text-dim uppercase">Vincular a norte superior:</span>
+                                  <div className="relative flex items-center">
+                                    <select
+                                      value={linkedItems.find(l => l.childItemId === item.id)?.parentItemId || ''}
+                                      onChange={(e) => {
+                                        const pItemId = e.target.value;
+                                        if (pItemId) {
+                                          const exists = linkedItems.some(l => l.childItemId === item.id);
+                                          if (exists) {
+                                            setLinkedItems(linkedItems.map(l => 
+                                              l.childItemId === item.id ? { ...l, parentItemId: pItemId } : l
+                                            ));
+                                          } else {
+                                            setLinkedItems([...linkedItems, {
+                                              parentItemId: pItemId,
+                                              childIntentionId: existingId || '',
+                                              childItemId: item.id
+                                            }]);
+                                          }
+                                        } else {
+                                          setLinkedItems(linkedItems.filter(l => l.childItemId !== item.id));
+                                        }
+                                      }}
+                                      disabled={isPastPeriod}
+                                      className="appearance-none bg-transparent text-text-main text-[9px] font-mono border-b border-border-line px-0 py-0.5 focus:outline-none focus:border-primary cursor-pointer pr-4 max-w-[250px] truncate transition-colors"
+                                    >
+                                      <option value="">Ninguno</option>
+                                      {parentIntention.items.map(parentIt => {
+                                        let label = `[${parentIt.targetType === 'hours' ? 'hrs' : parentIt.targetType === 'consistency' ? 'días' : 'hito'}] `;
+                                        if (parentIt.projectId) {
+                                          label += tasks.find(t => t.id === parentIt.projectId)?.text || 'Proyecto';
+                                        } else if (parentIt.taskId) {
+                                          label += tasks.find(t => t.id === parentIt.taskId)?.text || 'Tarea';
+                                        } else if (parentIt.subCategory) {
+                                          label += `${parentIt.areaName} ➔ ${parentIt.subCategory}`;
+                                        } else if (parentIt.areaName) {
+                                          label += parentIt.areaName;
+                                        }
+                                        return (
+                                          <option key={parentIt.id} value={parentIt.id}>{label}</option>
+                                        );
+                                      })}
+                                    </select>
+                                    <ChevronDown className="absolute right-0 w-2.5 h-2.5 text-text-dim pointer-events-none" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
-          ) : (
+
+          {/* Gantt Chart (only for quarter and year, collapsible) */}
+          {(scale === 'quarter' || scale === 'year') && (
             <div className="space-y-4 pt-4 border-t border-border-line/40">
-               <div className="flex justify-between items-center pb-2">
-                 <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light">
-                   Línea de Tiempo (Gantt)
-                 </span>
-               </div>
-               <div className="border border-border-line/40 bg-base">
+              <div 
+                onClick={() => setIsGanttExpanded(!isGanttExpanded)}
+                className="flex items-center gap-2 pb-2 cursor-pointer select-none group"
+              >
+                {isGanttExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                )}
+                <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+                  Línea de Tiempo (Gantt)
+                </span>
+              </div>
+              {isGanttExpanded && (
+                <div className="border border-border-line/40 bg-base">
                   <GanttChart 
                     config={config} 
                     tasks={tasks} 
                     onUpdateTask={(id, updates) => {
-                      // Note: IntentionForm doesn't have an onUpdateTask prop currently.
-                      // If we need to update tasks from Gantt, we might need to pass it down from BitacoraView.
-                      // For now, we'll log it or assume it's read-only in this context if we can't update.
                       console.log("Task updated from Gantt:", id, updates);
                     }} 
                     scale={scale as 'phase'|'cycle'|'quarter'|'year'} 
                     periodStart={periodStart} 
                     periodEnd={periodEnd} 
                   />
-               </div>
+                </div>
+              )}
             </div>
           )}
         </div>
