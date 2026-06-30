@@ -1,9 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
-import { RotateCw, Plus, ChevronDown, ChevronUp, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { RotateCw, Plus, ChevronDown, ChevronUp, ChevronRight, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, getAreaColorClasses, isSameDay, isFutureDate } from '../lib/utils';
 
 interface Props {
@@ -22,6 +22,11 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   const [showAddRoutine, setShowAddRoutine] = useState(false);
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [showAddPulso, setShowAddPulso] = useState(false);
+
+  // Accordion states
+  const [isRoutinesOpen, setIsRoutinesOpen] = useState(true);
+  const [isHabitsOpen, setIsHabitsOpen] = useState(true);
+  const [isPulsosOpen, setIsPulsosOpen] = useState(true);
 
   // Creation form states
   const [newRoutineText, setNewRoutineText] = useState('');
@@ -298,51 +303,49 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   };
 
   return (
-    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-10 px-6 md:px-10 max-w-4xl mx-auto w-full text-left bg-transparent">
-      <ViewHeader
-        title="Rutinas y Hábitos"
-        icon={Repeat}
-        className="md:flex-row md:items-center gap-6"
-        description="Administre de forma fluida sus bloques recurrentes de rutinas, hábitos programados e indicadores multi-diarios."
-        actions={(
-          <div className="flex flex-col items-end gap-4 font-mono text-xs uppercase tracking-wider font-bold text-right">
-            <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-              <select 
-                value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as any)} 
-                className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-              >
-                <option value="manual">Manual</option>
-                <option value="priority">Prioridad</option>
-                <option value="date">Fecha</option>
-                <option value="name">Nombre</option>
-              </select>
-              <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
-            </div>
-            
-            <div className="flex flex-col items-end gap-3">
-              <button 
-                onClick={() => { setShowAddRoutine(!showAddRoutine); setShowAddHabit(false); setShowAddPulso(false); }}
-                className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddRoutine ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-              >
-                {showAddRoutine ? "Cerrar" : "+ Nueva Rutina"}
-              </button>
-              <button 
-                onClick={() => { setShowAddHabit(!showAddHabit); setShowAddRoutine(false); setShowAddPulso(false); }}
-                className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddHabit ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-              >
-                {showAddHabit ? "Cerrar" : "+ Hábito Simple"}
-              </button>
-              <button 
-                onClick={() => { setShowAddPulso(!showAddPulso); setShowAddRoutine(false); setShowAddHabit(false); }}
-                className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddPulso ? "text-accent font-black" : "text-text-dim hover:text-text-main")}
-              >
-                {showAddPulso ? "Cerrar" : "+ Nuevo Pulso"}
-              </button>
-            </div>
+    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-6 px-6 md:px-10 max-w-4xl mx-auto w-full text-left bg-transparent">
+       {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
+        
+        {/* Left Side: Selectors */}
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value as any)} 
+              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
+            >
+              <option value="manual">Manual</option>
+              <option value="priority">Prioridad</option>
+              <option value="date">Fecha</option>
+              <option value="name">Nombre</option>
+            </select>
+            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
           </div>
-        )}
-      />
+        </div>
+        
+        {/* Right Side: Actions */}
+        <div className="flex flex-wrap items-center justify-end gap-4 font-sans text-[10px] uppercase tracking-widest font-bold">
+          <button 
+            onClick={() => { setShowAddRoutine(!showAddRoutine); setShowAddHabit(false); setShowAddPulso(false); }}
+            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddRoutine ? "text-accent font-black" : "text-text-main hover:text-text-dim")}
+          >
+            {showAddRoutine ? "Cerrar" : "+ Nueva Rutina"}
+          </button>
+          <button 
+            onClick={() => { setShowAddHabit(!showAddHabit); setShowAddRoutine(false); setShowAddPulso(false); }}
+            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddHabit ? "text-accent font-black" : "text-text-main hover:text-text-dim")}
+          >
+            {showAddHabit ? "Cerrar" : "+ Hábito Simple"}
+          </button>
+          <button 
+            onClick={() => { setShowAddPulso(!showAddPulso); setShowAddRoutine(false); setShowAddHabit(false); }}
+            className={cn("hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors", showAddPulso ? "text-accent font-black" : "text-text-main hover:text-text-dim")}
+          >
+            {showAddPulso ? "Cerrar" : "+ Nuevo Pulso"}
+          </button>
+        </div>
+      </div>
 
       {/* 1. COLLAPSIBLE FORM: CREAR RUTINA */}
       {showAddRoutine && (
@@ -539,12 +542,31 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
       )}
 
       {/* ROUTINES LIST */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase border-b border-border-line pb-3 mb-6">Rutinas Activas</h3>
-        {routines.length === 0 ? (
-          <p className="text-xs text-text-dim font-mono italic pl-2">No hay rutinas activas.</p>
-        ) : (
-          routines.map(routine => {
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsRoutinesOpen(!isRoutinesOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isRoutinesOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Rutinas Activas
+            </span>
+          </div>
+        </div>
+
+        {isRoutinesOpen && (
+          <div className="mt-4 animate-in fade-in duration-200 flex flex-col gap-2">
+            {routines.length === 0 ? (
+              <p className="text-xs text-text-dim/60 font-light font-sans text-center py-6 bg-base-dim/5 border border-dashed border-border-line/40">
+                No hay rutinas activas.
+              </p>
+            ) : (
+              routines.map(routine => {
             const isExpanded = expandedRoutines.includes(routine.id);
             const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
             const subtasks = sortTasks(rawSubtasks, sortBy);
@@ -856,45 +878,86 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
             );
           })
         )}
+          </div>
+        )}
       </div>
 
       {/* STATS DE HABITOS SUELTOS */}
-      <SectionList
-        title="Hábitos Individuales"
-        className="mt-8"
-        variant="underlined-heading"
-        empty={standaloneHabits.length === 0}
-        emptyMessage="Sin hábitos individuales."
-      >
-        {standaloneHabits.map(habit => (
-          <TaskItem 
-            key={habit.id}
-            task={habit} 
-            config={config} 
-            allTasks={tasks} 
-            history={history}
-            onToggle={onToggleTask} 
-            onDelete={() => onDeleteTask(habit.id)} 
-            onUpdate={onUpdateTask}
-            onAddTask={onAddTask}
-            onDeleteTask={onDeleteTask}
-            isSubtask={false} 
-            hideAreaCategory={false}
-            showMoveArrows={sortBy === 'manual'}
-          />
-        ))}
-      </SectionList>
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsHabitsOpen(!isHabitsOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isHabitsOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Hábitos Individuales
+            </span>
+          </div>
+        </div>
 
-      <SectionList
-        title="Pulsos Diarios"
-        className="mt-8 font-mono"
-        contentClassName={pulsos.length > 0 ? "block" : undefined}
-        variant="underlined-heading"
-        empty={pulsos.length === 0}
-        emptyMessage="Sin pulsos diarios en la lista general."
-      >
-        <div className="flex flex-wrap gap-y-3 w-full animate-in fade-in duration-300">
-              {pulsos.map(t => {
+        {isHabitsOpen && (
+          <div className="mt-4 animate-in fade-in duration-200">
+            {standaloneHabits.length === 0 ? (
+              <p className="text-xs text-text-dim/60 font-light font-sans text-center py-6 bg-base-dim/5 border border-dashed border-border-line/40">
+                Sin hábitos individuales.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {standaloneHabits.map(habit => (
+                  <TaskItem 
+                    key={habit.id}
+                    task={habit} 
+                    config={config} 
+                    allTasks={tasks} 
+                    history={history}
+                    onToggle={onToggleTask} 
+                    onDelete={() => onDeleteTask(habit.id)} 
+                    onUpdate={onUpdateTask}
+                    onAddTask={onAddTask}
+                    onDeleteTask={onDeleteTask}
+                    isSubtask={false} 
+                    hideAreaCategory={false}
+                    showMoveArrows={sortBy === 'manual'}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* PULSOS DIARIOS */}
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsPulsosOpen(!isPulsosOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isPulsosOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Pulsos Diarios
+            </span>
+          </div>
+        </div>
+
+        {isPulsosOpen && (
+          <div className="mt-4 animate-in fade-in duration-200">
+            {pulsos.length === 0 ? (
+              <p className="text-xs text-text-dim/60 font-light font-sans text-center py-6 bg-base-dim/5 border border-dashed border-border-line/40">
+                Sin pulsos diarios en la lista general.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-y-3 w-full">
+                {pulsos.map(t => {
                 const count = (history || []).filter(h => h.taskId === t.id && isSameDay(h.date, new Date().toISOString())).length;
                 const target = t.targetCount || 1;
                 const unit = t.unitLabel || 'veces';
@@ -1107,12 +1170,14 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                         </>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-        </div>
-      </SectionList>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-

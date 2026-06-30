@@ -57,17 +57,7 @@ export default function AreasView({ config, tasks, history, intentions = [], onU
   }
 
   return (
-    <div className="animate-in fade-in flex flex-col h-full bg-base">
-      {/* Header Statement */}
-      <div className="p-6 md:p-10 relative">
-         <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
-         <h1 className="text-title mb-2 leading-none flex items-center gap-3">
-            <Shapes className="w-6 h-6 text-text-main" /> Áreas de Vida
-         </h1>
-         <p className="text-sm text-text-dim max-w-2xl leading-relaxed">
-           Los pilares fundamentales de su arquitectura operativa. Estructura modular para la gestión de proyectos y hábitos recurrentes.
-         </p>
-      </div>
+    <div className="animate-in fade-in flex flex-col h-full bg-base pt-4">
 
       <AreasList areas={areas} tasks={tasks} history={history} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
     </div>
@@ -196,7 +186,7 @@ function AreasList({
           </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border-line bg-base">
+          <div className="grid grid-cols-1 md:grid-cols-2 bg-base">
             {areaEntries.map(([key, val], index) => {
             const categories = typeof val === 'string' ? [] : (val.categories || []);
             const areaColor = typeof val === 'string' ? val : (val.color || 'slate');

@@ -4,6 +4,7 @@ import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
+import GanttChart, { GanttScale } from './GanttChart';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
@@ -49,6 +50,12 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
   const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
   const [menuProjUpwards, setMenuProjUpwards] = useState(false);
+
+  // Collapsible states
+  const [isGanttOpen, setIsGanttOpen] = useState(false);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(true);
+  const [isTasksOpen, setIsTasksOpen] = useState(true);
+  const [ganttScaleView, setGanttScaleView] = useState<GanttScale>('ciclo');
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
@@ -556,13 +563,13 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   };
 
   return (
-    <div className="flex flex-col gap-6 pt-10 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full">
+    <div className="flex flex-col gap-6 pt-6 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full">
       
-      <ViewHeader
-        title="Proyectos Operativos"
-        icon={Layers}
-        actions={(
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+      {/* Toolbar instead of ViewHeader */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
+        
+        {/* Left Side: Selectors */}
+        <div className="flex items-center gap-4 sm:gap-6">
           <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
             <select 
               value={filter} 
@@ -591,35 +598,35 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             </select>
             <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
           </div>
-          
-          {!isAdding && !isAddingTask && (
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setIsAdding(true)} 
-                className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
-              >
-                + Nuevo Proyecto
-              </button>
-              <button 
-                onClick={() => {
-                  setIsAddingTask(true);
-                  setNewTaskForm({
-                    text: '',
-                    category: filter !== 'Todas' ? filter : '',
-                    subCategory: '',
-                    fechaPlanificada: new Date().toISOString().substring(0, 10),
-                    duracion: 0
-                  });
-                }} 
-                className="text-text-main text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 hover:underline cursor-pointer bg-transparent border-0 outline-none"
-              >
-                + Nueva Tarea Simple
-              </button>
-            </div>
-          )}
+        </div>
+        
+        {/* Right Side: Actions */}
+        {!isAdding && !isAddingTask && (
+          <div className="flex flex-wrap items-center justify-end gap-4 font-sans text-[10px] uppercase tracking-widest font-bold">
+            <button 
+              onClick={() => setIsAdding(true)} 
+              className="text-text-main hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors"
+            >
+              + Nuevo Proyecto
+            </button>
+            <button 
+              onClick={() => {
+                setIsAddingTask(true);
+                setNewTaskForm({
+                  text: '',
+                  category: filter !== 'Todas' ? filter : '',
+                  subCategory: '',
+                  fechaPlanificada: new Date().toISOString().substring(0, 10),
+                  duracion: 0
+                });
+              }} 
+              className="text-text-main hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors"
+            >
+              + Nueva Tarea Simple
+            </button>
           </div>
         )}
-      />
+      </div>
 
       {isAddingTask && (
         <form 
@@ -733,53 +740,102 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </form>
       )}
 
+      {/* Gantt Chart Section */}
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsGanttOpen(!isGanttOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isGanttOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Línea de Tiempo (Gantt)
+            </span>
+          </div>
+        </div>
+
+        {isGanttOpen && (
+          <div className="mt-4 animate-in fade-in duration-200">
+            <GanttChart 
+              config={config}
+              tasks={tasks}
+              onUpdateTask={onUpdateTask}
+              scale={ganttScaleView === 'ciclo' ? 'cycle' : ganttScaleView === 'cuarto' ? 'quarter' : 'year'}
+              periodStart={new Date().toISOString().substring(0, 10)}
+              periodEnd={(() => {
+                const end = new Date();
+                if (ganttScaleView === 'ciclo') end.setDate(end.getDate() + 28);
+                else if (ganttScaleView === 'cuarto') end.setDate(end.getDate() + 90);
+                else end.setDate(end.getDate() + 365);
+                return end.toISOString().substring(0, 10);
+              })()}
+            />
+          </div>
+        )}
+      </div>
+
       {/* Activos list */}
-      <SectionList title="Activos" className="mb-6" empty={!activeProjs.length} emptyMessage="No hay proyectos activos.">
-        {renderProjBlock(activeProjs)}
-      </SectionList>
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsProjectsOpen(!isProjectsOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isProjectsOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Proyectos Activos ({activeProjs.length})
+            </span>
+          </div>
+        </div>
+
+        {isProjectsOpen && (
+          <div className="mt-4 animate-in fade-in duration-200">
+            {activeProjs.length === 0 ? (
+              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+                No hay proyectos activos.
+              </div>
+            ) : (
+              renderProjBlock(activeProjs)
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Tareas Simples list */}
-      <SectionList title="Tareas Simples" className="mb-6" empty={!activeStandaloneTasks.length} emptyMessage="No hay tareas simples activas.">
-        {activeStandaloneTasks.map(t => (
-          <TaskItem
-            key={t.id}
-            task={t}
-            config={config}
-            allTasks={tasks}
-            history={history}
-            onToggle={onToggleTask}
-            onDelete={() => onDeleteTask(t.id)}
-            onUpdate={onUpdateTask}
-            onAddTask={onAddTask}
-            onDeleteTask={onDeleteTask}
-            activeTimer={activeTimer}
-            onStartTimer={onStartTimer}
-            showMoveArrows={sortBy === 'manual'}
-          />
-        ))}
-      </SectionList>
+      <div className="mb-6">
+        <div 
+          onClick={() => setIsTasksOpen(!isTasksOpen)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
+        >
+          <div className="flex items-center gap-2">
+            {isTasksOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Tareas Simples ({activeStandaloneTasks.length})
+            </span>
+          </div>
+        </div>
 
-      {/* Completados list */}
-      <div className="border-t border-border-line pt-6">
-        <button onClick={() => setShowCompleted(!showCompleted)} className="flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-primary uppercase mb-4 hover:text-text-main transition-colors focus:outline-none w-full text-left bg-transparent border-0 cursor-pointer">
-          <span className={cn("transition-transform duration-200 inline-block", !showCompleted && "-rotate-90")}>
-            <ChevronDown className="w-4 h-4" />
-          </span>
-          Completados
-        </button>
-        {showCompleted && (
-          <div className="flex flex-col gap-6">
-            <SectionList
-              title="Proyectos Completados"
-              headingLevel={4}
-              empty={!compProjs.length}
-              emptyMessage="No hay proyectos completados."
-            >
-              {renderProjBlock(compProjs)}
-            </SectionList>
-            {completedStandaloneTasks.length > 0 && (
-              <SectionList title="Tareas Simples Completadas" headingLevel={4}>
-                {completedStandaloneTasks.map(t => (
+        {isTasksOpen && (
+          <div className="mt-4 animate-in fade-in duration-200">
+            {activeStandaloneTasks.length === 0 ? (
+              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+                No hay tareas simples activas.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {activeStandaloneTasks.map(t => (
                   <TaskItem
                     key={t.id}
                     task={t}
@@ -796,7 +852,66 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                     showMoveArrows={sortBy === 'manual'}
                   />
                 ))}
-              </SectionList>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Completados list */}
+      <div className="mt-10 border-t border-border-line/40 pt-4">
+        <div 
+          onClick={() => setShowCompleted(!showCompleted)}
+          className="flex justify-between items-center pb-2 cursor-pointer select-none group"
+        >
+          <div className="flex items-center gap-2">
+            {showCompleted ? (
+              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+            )}
+            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+              Completados
+            </span>
+          </div>
+        </div>
+
+        {showCompleted && (
+          <div className="mt-4 animate-in fade-in duration-200 flex flex-col gap-6">
+            {compProjs.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-sans uppercase tracking-widest text-text-dim mb-4">Proyectos</h4>
+                {renderProjBlock(compProjs)}
+              </div>
+            )}
+            {completedStandaloneTasks.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-sans uppercase tracking-widest text-text-dim mb-4">Tareas Simples</h4>
+                <div className="flex flex-col gap-3">
+                  {completedStandaloneTasks.map(t => (
+                    <TaskItem
+                      key={t.id}
+                      task={t}
+                      config={config}
+                      allTasks={tasks}
+                      history={history}
+                      onToggle={onToggleTask}
+                      onDelete={() => onDeleteTask(t.id)}
+                      onUpdate={onUpdateTask}
+                      onAddTask={onAddTask}
+                      onDeleteTask={onDeleteTask}
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                      showMoveArrows={sortBy === 'manual'}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {compProjs.length === 0 && completedStandaloneTasks.length === 0 && (
+              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+                No hay elementos completados.
+              </div>
             )}
           </div>
         )}
