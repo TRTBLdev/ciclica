@@ -399,18 +399,22 @@ export default function BitacoraView({
 
         {/* Sub-Header: Scale Selector & Period Navigator */}
         {(activeTab === 'planificar' || activeTab === 'balance') && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-b border-border-line/40 px-6 md:px-10">
-            <div className="flex bg-base-dim/10 rounded-full border border-border-line overflow-hidden text-xs font-sans uppercase tracking-widest font-light">
+          <div className="flex flex-col items-center gap-4 py-6 border-b border-border-line/20 px-6 md:px-10">
+            {/* Unified Scale Selector as separate pills */}
+            <div className="flex flex-wrap justify-center gap-2">
               {(['phase', 'cycle', 'quarter', 'year', 'free'] as const).map(s => {
                 if (s === 'free' && activeTab === 'planificar') return null;
                 const labels: Record<string, string> = { phase: 'Fase', cycle: 'Ciclo', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
+                const isActive = activeScale === s;
                 return (
                   <button
                     key={s}
                     onClick={() => setActiveScale(s)}
                     className={cn(
-                      "px-4 py-1.5 transition-colors cursor-pointer border-r border-border-line last:border-0",
-                      activeScale === s ? "bg-text-main text-[var(--base-bg)] font-light" : "hover:bg-base-dim/20 text-text-dim hover:text-text-main"
+                      "px-4 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all border cursor-pointer",
+                      isActive
+                        ? "bg-text-main text-[var(--base-bg)] border-text-main font-light"
+                        : "bg-base border-border-line text-text-dim hover:text-text-main"
                     )}
                   >
                     {labels[s]}
@@ -419,16 +423,18 @@ export default function BitacoraView({
               })}
             </div>
 
+            {/* Centered Date Selector styled like the period label indicator */}
             {activeScale !== 'free' && (
-              <div className="flex items-center gap-3 bg-base-dim/10 px-3 py-1.5 rounded-full border border-border-line text-xs font-sans uppercase tracking-widest font-light text-text-main">
+              <div className="flex items-center justify-center gap-4 w-full max-w-lg">
                 <button 
                   onClick={handlePrevPeriod} 
                   disabled={activeTab === 'planificar' && isPrevPeriodInPast()}
-                  className="p-1 hover:bg-base-dim/50 rounded-full cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-2 hover:text-text-main text-text-dim transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border-0 bg-transparent"
                 >
                   ◀
                 </button>
-                <div className="w-56 text-center text-[10px] relative group overflow-hidden" title="Haz click para seleccionar una fecha específica">
+                
+                <div className="flex-1 text-center font-sans text-xs uppercase tracking-widest text-text-main font-light relative group py-2.5 border-y border-border-line/30" title="Haz click para seleccionar una fecha específica">
                   {currentPeriod.label}
                   <input
                     type="date"
@@ -451,13 +457,13 @@ export default function BitacoraView({
                     }}
                   />
                 </div>
-                <button onClick={handleNextPeriod} className="p-1 hover:bg-base-dim/50 rounded-full cursor-pointer">▶</button>
-                <button onClick={() => setCursorDate(new Date())} className="ml-2 border-l border-border-line pl-3 py-0.5 hover:underline cursor-pointer">Hoy</button>
+                
+                <button onClick={handleNextPeriod} className="p-2 hover:text-text-main text-text-dim transition-colors cursor-pointer border-0 bg-transparent">▶</button>
+                <button onClick={() => setCursorDate(new Date())} className="text-[10px] font-sans uppercase tracking-widest text-text-dim hover:text-text-main transition-colors cursor-pointer border-0 bg-transparent pl-2">Hoy</button>
               </div>
             )}
           </div>
         )}
-      </div>
 
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">

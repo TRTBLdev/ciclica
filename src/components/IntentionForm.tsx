@@ -255,31 +255,35 @@ export default function IntentionForm({
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Scale Buttons */}
-          <div className="flex justify-center gap-2">
-            {(['phase', 'cycle', 'quarter', 'year'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => !controlledScale && setInternalScale(s)}
-                disabled={!!controlledScale}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all border",
-                  scale === s
-                    ? "bg-text-main text-[var(--base-bg)] border-text-main font-light"
-                    : "bg-base border-border-line text-text-dim hover:text-text-main",
-                  !!controlledScale && scale !== s && "opacity-50 cursor-not-allowed",
-                  !controlledScale && "cursor-pointer"
-                )}
-              >
-                {s === 'phase' ? 'Fase' : s === 'cycle' ? 'Ciclo' : s === 'quarter' ? 'Cuarto' : 'Año'}
-              </button>
-            ))}
-          </div>
+          {/* Scale Buttons - Only show if not inline */}
+          {!isInline && (
+            <div className="flex justify-center gap-2">
+              {(['phase', 'cycle', 'quarter', 'year'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => !controlledScale && setInternalScale(s)}
+                  disabled={!!controlledScale}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all border",
+                    scale === s
+                      ? "bg-text-main text-[var(--base-bg)] border-text-main font-light"
+                      : "bg-base border-border-line text-text-dim hover:text-text-main",
+                    !!controlledScale && scale !== s && "opacity-50 cursor-not-allowed",
+                    !controlledScale && "cursor-pointer"
+                  )}
+                >
+                  {s === 'phase' ? 'Fase' : s === 'cycle' ? 'Ciclo' : s === 'quarter' ? 'Cuarto' : 'Año'}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Period Label Indicator */}
-          <div className="bg-base-dim/30 border-y border-border-line/60 py-3 text-center font-sans text-xs uppercase tracking-widest text-text-main font-light">
-            {periodLabel}
-          </div>
+          {/* Period Label Indicator - Only show if not inline */}
+          {!isInline && (
+            <div className="bg-base-dim/30 border-y border-border-line/60 py-3 text-center font-sans text-xs uppercase tracking-widest text-text-main font-light">
+              {periodLabel}
+            </div>
+          )}
 
           {/* Theme text area */}
           <div className="flex flex-col gap-2">
@@ -338,79 +342,60 @@ export default function IntentionForm({
                             key={item.id} 
                             className="flex flex-col gap-2 py-4 border-b border-border-line/10 last:border-b-0 relative group"
                           >
-                            <div className="grid grid-cols-1 sm:grid-cols-[110px_110px_1fr_auto_auto] gap-4 w-full items-center">
-                              {/* Type dropdown */}
-                              <div className="relative flex items-center">
-                                <select
-                                  value={item.targetType}
-                                  onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
-                                  disabled={isPastPeriod}
-                                  className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                >
-                                  <option value="hours">Horas</option>
-                                  <option value="consistency">Consistencia</option>
-                                  <option value="completion">Completación</option>
-                                </select>
-                                <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                              </div>
+                            <div className="grid grid-cols-1 md:grid-cols-[110px_110px_1fr_auto_auto] gap-3 md:gap-4 w-full items-center">
+                              {/* Selectors Wrapper: inline grid/flex on mobile, display contents on desktop */}
+                              <div className="flex flex-wrap sm:grid sm:grid-cols-[110px_110px_1fr] md:contents gap-2 items-center w-full">
+                                {/* Type dropdown */}
+                                <div className="relative flex items-center w-[110px] sm:w-auto">
+                                  <select
+                                    value={item.targetType}
+                                    onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
+                                    disabled={isPastPeriod}
+                                    className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                  >
+                                    <option value="hours">Horas</option>
+                                    <option value="consistency">Consistencia</option>
+                                    <option value="completion">Completación</option>
+                                  </select>
+                                  <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                </div>
 
-                              {/* Bind level selector */}
-                              <div className="relative flex items-center">
-                                <select
-                                  value={bindLevel}
-                                  onChange={(e) => {
-                                    const lvl = e.target.value;
-                                    if (lvl === 'area') {
-                                      handleUpdateItem(item.id, { areaName: areaNames[0] || '', subCategory: undefined, projectId: undefined, taskId: undefined });
-                                    } else if (lvl === 'subCategory') {
-                                      const firstArea = areaNames[0] || '';
-                                      const cats = getAreaCategories(firstArea);
-                                      handleUpdateItem(item.id, { areaName: firstArea, subCategory: cats[0] || '', projectId: undefined, taskId: undefined });
-                                    } else if (lvl === 'project') {
-                                      handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: projects[0]?.id || '', taskId: undefined });
-                                    } else {
-                                      handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: undefined, taskId: taskOptions[0]?.id || '' });
-                                    }
-                                  }}
-                                  disabled={isPastPeriod}
-                                  className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                >
-                                  <option value="area">Área</option>
-                                  <option value="subCategory">Categoría</option>
-                                  <option value="project">Proyecto</option>
-                                  <option value="task">Tarea/Hábito</option>
-                                </select>
-                                <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                              </div>
+                                {/* Bind level selector */}
+                                <div className="relative flex items-center w-[110px] sm:w-auto">
+                                  <select
+                                    value={bindLevel}
+                                    onChange={(e) => {
+                                      const lvl = e.target.value;
+                                      if (lvl === 'area') {
+                                        handleUpdateItem(item.id, { areaName: areaNames[0] || '', subCategory: undefined, projectId: undefined, taskId: undefined });
+                                      } else if (lvl === 'subCategory') {
+                                        const firstArea = areaNames[0] || '';
+                                        const cats = getAreaCategories(firstArea);
+                                        handleUpdateItem(item.id, { areaName: firstArea, subCategory: cats[0] || '', projectId: undefined, taskId: undefined });
+                                      } else if (lvl === 'project') {
+                                        handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: projects[0]?.id || '', taskId: undefined });
+                                      } else {
+                                        handleUpdateItem(item.id, { areaName: undefined, subCategory: undefined, projectId: undefined, taskId: taskOptions[0]?.id || '' });
+                                      }
+                                    }}
+                                    disabled={isPastPeriod}
+                                    className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                  >
+                                    <option value="area">Área</option>
+                                    <option value="subCategory">Categoría</option>
+                                    <option value="project">Proyecto</option>
+                                    <option value="task">Tarea/Hábito</option>
+                                  </select>
+                                  <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                </div>
 
-                              {/* Target selection values */}
-                              <div className="flex items-center gap-2">
-                                {bindLevel === 'area' && (
-                                  <div className="relative flex-1 flex items-center">
-                                    <select
-                                      value={item.areaName || ''}
-                                      onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
-                                      disabled={isPastPeriod}
-                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                    >
-                                      {areaNames.map(name => (
-                                        <option key={name} value={name}>{name}</option>
-                                      ))}
-                                    </select>
-                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
-                                  </div>
-                                )}
-
-                                {bindLevel === 'subCategory' && (
-                                  <>
+                                {/* Target selection values */}
+                                <div className="flex items-center gap-2 flex-grow flex-1 min-w-[150px] sm:w-auto">
+                                  {bindLevel === 'area' && (
                                     <div className="relative flex-1 flex items-center">
                                       <select
                                         value={item.areaName || ''}
-                                        onChange={(e) => {
-                                          const area = e.target.value;
-                                          const cats = getAreaCategories(area);
-                                          handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
-                                        }}
+                                        onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
                                         disabled={isPastPeriod}
                                         className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                       >
@@ -420,118 +405,143 @@ export default function IntentionForm({
                                       </select>
                                       <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                                     </div>
-                                    <div className="relative flex-1 flex items-center">
-                                      <select
-                                        value={item.subCategory || ''}
-                                        onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
+                                  )}
+
+                                  {bindLevel === 'subCategory' && (
+                                    <>
+                                      <div className="relative flex-1 flex items-center">
+                                        <select
+                                          value={item.areaName || ''}
+                                          onChange={(e) => {
+                                            const area = e.target.value;
+                                            const cats = getAreaCategories(area);
+                                            handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
+                                          }}
+                                          disabled={isPastPeriod}
+                                          className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                        >
+                                          {areaNames.map(name => (
+                                            <option key={name} value={name}>{name}</option>
+                                          ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                      </div>
+                                      <div className="relative flex-1 flex items-center">
+                                        <select
+                                          value={item.subCategory || ''}
+                                          onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
+                                          disabled={isPastPeriod}
+                                          className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
+                                        >
+                                          {getAreaCategories(item.areaName || '').map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                          ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {bindLevel === 'project' && (
+                                    <div className="relative flex-1 flex items-center w-full min-w-[150px]">
+                                      <Combobox
+                                        value={item.projectId || ''}
+                                        onChange={(val) => handleUpdateItem(item.id, { projectId: val })}
                                         disabled={isPastPeriod}
-                                        className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                      >
-                                        {getAreaCategories(item.areaName || '').map(cat => (
-                                          <option key={cat} value={cat}>{cat}</option>
-                                        ))}
-                                      </select>
-                                      <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                        placeholder={projects.length === 0 ? "No hay proyectos" : "Seleccionar proyecto..."}
+                                        options={projects.map(p => ({ value: p.id, label: p.text }))}
+                                      />
                                     </div>
-                                  </>
-                                )}
+                                  )}
 
-                                {bindLevel === 'project' && (
-                                  <div className="relative flex-1 flex items-center w-full min-w-[200px]">
-                                    <Combobox
-                                      value={item.projectId || ''}
-                                      onChange={(val) => handleUpdateItem(item.id, { projectId: val })}
-                                      disabled={isPastPeriod}
-                                      placeholder={projects.length === 0 ? "No hay proyectos" : "Seleccionar proyecto..."}
-                                      options={projects.map(p => ({ value: p.id, label: p.text }))}
-                                    />
-                                  </div>
-                                )}
-
-                                {bindLevel === 'task' && (
-                                  <div className="relative flex-1 flex items-center w-full min-w-[200px]">
-                                    <Combobox
-                                      value={item.taskId || ''}
-                                      onChange={(val) => handleUpdateItem(item.id, { taskId: val })}
-                                      disabled={isPastPeriod}
-                                      placeholder={taskOptions.length === 0 ? "No hay tareas" : "Seleccionar tarea..."}
-                                      options={taskOptions.map(t => ({ value: t.id, label: `[${t.type}] ${t.text}` }))}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Targets input values */}
-                              <div className="flex items-center gap-2 justify-end">
-                                {item.targetType === 'hours' && (
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="number"
-                                      min="0.5"
-                                      step="0.5"
-                                      value={item.targetHours || ''}
-                                      onChange={(e) => handleUpdateItem(item.id, { targetHours: parseFloat(e.target.value) || 0 })}
-                                      disabled={isPastPeriod}
-                                      className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
-                                    />
-                                    <span className="font-mono text-[10px] text-text-dim uppercase">hrs</span>
-                                  </div>
-                                )}
-
-                                {item.targetType === 'consistency' && (
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      step="1"
-                                      value={item.targetDays || ''}
-                                      onChange={(e) => handleUpdateItem(item.id, { targetDays: parseInt(e.target.value, 10) || 0 })}
-                                      disabled={isPastPeriod}
-                                      className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
-                                    />
-                                    <span className="font-mono text-[10px] text-text-dim uppercase">días</span>
-                                  </div>
-                                )}
-
-                                {item.targetType === 'completion' && (
-                                  <span className="font-mono text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-none border border-primary/25 font-light uppercase">
-                                    Hito
-                                  </span>
-                                )}
-
-                                {/* Progress details shown inline (Fase 4 implementation prep / useful info) */}
-                                {isEditing && (
-                                  <div className="text-[10px] font-mono text-text-dim ml-1">
-                                    {(() => {
-                                      const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
-                                      if (progress.type === 'hours' && progress.hours) {
-                                        return `(${progress.hours.current}/${progress.hours.target}h)`;
-                                      }
-                                      if (progress.type === 'consistency' && progress.consistency) {
-                                        return `(${progress.consistency.current}/${progress.consistency.target}d)`;
-                                      }
-                                      if (progress.type === 'completion' && progress.completion) {
-                                        return progress.completion.completed ? '✓' : '✗';
-                                      }
-                                      return '';
-                                    })()}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Trash button */}
-                              {!isPastPeriod ? (
-                                <div className="flex items-center justify-end w-8">
-                                  <button
-                                    onClick={() => handleRemoveItem(item.id)}
-                                    className="p-2 -m-2 text-text-dim hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {bindLevel === 'task' && (
+                                    <div className="relative flex-1 flex items-center w-full min-w-[150px]">
+                                      <Combobox
+                                        value={item.taskId || ''}
+                                        onChange={(val) => handleUpdateItem(item.id, { taskId: val })}
+                                        disabled={isPastPeriod}
+                                        placeholder={taskOptions.length === 0 ? "No hay tareas" : "Seleccionar tarea..."}
+                                        options={taskOptions.map(t => ({ value: t.id, label: `[${t.type}] ${t.text}` }))}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="w-8" />
-                              )}
+                              </div>
+
+                              {/* Target Values & Actions Wrapper: flex on mobile, display contents on desktop */}
+                              <div className="flex items-center justify-between md:contents w-full gap-2">
+                                {/* Targets input values */}
+                                <div className="flex items-center gap-2 md:justify-end">
+                                  {item.targetType === 'hours' && (
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min="0.5"
+                                        step="0.5"
+                                        value={item.targetHours || ''}
+                                        onChange={(e) => handleUpdateItem(item.id, { targetHours: parseFloat(e.target.value) || 0 })}
+                                        disabled={isPastPeriod}
+                                        className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
+                                      />
+                                      <span className="font-mono text-[10px] text-text-dim uppercase">hrs</span>
+                                    </div>
+                                  )}
+
+                                  {item.targetType === 'consistency' && (
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        value={item.targetDays || ''}
+                                        onChange={(e) => handleUpdateItem(item.id, { targetDays: parseInt(e.target.value, 10) || 0 })}
+                                        disabled={isPastPeriod}
+                                        className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
+                                      />
+                                      <span className="font-mono text-[10px] text-text-dim uppercase">días</span>
+                                    </div>
+                                  )}
+
+                                  {item.targetType === 'completion' && (
+                                    <span className="font-mono text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-none border border-primary/25 font-light uppercase animate-none">
+                                      Hito
+                                    </span>
+                                  )}
+
+                                  {/* Progress details shown inline */}
+                                  {isEditing && (
+                                    <div className="text-[10px] font-mono text-text-dim ml-1">
+                                      {(() => {
+                                        const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
+                                        if (progress.type === 'hours' && progress.hours) {
+                                          return `(${progress.hours.current}/${progress.hours.target}h)`;
+                                        }
+                                        if (progress.type === 'consistency' && progress.consistency) {
+                                          return `(${progress.consistency.current}/${progress.consistency.target}d)`;
+                                        }
+                                        if (progress.type === 'completion' && progress.completion) {
+                                          return progress.completion.completed ? '✓' : '✗';
+                                        }
+                                        return '';
+                                      })()}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Trash button */}
+                                {!isPastPeriod ? (
+                                  <div className="flex items-center justify-end w-8 md:w-auto">
+                                    <button
+                                      onClick={() => handleRemoveItem(item.id)}
+                                      className="p-2 -m-2 text-text-dim hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="w-8 md:w-auto" />
+                                )}
+                              </div>
                             </div>
 
                             {/* Upper scale linking dropdown */}
