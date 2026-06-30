@@ -44,7 +44,7 @@ export default function Combobox({ value, onChange, options, placeholder = "Sele
           setIsOpen(!isOpen);
           if (!isOpen) setSearch("");
         }}
-        className="w-full flex items-center justify-between bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none focus:border-[#a2b29f] cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed text-left"
+        className="w-full flex items-center justify-between bg-transparent text-text-main text-xs font-mono border-b border-border-line px-0 py-1.5 focus:outline-none focus:border-primary cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed text-left transition-colors"
       >
         <span className="truncate pr-2">{selectedOption ? selectedOption.label : placeholder}</span>
         <ChevronDown className="w-3 h-3 text-text-dim flex-shrink-0" />

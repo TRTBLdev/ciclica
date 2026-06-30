@@ -105,13 +105,18 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
       {/* Header Statement */}
       <div className="p-6 md:p-10 relative">
         <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
-        <h1 className="text-title mb-2 leading-none flex items-center gap-3">
-          <Compass className="w-6 h-6 text-text-main" /> Sintonía Biológica
-        </h1>
-        <p className="text-sm text-text-dim max-w-2xl leading-relaxed">
-          Sincronice su agenda y su nivel de energía ejecutiva en base a sus ciclos biológicos y ritmos naturales.
-        </p>
-        <div className="flex gap-6 mt-6 font-mono text-xs uppercase tracking-widest font-bold border-t border-border-line/10 pt-4">
+        
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-2 mb-6">
+          <h1 className="text-title leading-none flex items-center gap-3 shrink-0">
+            <Compass className="w-6 h-6 text-text-main" /> Sintonía Biológica
+          </h1>
+          <p className="text-sm text-text-dim md:text-right leading-relaxed max-w-xl">
+            Sincronice su agenda y su nivel de energía ejecutiva en base a sus ciclos biológicos y ritmos naturales.
+          </p>
+        </div>
+
+        {/* Top Tabs */}
+        <div className="flex flex-wrap gap-6 font-sans text-xs uppercase tracking-widest font-light bg-transparent">
           {[
             { id: 'sincronizacion', label: 'Sincronización', icon: <Compass className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             ...(config?.cycleConfig?.menstruates !== false
@@ -125,9 +130,9 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
                 key={t.id}
                 onClick={() => setActiveTab(t.id as any)}
                 className={cn(
-                  "flex items-center gap-1.5 hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
+                  "flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
                   isActive 
-                    ? "text-primary font-black border-b-2 border-primary" 
+                    ? "text-primary border-b border-primary" 
                     : "text-text-dim hover:text-text-main"
                 )}
               >

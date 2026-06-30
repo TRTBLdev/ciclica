@@ -61,42 +61,42 @@ export default function EstrategiaView({
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base text-left">
       {/* Upper Navigation Tabs Bar */}
-      <div className="p-6 md:p-10 pb-0 relative">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-line pb-4 gap-4">
-          <div className="text-left">
-            <h1 className="text-title mb-1 leading-none flex items-center gap-3">
-              <Layers className="w-6 h-6 text-text-main" /> Estrategia y Plan
-            </h1>
-            <p className="text-xs text-text-dim max-w-2xl leading-relaxed">
-              Diseñe sus pilares vitales, desglose metas en proyectos concretos y estructure rutinas soberanas de soporte.
-            </p>
-          </div>
+      <div className="p-6 md:p-10 relative">
+        <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
+        
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-2 mb-6">
+          <h1 className="text-title leading-none flex items-center gap-3 shrink-0">
+            <Layers className="w-6 h-6 text-text-main" /> Estrategia y Plan
+          </h1>
+          <p className="text-sm text-text-dim md:text-right leading-relaxed max-w-xl">
+            Diseñe sus pilares vitales, desglose metas en proyectos concretos y estructure rutinas soberanas de soporte.
+          </p>
+        </div>
 
-          {/* Quick-Access Top Monospace Tab Selector */}
-          <div className="flex gap-4 font-mono text-xs uppercase tracking-wider font-bold bg-transparent">
-            {[
-              { id: 'areas', label: 'Áreas', icon: <Shapes className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'proyectos', label: 'Proyectos', icon: <Layers className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'rutinas', label: 'Rutinas', icon: <Repeat className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
-            ].map(t => {
-              const isActive = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={cn(
-                    "flex items-center gap-1.5 hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
-                    isActive 
-                      ? "text-primary font-black border-b-2 border-primary" 
-                      : "text-text-dim hover:text-text-main"
-                  )}
-                >
-                  {t.icon}
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Top Tabs */}
+        <div className="flex flex-wrap gap-6 font-sans text-xs uppercase tracking-widest font-light bg-transparent">
+          {[
+            { id: 'areas', label: 'Áreas', icon: <Shapes className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'proyectos', label: 'Proyectos', icon: <Layers className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'rutinas', label: 'Rutinas', icon: <Repeat className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
+          ].map(t => {
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id as any)}
+                className={cn(
+                  "flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
+                  isActive 
+                    ? "text-primary border-b border-primary" 
+                    : "text-text-dim hover:text-text-main"
+                )}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

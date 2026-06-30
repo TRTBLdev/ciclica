@@ -353,53 +353,54 @@ export default function BitacoraView({
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base text-left">
       {/* Upper Navigation Tabs Bar */}
-      <div className="p-6 md:p-10 pb-0 relative">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-line pb-4 gap-4">
-          <div className="text-left">
-            <h1 className="text-title mb-1 leading-none flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-text-main" /> Bitácora
-            </h1>
-            <p className="text-xs text-text-dim max-w-2xl leading-relaxed">
-              Planifica tus intenciones, evalúa tu balance y consulta tu historial de ciclos, hábitos y tareas.
-            </p>
-          </div>
-
-          {/* Quick-Access Top Monospace Tab Selector */}
-          <div className="flex flex-wrap gap-4 font-mono text-xs uppercase tracking-wider font-bold bg-transparent">
-            {[
-              { id: 'planificar', label: 'Planificar', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-              { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
-            ].map(t => {
-              const isActive = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    setActiveTab(t.id as any);
-                    if (t.id === 'planificar' && activeScale === 'free') {
-                      setActiveScale('phase');
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 hover:underline cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
-                    isActive 
-                      ? "text-primary font-black border-b-2 border-primary" 
-                      : "text-text-dim hover:text-text-main"
-                  )}
-                >
-                  {t.icon}
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+      <div className="p-6 md:p-10 relative">
+        <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
+        
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-2 mb-6">
+          <h1 className="text-title leading-none flex items-center gap-3 shrink-0">
+            <BookOpen className="w-6 h-6 text-text-main" /> Bitácora
+          </h1>
+          <p className="text-sm text-text-dim md:text-right leading-relaxed max-w-xl">
+            Planifica tus intenciones, evalúa tu balance y consulta tu historial de ciclos, hábitos y tareas.
+          </p>
         </div>
+
+        {/* Top Tabs */}
+        <div className="flex flex-wrap gap-6 font-sans text-xs uppercase tracking-widest font-light bg-transparent">
+          {[
+            { id: 'planificar', label: 'Planificar', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
+          ].map(t => {
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setActiveTab(t.id as any);
+                  if (t.id === 'planificar' && activeScale === 'free') {
+                    setActiveScale('phase');
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
+                  isActive 
+                    ? "text-primary border-b border-primary" 
+                    : "text-text-dim hover:text-text-main"
+                )}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
         {/* Sub-Header: Scale Selector & Period Navigator */}
         {(activeTab === 'planificar' || activeTab === 'balance') && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-b border-border-line/40">
-            <div className="flex bg-base-dim/10 rounded-full border border-border-line overflow-hidden text-xs font-mono uppercase tracking-wider">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-b border-border-line/40 px-6 md:px-10">
+            <div className="flex bg-base-dim/10 rounded-full border border-border-line overflow-hidden text-xs font-sans uppercase tracking-widest font-light">
               {(['phase', 'cycle', 'quarter', 'year', 'free'] as const).map(s => {
                 if (s === 'free' && activeTab === 'planificar') return null;
                 const labels: Record<string, string> = { phase: 'Fase', cycle: 'Ciclo', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
@@ -409,7 +410,7 @@ export default function BitacoraView({
                     onClick={() => setActiveScale(s)}
                     className={cn(
                       "px-4 py-1.5 transition-colors cursor-pointer border-r border-border-line last:border-0",
-                      activeScale === s ? "bg-text-main text-[var(--base-bg)] font-bold" : "hover:bg-base-dim/20 text-text-dim hover:text-text-main"
+                      activeScale === s ? "bg-text-main text-[var(--base-bg)] font-light" : "hover:bg-base-dim/20 text-text-dim hover:text-text-main"
                     )}
                   >
                     {labels[s]}
@@ -419,7 +420,7 @@ export default function BitacoraView({
             </div>
 
             {activeScale !== 'free' && (
-              <div className="flex items-center gap-3 bg-base-dim/10 px-3 py-1.5 rounded-full border border-border-line text-xs font-mono uppercase tracking-widest text-text-main">
+              <div className="flex items-center gap-3 bg-base-dim/10 px-3 py-1.5 rounded-full border border-border-line text-xs font-sans uppercase tracking-widest font-light text-text-main">
                 <button 
                   onClick={handlePrevPeriod} 
                   disabled={activeTab === 'planificar' && isPrevPeriodInPast()}
@@ -427,7 +428,7 @@ export default function BitacoraView({
                 >
                   ◀
                 </button>
-                <div className="w-56 text-center font-bold text-[10px] relative group overflow-hidden" title="Haz click para seleccionar una fecha específica">
+                <div className="w-56 text-center text-[10px] relative group overflow-hidden" title="Haz click para seleccionar una fecha específica">
                   {currentPeriod.label}
                   <input
                     type="date"

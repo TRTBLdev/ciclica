@@ -244,7 +244,7 @@ export default function IntentionForm({
     <div className={cn("bg-base w-full flex flex-col text-text-main", isInline ? "" : "border border-border-line max-w-2xl max-h-[85vh] shadow-xl rounded-none")}>
       {/* Header */}
       <div className={cn("flex justify-between items-center px-6 py-4 border-b border-border-line bg-base-dim/10", isInline && "hidden")}>
-        <span className="font-mono text-xs uppercase tracking-wider text-text-dim font-bold">Definir Intenciones</span>
+        <span className="font-sans text-xs uppercase tracking-widest text-text-dim font-light">Definir Intenciones</span>
           <button 
             onClick={onClose} 
             className="p-1 hover:bg-base-dim rounded-full transition-colors cursor-pointer text-text-dim"
@@ -263,9 +263,9 @@ export default function IntentionForm({
                 onClick={() => !controlledScale && setInternalScale(s)}
                 disabled={!!controlledScale}
                 className={cn(
-                  "px-4 py-1.5 text-xs font-mono uppercase tracking-wider rounded-full transition-all border",
+                  "px-4 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all border",
                   scale === s
-                    ? "bg-text-main text-[var(--base-bg)] border-text-main font-bold"
+                    ? "bg-text-main text-[var(--base-bg)] border-text-main font-light"
                     : "bg-base border-border-line text-text-dim hover:text-text-main",
                   !!controlledScale && scale !== s && "opacity-50 cursor-not-allowed",
                   !controlledScale && "cursor-pointer"
@@ -277,13 +277,13 @@ export default function IntentionForm({
           </div>
 
           {/* Period Label Indicator */}
-          <div className="bg-base-dim/30 border-y border-border-line/60 py-3 text-center font-mono text-xs uppercase tracking-wider text-text-main font-bold">
+          <div className="bg-base-dim/30 border-y border-border-line/60 py-3 text-center font-sans text-xs uppercase tracking-widest text-text-main font-light">
             {periodLabel}
           </div>
 
           {/* Theme text area */}
           <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] uppercase tracking-wider text-text-dim font-bold">
+            <label className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light">
               Norte Narrativo / Tema del Período
             </label>
             <textarea
@@ -291,7 +291,7 @@ export default function IntentionForm({
               onChange={(e) => setTheme(e.target.value)}
               placeholder={isPastPeriod ? "Sin tema para este período." : "¿Cuál es tu foco principal para este período?"}
               disabled={isPastPeriod}
-              className="w-full min-h-[70px] p-3 text-xs bg-base text-text-main border border-border-line focus:outline-none focus:border-[#a2b29f] resize-y font-sans font-light rounded-none disabled:bg-base-dim/20 disabled:text-text-dim"
+              className="w-full min-h-[70px] px-0 py-2 text-xs bg-transparent text-text-main border-b border-border-line/40 focus:outline-none focus:border-primary resize-y font-sans font-light rounded-none disabled:bg-base-dim/20 disabled:text-text-dim transition-colors"
             />
           </div>
 
@@ -299,13 +299,13 @@ export default function IntentionForm({
           {(scale === 'phase' || scale === 'cycle') ? (
             <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-border-line/60 pb-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim font-bold">
+              <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light">
                 Compromisos ({items.length})
               </span>
               {!isPastPeriod && (
                 <button
                   onClick={handleAddItem}
-                  className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-primary font-bold hover:underline cursor-pointer border-0 bg-transparent"
+                  className="flex items-center gap-1.5 text-[10px] font-sans uppercase tracking-widest text-primary font-light hover:text-text-main transition-colors cursor-pointer border-0 bg-transparent p-2 -m-2"
                 >
                   <Plus className="w-3.5 h-3.5" /> Agregar
                 </button>
@@ -313,7 +313,7 @@ export default function IntentionForm({
             </div>
 
             {items.length === 0 ? (
-              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-mono">
+              <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans">
                 Ningún compromiso definido. Haz click en Agregar para comenzar.
               </div>
             ) : (
@@ -321,7 +321,7 @@ export default function IntentionForm({
                 {Object.keys(itemsByArea).map(area => (
                   <div key={area} className="space-y-3">
                     {/* Area separator header */}
-                    <div className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold border-b border-border-line/30 pb-1">
+                    <div className="text-[10px] font-sans uppercase tracking-widest text-primary font-light border-b border-border-line/30 pb-1">
                       {area === 'General' ? 'Otros / General' : area}
                     </div>
 
@@ -336,26 +336,26 @@ export default function IntentionForm({
                         return (
                           <div 
                             key={item.id} 
-                            className="flex flex-col gap-2.5 p-3 bg-base-dim/10 border border-border-line/40 rounded-none relative group"
+                            className="flex flex-col gap-2 py-4 border-b border-border-line/10 last:border-b-0 relative group"
                           >
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+                            <div className="grid grid-cols-1 sm:grid-cols-[110px_110px_1fr_auto_auto] gap-4 w-full items-center">
                               {/* Type dropdown */}
-                              <div className="relative flex items-center min-w-[110px]">
+                              <div className="relative flex items-center">
                                 <select
                                   value={item.targetType}
                                   onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
                                   disabled={isPastPeriod}
-                                  className="appearance-none w-full bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6 disabled:opacity-70"
+                                  className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                 >
                                   <option value="hours">Horas</option>
                                   <option value="consistency">Consistencia</option>
                                   <option value="completion">Completación</option>
                                 </select>
-                                <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+                                <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                               </div>
 
                               {/* Bind level selector */}
-                              <div className="relative flex items-center min-w-[120px]">
+                              <div className="relative flex items-center">
                                 <select
                                   value={bindLevel}
                                   onChange={(e) => {
@@ -373,31 +373,31 @@ export default function IntentionForm({
                                     }
                                   }}
                                   disabled={isPastPeriod}
-                                  className="appearance-none w-full bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6 disabled:opacity-70"
+                                  className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                 >
                                   <option value="area">Área</option>
                                   <option value="subCategory">Categoría</option>
                                   <option value="project">Proyecto</option>
                                   <option value="task">Tarea/Hábito</option>
                                 </select>
-                                <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+                                <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                               </div>
 
                               {/* Target selection values */}
-                              <div className="flex-1 flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                                 {bindLevel === 'area' && (
                                   <div className="relative flex-1 flex items-center">
                                     <select
                                       value={item.areaName || ''}
                                       onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
                                       disabled={isPastPeriod}
-                                      className="appearance-none w-full bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6 disabled:opacity-70"
+                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                     >
                                       {areaNames.map(name => (
                                         <option key={name} value={name}>{name}</option>
                                       ))}
                                     </select>
-                                    <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                                   </div>
                                 )}
 
@@ -412,26 +412,26 @@ export default function IntentionForm({
                                           handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
                                         }}
                                         disabled={isPastPeriod}
-                                        className="appearance-none w-full bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6 disabled:opacity-70"
+                                        className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                       >
                                         {areaNames.map(name => (
                                           <option key={name} value={name}>{name}</option>
                                         ))}
                                       </select>
-                                      <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+                                      <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                                     </div>
                                     <div className="relative flex-1 flex items-center">
                                       <select
                                         value={item.subCategory || ''}
                                         onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
                                         disabled={isPastPeriod}
-                                        className="appearance-none w-full bg-base text-text-main text-xs font-mono border border-border-line px-2 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6 disabled:opacity-70"
+                                        className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
                                       >
                                         {getAreaCategories(item.areaName || '').map(cat => (
                                           <option key={cat} value={cat}>{cat}</option>
                                         ))}
                                       </select>
-                                      <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
+                                      <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
                                     </div>
                                   </>
                                 )}
@@ -462,7 +462,7 @@ export default function IntentionForm({
                               </div>
 
                               {/* Targets input values */}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 justify-end">
                                 {item.targetType === 'hours' && (
                                   <div className="flex items-center gap-1.5">
                                     <input
@@ -472,7 +472,7 @@ export default function IntentionForm({
                                       value={item.targetHours || ''}
                                       onChange={(e) => handleUpdateItem(item.id, { targetHours: parseFloat(e.target.value) || 0 })}
                                       disabled={isPastPeriod}
-                                      className="w-16 px-2 py-1 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] text-center disabled:opacity-70"
+                                      className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
                                     />
                                     <span className="font-mono text-[10px] text-text-dim uppercase">hrs</span>
                                   </div>
@@ -487,14 +487,14 @@ export default function IntentionForm({
                                       value={item.targetDays || ''}
                                       onChange={(e) => handleUpdateItem(item.id, { targetDays: parseInt(e.target.value, 10) || 0 })}
                                       disabled={isPastPeriod}
-                                      className="w-16 px-2 py-1 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] text-center disabled:opacity-70"
+                                      className="w-12 px-0 py-1.5 text-xs bg-transparent text-text-main border-b border-border-line focus:outline-none focus:border-primary text-center disabled:opacity-70 font-mono transition-colors"
                                     />
                                     <span className="font-mono text-[10px] text-text-dim uppercase">días</span>
                                   </div>
                                 )}
 
                                 {item.targetType === 'completion' && (
-                                  <span className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-1 rounded-full border border-primary/20 font-bold uppercase">
+                                  <span className="font-mono text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-none border border-primary/25 font-light uppercase">
                                     Hito
                                   </span>
                                 )}
@@ -517,22 +517,26 @@ export default function IntentionForm({
                                     })()}
                                   </div>
                                 )}
+                              </div>
 
-                                {/* Trash button */}
-                                {!isPastPeriod && (
+                              {/* Trash button */}
+                              {!isPastPeriod ? (
+                                <div className="flex items-center justify-end w-8">
                                   <button
                                     onClick={() => handleRemoveItem(item.id)}
-                                    className="p-1 hover:bg-red-500/10 text-text-dim hover:text-red-500 rounded-full transition-colors cursor-pointer border-0 bg-transparent"
+                                    className="p-2 -m-2 text-text-dim hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
-                                )}
-                              </div>
+                                </div>
+                              ) : (
+                                <div className="w-8" />
+                              )}
                             </div>
 
                             {/* Upper scale linking dropdown */}
                             {parentIntention && (
-                              <div className="flex items-center gap-2 pt-2.5 border-t border-border-line/30 font-mono text-[9px] w-full text-left">
+                              <div className="flex items-center gap-2 pt-2 font-mono text-[9px] w-full text-left">
                                 <span className="text-text-dim uppercase">Vincular a norte superior:</span>
                                 <div className="relative flex items-center">
                                   <select
@@ -557,7 +561,7 @@ export default function IntentionForm({
                                       }
                                     }}
                                     disabled={isPastPeriod}
-                                    className="appearance-none bg-base text-text-main text-[9px] font-mono border border-border-line px-2.5 py-1 rounded focus:outline-none cursor-pointer pr-6 max-w-[250px] truncate"
+                                    className="appearance-none bg-transparent text-text-main text-[9px] font-mono border-b border-border-line px-0 py-0.5 focus:outline-none focus:border-primary cursor-pointer pr-4 max-w-[250px] truncate transition-colors"
                                   >
                                     <option value="">Ninguno</option>
                                     {parentIntention.items.map(parentIt => {
@@ -576,7 +580,7 @@ export default function IntentionForm({
                                       );
                                     })}
                                   </select>
-                                  <ChevronDown className="absolute right-1.5 w-2.5 h-2.5 text-text-dim pointer-events-none" />
+                                  <ChevronDown className="absolute right-0 w-2.5 h-2.5 text-text-dim pointer-events-none" />
                                 </div>
                               </div>
                             )}
@@ -592,7 +596,7 @@ export default function IntentionForm({
           ) : (
             <div className="space-y-4 pt-4 border-t border-border-line/40">
                <div className="flex justify-between items-center pb-2">
-                 <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim font-bold">
+                 <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light">
                    Línea de Tiempo (Gantt)
                  </span>
                </div>
@@ -621,7 +625,7 @@ export default function IntentionForm({
             {!isPastPeriod && isEditing && (
               <button
                 onClick={handleDelete}
-                className="px-4 py-1.5 text-xs font-mono uppercase tracking-wider text-red-500 border border-red-500/30 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer"
+                className="p-2 -ml-2 text-xs font-sans uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors cursor-pointer border-0 bg-transparent"
               >
                 Eliminar
               </button>
