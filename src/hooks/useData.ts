@@ -125,6 +125,29 @@ export function useData(userId: string) {
   };
 
   const deleteTask = async (taskId: string) => {
+    if (!window.confirm("¿Estás seguro de eliminar este elemento? Perderás el vínculo con su historial pasado.")) {
+      return;
+    }
+
+    // Preserve task text in history records before deleting
+    const taskToDelete = tasks.find(t => t.id === taskId);
+    if (taskToDelete) {
+      setHistory(prev => {
+        let changed = false;
+        const next = prev.map(h => {
+          if (h.taskId === taskId && !h.taskSnapshotText) {
+            changed = true;
+            return { ...h, taskSnapshotText: taskToDelete.text, updatedAt: new Date().toISOString() };
+          }
+          return h;
+        });
+        if (changed) {
+          setLocal(getDataKeys(effectiveUserId).history, next);
+        }
+        return changed ? next : prev;
+      });
+    }
+
     setTasks(prev => {
       const next = prev.filter(t => t.id !== taskId);
       setLocal(getDataKeys(effectiveUserId).tasks, next);
@@ -154,7 +177,7 @@ export function useData(userId: string) {
     setHistory(importedHistory);
     setConfig(importedConfig);
     if (importedIntentions) setIntentions(importedIntentions);
-    
+
     setLocal(keys.tasks, importedTasks);
     setLocal(keys.history, importedHistory);
     setLocal(keys.config, importedConfig);
@@ -163,7 +186,7 @@ export function useData(userId: string) {
 
   const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null, importedIntentions?: Intention[]) => {
     const keys = getDataKeys(effectiveUserId);
-    
+
     if (importedTasks && importedTasks.length > 0) {
       setTasks(prev => {
         const next = [...prev];
@@ -230,7 +253,7 @@ export function useData(userId: string) {
 
   const clearPartialData = (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => {
     const keys = getDataKeys(effectiveUserId);
-    
+
     if (type === 'ciclos') {
       setConfig(prev => {
         if (!prev) return prev;
@@ -290,11 +313,11 @@ export function useData(userId: string) {
       ...link,
       childIntentionId: newId
     }));
-    const newIntention = { 
-      id: newId, 
-      ...intentionData, 
+    const newIntention = {
+      id: newId,
+      ...intentionData,
       linkedItems: updatedLinkedItems,
-      userId: effectiveUserId 
+      userId: effectiveUserId
     } as Intention;
     setIntentions(prev => {
       const next = [...prev, newIntention];
@@ -312,6 +335,10 @@ export function useData(userId: string) {
   };
 
   const deleteIntention = async (intentionId: string) => {
+    if (!window.confirm("¿Estás seguro de eliminar este elemento? Perderás el vínculo con su historial pasado.")) {
+      return;
+    }
+    
     setIntentions(prev => {
       const next = prev.filter(i => i.id !== intentionId);
       setLocal(getDataKeys(effectiveUserId).intentions, next);

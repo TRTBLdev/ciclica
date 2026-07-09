@@ -1,22 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { AppTask, Config, HistoryRecord, BiologicalPhase } from '../types';
 import { calculateBiologicalPhase } from '../domain/cycle';
-import { 
-  BarChart3, 
-  Calendar, 
-  Clock, 
-  TrendingUp, 
-  CheckCircle2, 
-  Layers, 
-  Repeat, 
-  Compass, 
-  Copy, 
-  Check, 
-  Activity, 
-  Flame, 
-  Sparkles, 
-  FileText, 
-  ChevronRight, 
+import {
+  BarChart3,
+  Calendar,
+  Clock,
+  TrendingUp,
+  CheckCircle2,
+  Layers,
+  Repeat,
+  Compass,
+  Copy,
+  Check,
+  Activity,
+  Flame,
+  Sparkles,
+  FileText,
+  ChevronRight,
   ChevronDown,
   Award,
   CalendarDays
@@ -49,7 +49,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
   const [areaFilter, setAreaFilter] = useState('Todas');
   const [showOccupancy, setShowOccupancy] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  
+
   // Set default customizable dates to: start = 7 days ago, end = today
   const [customStart, setCustomStart] = useState(() => {
     const d = new Date();
@@ -154,16 +154,16 @@ export default function ReportesView({ config, tasks, history }: Props) {
     const dates: Date[] = [];
     const start = new Date(periodRange.start.getTime());
     const end = new Date(periodRange.end.getTime());
-    
+
     // Limit to max 45 days for daily resolution in retrospective
     const maxDays = 45;
     const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     let cursor = new Date(start);
     if (diff > maxDays) {
       cursor = new Date(end.getTime() - maxDays * 24 * 60 * 60 * 1000);
     }
-    
+
     while (cursor <= end) {
       dates.push(new Date(cursor));
       cursor.setDate(cursor.getDate() + 1);
@@ -267,7 +267,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
       } else {
         // Standalone item
         const taskId = originalTask ? originalTask.id : h.taskId;
-        const text = originalTask ? originalTask.text : '(Elemento Eliminado)';
+        const text = originalTask ? originalTask.text : (h.taskSnapshotText || '(Elemento Eliminado)');
         const type = originalTask ? originalTask.type : 'Tarea';
         const area = originalTask ? (originalTask.category || 'Sin Área') : 'Sin Área';
 
@@ -343,7 +343,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
       const task = projectTask || originalTask;
       return task ? (task.type === 'Tarea' || task.type === 'Proyecto') : false;
     }).length;
-    
+
     // Group durations & counts by task and area/category
     const areaHours: Record<string, number> = {};
     const areaCounts: Record<string, number> = {};
@@ -407,7 +407,8 @@ export default function ReportesView({ config, tasks, history }: Props) {
       } else {
         areaHours['Sin Área'] = (areaHours['Sin Área'] || 0) + duration;
         areaCounts['Sin Área'] = (areaCounts['Sin Área'] || 0) + 1;
-        taskCounts['(Elemento Eliminado)'] = (taskCounts['(Elemento Eliminado)'] || 0) + 1;
+        const fallbackName = h.taskSnapshotText || '(Elemento Eliminado)';
+        taskCounts[fallbackName] = (taskCounts[fallbackName] || 0) + 1;
       }
     });
 
@@ -438,7 +439,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
     // Generate daily chart series (e.g. up to last 14 days, or daily keys)
     const dailySeries: { dateLabel: string; rawDate: Date; hours: number; count: number }[] = [];
     const dateCursor = new Date(periodRange.start.getTime());
-    
+
     // We limit active chart columns to 15 to keep visuals incredibly readable, 
     // or group them if range is larger or just show the active calendar days.
     // If range is between 1 and 14 days, show each day!
@@ -447,10 +448,10 @@ export default function ReportesView({ config, tasks, history }: Props) {
       while (dateCursor <= periodRange.end) {
         const cursorStr = dateCursor.toLocaleDateString('es-ES');
         const dayLabel = dateCursor.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-        
+
         let dayHours = 0;
         let dayCount = 0;
-        
+
         filteredHistory.forEach(h => {
           const recD = new Date(h.date);
           if (recD.toLocaleDateString('es-ES') === cursorStr) {
@@ -473,13 +474,13 @@ export default function ReportesView({ config, tasks, history }: Props) {
       // Let's build a timeline of the last 12 days in the range or show active dates directly.
       // A weekly view, or simply the last 12 chronological days that have actual logged hours!
       const mapDays: Record<string, { label: string; raw: Date; hours: number; count: number }> = {};
-      
+
       // Initialize with active days plus some key intervals
       filteredHistory.forEach(h => {
         const recD = new Date(h.date);
         const cursorStr = recD.toLocaleDateString('es-ES');
         const dayLabel = recD.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-        
+
         if (!mapDays[cursorStr]) {
           mapDays[cursorStr] = {
             label: dayLabel,
@@ -495,7 +496,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
       const items = Object.values(mapDays)
         .sort((a, b) => a.raw.getTime() - b.raw.getTime())
         .slice(-12); // Limit to last 12 active days for gorgeous horizontal fit
-      
+
       items.forEach(it => {
         dailySeries.push({
           dateLabel: it.label,
@@ -538,7 +539,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
       const originalTask = tasks.find(t => t.id === h.taskId);
       const alloc = originalTask?.allocationType || (originalTask ? (originalTask.type === 'Rutina' || originalTask.type === 'Hábito' || originalTask.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
       const phase = calculateBiologicalPhase(config, new Date(h.date));
-      
+
       if (alloc === 'fixed') {
         phases[phase].fixed += duration;
       } else if (alloc === 'mixed') {
@@ -646,7 +647,7 @@ SORT date DESC
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6 px-6 md:px-10 pt-8 pb-10" id="view-reportes">
-      
+
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-line/40 pb-4">
         <div className="flex items-center gap-2.5">
@@ -724,9 +725,9 @@ SORT date DESC
           </div>
 
           <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-            <select 
-              value={areaFilter} 
-              onChange={(e) => setAreaFilter(e.target.value)} 
+            <select
+              value={areaFilter}
+              onChange={(e) => setAreaFilter(e.target.value)}
               className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
             >
               <option value="Todas">Todas las áreas</option>
@@ -745,8 +746,8 @@ SORT date DESC
               <label className="text-label flex items-center gap-1">
                 <CalendarDays className="w-3.5 h-3.5 text-text-dim/70" /> Fecha de Inicio
               </label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={customStart}
                 onChange={e => setCustomStart(e.target.value)}
                 className="w-full text-xs px-3 py-2 border border-border-line rounded-lg bg-base text-text-main outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
@@ -756,8 +757,8 @@ SORT date DESC
               <label className="text-label flex items-center gap-1">
                 <CalendarDays className="w-3.5 h-3.5 text-text-dim/70" /> Fecha de Término
               </label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={customEnd}
                 onChange={e => setCustomEnd(e.target.value)}
                 className="w-full text-xs px-3 py-2 border border-border-line rounded-lg bg-base text-text-main outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
@@ -769,7 +770,7 @@ SORT date DESC
 
       {/* METRICS GRID - STYLED WITH NON-INTERSECTING LINES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border-t border-l border-border-line/30 mb-8">
-        
+
         {/* Metric 1: Soporte Vital */}
         <div className="border-r border-b border-border-line/30 p-6 flex flex-col gap-1 bg-transparent">
           <span className="text-[10px] font-mono text-text-dim uppercase">🛡️ Soporte Vital</span>
@@ -830,15 +831,15 @@ SORT date DESC
           <div className="flex flex-col gap-3">
             {/* Split Bar */}
             <div className="w-full h-[12px] bg-base-dim relative rounded-full overflow-hidden flex shadow-inner">
-              <div 
-                style={{ width: `${(stats.fixedHours / stats.totalHours) * 100}%` }} 
+              <div
+                style={{ width: `${(stats.fixedHours / stats.totalHours) * 100}%` }}
                 className="bg-[#81b29a] h-full transition-all duration-300 flex items-center justify-center text-[8px] font-bold text-white font-mono"
                 title={`Soporte Vital: ${stats.fixedHours.toFixed(1)}h`}
               >
                 {stats.fixedHours > 0 && `${Math.round((stats.fixedHours / stats.totalHours) * 100)}% 🛡️`}
               </div>
-              <div 
-                style={{ width: `${(stats.growthHours / stats.totalHours) * 100}%` }} 
+              <div
+                style={{ width: `${(stats.growthHours / stats.totalHours) * 100}%` }}
                 className="bg-[#d4af37] h-full transition-all duration-300 flex items-center justify-center text-[8px] font-bold text-white font-mono"
                 title={`Inversión Crecimiento: ${stats.growthHours.toFixed(1)}h`}
               >
@@ -889,7 +890,7 @@ SORT date DESC
                     <span className="text-xs font-semibold text-text-main block">{phaseObj.label}</span>
                     <span className="text-[10px] text-text-dim font-mono block mt-0.5">{phaseObj.details}</span>
                   </div>
-                  
+
                   {total === 0 ? (
                     <span className="text-[10px] font-mono text-text-dim/60 italic block mt-6">Sin registros</span>
                   ) : (
@@ -941,7 +942,7 @@ SORT date DESC
                 {stats.dailySeries.map((d, idx) => {
                   const maximumHrsInSeries = Math.max(...stats.dailySeries.map(x => x.hours), 1.0);
                   const normalizedPercentage = Math.min(85, Math.max(4, (d.hours / maximumHrsInSeries) * 80));
-                  
+
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full min-w-[24px]">
                       {/* Bar and trigger value box */}
@@ -951,17 +952,17 @@ SORT date DESC
                           {d.hours} h ({d.count} u)
                         </div>
                         {/* Interactive dynamic bar */}
-                        <div 
+                        <div
                           style={{ height: `${normalizedPercentage}%` }}
                           className={cn(
                             "w-full rounded-t transition-all duration-300",
-                            d.hours > 0 
-                              ? "bg-[var(--color-primary)] hover:brightness-110 shadow-sm" 
+                            d.hours > 0
+                              ? "bg-[var(--color-primary)] hover:brightness-110 shadow-sm"
                               : "bg-base-dim"
                           )}
                         />
                       </div>
-                      
+
                       {/* Quick bottom label */}
                       <span className="text-[9px] font-mono font-medium text-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
                         {d.dateLabel}
@@ -1017,10 +1018,10 @@ SORT date DESC
                       {hours.toFixed(1)}h <span className="text-[10px] text-text-dim/50">({count}x)</span>
                     </span>
                   </div>
-                  
+
                   {/* Small nice progress row bar */}
                   <div className="w-full h-1.5 bg-base-dim rounded-full overflow-hidden relative">
-                    <div 
+                    <div
                       style={{ width: `${percentage}%` }}
                       className={cn("h-full rounded-full transition-all duration-300", tObj.color)}
                     />
@@ -1054,7 +1055,7 @@ SORT date DESC
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            
+
             {/* Visual stacked timeline bar */}
             <div className="w-full h-3 bg-base-dim rounded-full flex overflow-hidden border border-border-line/50">
               {(Object.entries(stats.areaHours) as [string, number][]).map(([area, hrs], idx) => {
@@ -1063,7 +1064,7 @@ SORT date DESC
 
                 const areaConfig = config?.areas?.[area];
                 const cleanColorName = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-                
+
                 const colorBgMap: Record<string, string> = {
                   'emerald': 'bg-emerald-500',
                   'green': 'bg-green-500',
@@ -1081,7 +1082,7 @@ SORT date DESC
                 const bgClass = colorBgMap[cleanColorName] || 'bg-slate-500';
 
                 return (
-                  <div 
+                  <div
                     key={area}
                     style={{ width: `${percentage}%` }}
                     className={cn("h-full hover:brightness-105 transition-all cursor-pointer relative group", bgClass)}
@@ -1121,7 +1122,7 @@ SORT date DESC
                 const classColors = borderTextColorMap[cleanColorName] || 'border-border-line text-text-main bg-base-dim/20';
 
                 return (
-                  <div 
+                  <div
                     key={area}
                     className={cn("p-3.5 rounded-lg border flex flex-col justify-between transition-all duration-200 hover:scale-[1.01]", classColors)}
                   >
@@ -1136,7 +1137,7 @@ SORT date DESC
                       <span className="text-xl font-mono font-light leading-tight">{hrs.toFixed(1)}</span>
                       <span className="text-[9px] uppercase font-mono tracking-wider text-text-dim/70">horas</span>
                     </div>
-                    
+
                     <span className="text-[10px] font-mono text-text-dim/70 mt-1 block">
                       💡 {count} ejecuciones
                     </span>
@@ -1151,7 +1152,7 @@ SORT date DESC
 
       {/* FREQUENT RECORDS & SESSIONS INSIGHTS FEED */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
-        
+
         {/* Top frequent actions insights card */}
         <div className="bg-transparent py-6 border-b border-border-line/50 flex flex-col gap-4">
           <div className="border-b border-border-line/20 pb-3 flex items-center justify-between">
@@ -1234,8 +1235,8 @@ SORT date DESC
 
       {/* HISTORIAL DE OCUPACIÓN TEMPORAL (CRONOGRAMA DE ENFOQUE) */}
       <div className="border-t border-border-line/45 pt-8 mt-6">
-        <button 
-          onClick={() => setShowOccupancy(!showOccupancy)} 
+        <button
+          onClick={() => setShowOccupancy(!showOccupancy)}
           className="flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-primary uppercase hover:text-text-main transition-colors focus:outline-none w-full text-left bg-transparent border-0 cursor-pointer mb-6"
         >
           <span className={cn("transition-transform duration-200 inline-block", showOccupancy ? "rotate-90" : "")}>
@@ -1257,8 +1258,8 @@ SORT date DESC
                   const isExpanded = !!expandedProjects[row.id];
 
                   return (
-                    <div 
-                      key={isChild ? `child-${parentId}-${row.id}` : row.id} 
+                    <div
+                      key={isChild ? `child-${parentId}-${row.id}` : row.id}
                       className={cn(
                         "h-10 border-b border-border-line/20 px-3 flex items-center justify-between gap-1 hover:bg-base-dim/30 cursor-default",
                         isChild && "pl-6 bg-base-dim/5"
@@ -1274,7 +1275,7 @@ SORT date DESC
                           {row.area} • {row.totalHours.toFixed(1)}h tot
                         </span>
                       </div>
-                      
+
                       {hasChildren && (
                         <button
                           onClick={() => {
@@ -1297,11 +1298,11 @@ SORT date DESC
             {/* Right Column: Scrollable Grid representing days */}
             <div className="flex-1 overflow-x-auto relative min-w-0" style={{ scrollbarWidth: 'thin' }}>
               <div className="flex flex-col relative select-none" style={{ width: `${daysInRange.length * 64 + 10}px`, minWidth: '100%' }}>
-                
+
                 {/* Header row: days */}
                 <div className="h-9 border-b border-border-line/40 flex w-full">
                   {daysInRange.map((date, idx) => (
-                    <div 
+                    <div
                       key={idx}
                       className="w-[64px] flex-shrink-0 border-r border-border-line/20 last:border-r-0 flex flex-col items-center justify-center text-[9px] font-mono text-text-dim/80 py-0.5"
                     >
@@ -1314,8 +1315,8 @@ SORT date DESC
                 {/* Body tracks */}
                 <div className="flex flex-col w-full">
                   {visibleOccupancyRows.map(({ node: row, isChild, parentId }) => (
-                    <div 
-                      key={isChild ? `child-track-${parentId}-${row.id}` : row.id} 
+                    <div
+                      key={isChild ? `child-track-${parentId}-${row.id}` : row.id}
                       className={cn(
                         "h-10 border-b border-border-line/20 w-full flex relative hover:bg-base-dim/10",
                         isChild && "bg-base-dim/5"
@@ -1324,10 +1325,10 @@ SORT date DESC
                       {daysInRange.map((date, idx) => {
                         const dayKey = date.toISOString().substring(0, 10);
                         const hours = row.logsByDay[dayKey] || 0;
-                        
+
                         const areaConfig = config?.areas?.[row.area];
                         const pColor = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-                        
+
                         const colorBgMap: Record<string, string> = {
                           'emerald': 'bg-emerald-500/80 border-emerald-500',
                           'green': 'bg-green-500/80 border-green-500',
@@ -1347,13 +1348,13 @@ SORT date DESC
                         const widthPercent = Math.min(100, (hours / maxHrs) * 100);
 
                         return (
-                          <div 
+                          <div
                             key={idx}
                             className="w-[64px] flex-shrink-0 h-full flex items-center justify-center relative border-r border-border-line/10 last:border-r-0"
                           >
                             {hours > 0 ? (
                               <div className="w-full px-1 flex justify-center">
-                                <div 
+                                <div
                                   className={cn("h-2.5 rounded-full flex items-center justify-center text-[8px] font-mono text-white truncate shadow-sm", bgClass)}
                                   style={{ width: `${Math.max(65, widthPercent)}%` }}
                                   title={`${hours.toFixed(1)}h en esta fecha`}

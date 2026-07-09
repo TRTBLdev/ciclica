@@ -1,18 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { AppTask, Config, HistoryRecord } from '../types';
-import { 
-  CheckCircle2, 
-  Repeat, 
-  Calendar, 
-  Clock, 
-  Edit2, 
-  Check, 
-  X, 
-  Trash2, 
-  ArrowUpRight, 
-  ChevronDown, 
-  ChevronUp, 
-  Plus 
+import {
+  CheckCircle2,
+  Repeat,
+  Calendar,
+  Clock,
+  Edit2,
+  Check,
+  X,
+  Trash2,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+  Plus
 } from 'lucide-react';
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
@@ -22,7 +22,7 @@ const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, un
   let daysToAdd = freq || 1;
   if (unit === 'semanas') daysToAdd *= 7;
   if (unit === 'meses') daysToAdd *= 30;
-  
+
   nextPlan.setDate(nextPlan.getDate() + daysToAdd);
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -45,14 +45,14 @@ interface Props {
   onAddHistory?: (recordData: Omit<HistoryRecord, 'id'>) => void;
 }
 
-export default function CompletadasView({ 
-  config, 
-  tasks, 
-  history, 
-  onToggleTask, 
-  onDeleteTask, 
-  onUpdateTask, 
-  onUpdateHistory, 
+export default function CompletadasView({
+  config,
+  tasks,
+  history,
+  onToggleTask,
+  onDeleteTask,
+  onUpdateTask,
+  onUpdateHistory,
   onDeleteHistory,
   onAddHistory
 }: Props) {
@@ -83,9 +83,9 @@ export default function CompletadasView({
   const selectedTask = tasks.find(t => t.id === retroTaskId);
 
   const filteredTasks = tasks.filter(t => {
-    const textMatches = t.text.toLowerCase().includes(taskSearchQuery.toLowerCase()) || 
-                        (t.category && t.category.toLowerCase().includes(taskSearchQuery.toLowerCase())) ||
-                        t.type.toLowerCase().includes(taskSearchQuery.toLowerCase());
+    const textMatches = t.text.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
+      (t.category && t.category.toLowerCase().includes(taskSearchQuery.toLowerCase())) ||
+      t.type.toLowerCase().includes(taskSearchQuery.toLowerCase());
     return textMatches;
   });
 
@@ -164,7 +164,7 @@ export default function CompletadasView({
 
       // Ocultar del nivel superior si tiene un padre y ese padre tiene un registro el mismo día
       if (task.parentId) {
-        const parentHasLogSameDay = filteredHistoryByDate.some(ph => 
+        const parentHasLogSameDay = filteredHistoryByDate.some(ph =>
           ph.taskId === task.parentId && isSameDay(h.date, ph.date)
         );
         if (parentHasLogSameDay) return false;
@@ -181,7 +181,7 @@ export default function CompletadasView({
 
       // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
       if (task.parentId) {
-        const parentHasLogSameDay = filteredHistoryByDate.some(ph => 
+        const parentHasLogSameDay = filteredHistoryByDate.some(ph =>
           ph.taskId === task.parentId && isSameDay(h.date, ph.date)
         );
         if (parentHasLogSameDay) return false;
@@ -216,17 +216,17 @@ export default function CompletadasView({
     const endISO = h.endTime || h.date;
     const durHours = h.duration || 0;
     const startISO = h.startTime || new Date(new Date(endISO).getTime() - durHours * 3600000).toISOString();
-    
+
     const endLocal = toLocalInputFormat(endISO);
     const startLocal = toLocalInputFormat(startISO);
-    
+
     const dateObj = new Date(endISO);
     setEditDate(dateObj.toISOString().substring(0, 10));
-    
+
     const hh = dateObj.getHours().toString().padStart(2, '0');
     const mm = dateObj.getMinutes().toString().padStart(2, '0');
     setEditTime(`${hh}:${mm}`);
-    
+
     setEditStartTime(startLocal);
     setEditEndTime(endLocal);
     setEditDuration(durHours);
@@ -252,7 +252,7 @@ export default function CompletadasView({
           finalEndISO = new Date(`${editDate}T${editTime}:00`).toISOString();
           finalStartISO = new Date(new Date(finalEndISO).getTime() - editDuration * 3600000).toISOString();
         }
-        
+
         onUpdateHistory(id, {
           date: finalEndISO,
           duration: Number(editDuration),
@@ -275,18 +275,18 @@ export default function CompletadasView({
         if (task.type === 'Tarea' || task.type === 'Proyecto') {
           onUpdateTask(task.id, { completed: false, view: 'Hoy' });
         } else if (task.type === 'Hábito' || task.type === 'Rutina') {
-          onUpdateTask(task.id, { 
-            completed: false, 
-            fechaPlanificada: new Date().toISOString() 
+          onUpdateTask(task.id, {
+            completed: false,
+            fechaPlanificada: new Date().toISOString()
           });
-          
+
           // If it's a routine, also revert its child habits to today
           if (task.type === 'Rutina') {
             const childHabits = tasks.filter(t => t.parentId === task.id && t.type === 'Hábito');
             childHabits.forEach(ch => {
-              onUpdateTask(ch.id, { 
-                completed: false, 
-                fechaPlanificada: new Date().toISOString() 
+              onUpdateTask(ch.id, {
+                completed: false,
+                fechaPlanificada: new Date().toISOString()
               });
             });
           }
@@ -311,7 +311,7 @@ export default function CompletadasView({
   };
 
   const toggleExpand = (id: string) => {
-    setExpandedIds(prev => 
+    setExpandedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
@@ -345,8 +345,8 @@ export default function CompletadasView({
           const hasChildren = childTasks.length > 0;
 
           return (
-            <div 
-              key={h.id} 
+            <div
+              key={h.id}
               className={cn(
                 "py-4 border-b border-border-line/25 flex flex-col gap-3 bg-transparent",
                 isEditing && "p-5 border border-[var(--color-primary)] my-2 bg-base-dim/10"
@@ -361,8 +361,8 @@ export default function CompletadasView({
                     {task?.type === 'Pulso' ? (
                       <div className="flex flex-col gap-1 w-full text-left">
                         <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fecha y Hora de Registro</label>
-                        <input 
-                          type="datetime-local" 
+                        <input
+                          type="datetime-local"
                           className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                           value={editEndTime}
                           onChange={e => {
@@ -377,8 +377,8 @@ export default function CompletadasView({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="flex flex-col gap-1">
                             <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
-                            <input 
-                              type="datetime-local" 
+                            <input
+                              type="datetime-local"
                               className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                               value={editStartTime}
                               onChange={e => {
@@ -393,8 +393,8 @@ export default function CompletadasView({
                           </div>
                           <div className="flex flex-col gap-1">
                             <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
-                            <input 
-                              type="datetime-local" 
+                            <input
+                              type="datetime-local"
                               className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                               value={editEndTime}
                               onChange={e => {
@@ -408,12 +408,12 @@ export default function CompletadasView({
                             />
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-4 bg-base-dim/20 p-3 border border-border-line/50">
                           <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Duración Calculada:</span>
                           <div className="flex items-center gap-1.5">
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               min={0}
                               step="0.01"
                               className="w-20 text-xs px-3 py-1 border border-border-line bg-base text-center font-mono font-bold text-text-main outline-none"
@@ -425,15 +425,15 @@ export default function CompletadasView({
                         </div>
                       </>
                     )}
-                    
+
                     <div className="flex justify-end gap-6 mt-1">
-                      <button 
+                      <button
                         onClick={() => setEditingId(null)}
                         className="text-xs font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0 outline-none"
                       >
                         Cancelar
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleSaveEdit(h.id, task?.type === 'Pulso')}
                         className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0 outline-none"
                       >
@@ -446,7 +446,7 @@ export default function CompletadasView({
                     <div className="flex-1 flex flex-col gap-2 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-text-main text-sm truncate max-w-[14rem] sm:max-w-[20rem]">
-                          {task?.text || <span className="italic text-text-dim/50">(Eliminado) {h.taskId.substring(0,6)}</span>}
+                          {task?.text || (h.taskSnapshotText ? <span className="italic text-text-dim/80">{h.taskSnapshotText} <span className="text-[9px]">(Eliminado)</span></span> : <span className="italic text-text-dim/50">(Eliminado) {h.taskId.substring(0, 6)}</span>)}
                         </span>
                         {task?.type && (
                           <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-border-line/40 text-text-dim bg-transparent">
@@ -486,7 +486,7 @@ export default function CompletadasView({
                                 const tStart = new Date(h.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                                 const tEnd = new Date(h.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                                 return ` (${tStart} - ${tEnd})`;
-                              } catch(e) { return ''; }
+                              } catch (e) { return ''; }
                             })()}
                           </span>
                         )}
@@ -507,15 +507,15 @@ export default function CompletadasView({
                           <span className="font-bold">({childTasks.length})</span>
                         </button>
                       )}
-                      
-                      <button 
+
+                      <button
                         onClick={() => startEdit(h)}
                         className="p-1.5 text-text-dim hover:text-text-main transition-colors cursor-pointer bg-transparent border-0"
                         title="Modificar fecha/hora/duración real de ejecución"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => {
                           const label = task ? `"${task.text}"` : 'este registro';
                           if (window.confirm(`¿Estás segura de eliminar la sesión de ejecución de ${label}? (Esto marcará la tarea/hábito como incompleta)`)) {
@@ -539,26 +539,26 @@ export default function CompletadasView({
                     <span>{task?.type === 'Rutina' ? 'Hábitos Registrados:' : 'Subtareas de esta Sesión:'}</span>
                     <span className="font-mono text-text-dim/40 font-normal">Bloque: {formattedDate}</span>
                   </div>
-                  
+
                   {childTasks.map(child => {
                     let childLog = history.find(subH => subH.taskId === child.id && isSameDay(subH.date, h.date));
                     if (!childLog && (child.type === 'Tarea' || child.type === 'Pulso')) {
                       childLog = history.find(subH => subH.taskId === child.id);
                     }
-                    
+
                     const isChildEditing = editingId === childLog?.id;
                     const childDateStr = childLog ? new Date(childLog.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '';
                     const childTimeStr = childLog ? new Date(childLog.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
 
                     return (
-                      <div 
-                        key={child.id} 
+                      <div
+                        key={child.id}
                         className={cn(
                           "py-2.5 border-b border-border-line/10 text-xs flex flex-col gap-2 bg-transparent",
-                          childLog 
+                          childLog
                             ? isChildEditing
                               ? "p-4 border border-[var(--color-primary)] my-1"
-                              : "hover:bg-base-dim/20" 
+                              : "hover:bg-base-dim/20"
                             : "border-dashed border-border-line/30 text-text-dim/50"
                         )}
                       >
@@ -571,8 +571,8 @@ export default function CompletadasView({
                             {child.type === 'Pulso' ? (
                               <div className="flex flex-col gap-1 w-full text-left">
                                 <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fecha y Hora de Registro</label>
-                                <input 
-                                  type="datetime-local" 
+                                <input
+                                  type="datetime-local"
                                   className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                                   value={editEndTime}
                                   onChange={e => {
@@ -587,8 +587,8 @@ export default function CompletadasView({
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div className="flex flex-col gap-0.5">
                                     <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Inicio de Sesión</label>
-                                    <input 
-                                      type="datetime-local" 
+                                    <input
+                                      type="datetime-local"
                                       className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                                       value={editStartTime}
                                       onChange={e => {
@@ -603,8 +603,8 @@ export default function CompletadasView({
                                   </div>
                                   <div className="flex flex-col gap-0.5">
                                     <label className="text-[10px] font-mono text-text-dim uppercase block mb-1">Fin de Sesión</label>
-                                    <input 
-                                      type="datetime-local" 
+                                    <input
+                                      type="datetime-local"
                                       className="w-full text-xs px-4 py-1.5 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                                       value={editEndTime}
                                       onChange={e => {
@@ -618,12 +618,12 @@ export default function CompletadasView({
                                     />
                                   </div>
                                 </div>
-                                
+
                                 <div className="flex items-center gap-4 bg-base-dim/20 p-2 border border-border-line/50">
                                   <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim flex-1">Calculado:</span>
                                   <div className="flex items-center gap-1.5">
-                                    <input 
-                                      type="number" 
+                                    <input
+                                      type="number"
                                       min={0}
                                       step="0.01"
                                       className="w-16 text-xs px-2 py-0.5 border border-border-line rounded bg-base text-center font-mono font-bold text-text-main outline-none"
@@ -635,15 +635,15 @@ export default function CompletadasView({
                                 </div>
                               </>
                             )}
-                            
+
                             <div className="flex justify-end gap-4 mt-1">
-                              <button 
+                              <button
                                 onClick={() => setEditingId(null)}
                                 className="text-xs font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0 outline-none"
                               >
                                 Cancelar
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleSaveEdit(childLog!.id, child.type === 'Pulso')}
                                 className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0 outline-none"
                               >
@@ -654,7 +654,7 @@ export default function CompletadasView({
                         ) : (
                           <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2 min-w-0">
-                              <button 
+                              <button
                                 onClick={() => {
                                   if (!childLog && onAddHistory) {
                                     const shouldComplete = subTasksMarkCompleted[child.id] !== false;
@@ -672,14 +672,14 @@ export default function CompletadasView({
                                         onUpdateTask(child.id, { completed: true, view: '' });
                                       } else if (child.type === 'Hábito') {
                                         const chNextDate = getNextPlannedDate(
-                                          child.fechaPlanificada, 
-                                          child.frecuencia || 1, 
+                                          child.fechaPlanificada,
+                                          child.frecuencia || 1,
                                           child.frecuenciaUnidad || 'días'
                                         );
-                                        onUpdateTask(child.id, { 
-                                          completed: false, 
+                                        onUpdateTask(child.id, {
+                                          completed: false,
                                           fechaPlanificada: chNextDate,
-                                          lastExecutedAt: new Date().toISOString() 
+                                          lastExecutedAt: new Date().toISOString()
                                         });
                                       }
                                     }
@@ -696,8 +696,8 @@ export default function CompletadasView({
                                 }}
                                 className={cn(
                                   "w-4 h-4 rounded-full flex items-center justify-center border shrink-0 cursor-pointer transition-all bg-transparent outline-none p-0",
-                                  childLog 
-                                    ? "bg-[var(--color-primary)]/15 border-[var(--color-primary)] text-primary hover:bg-red-500/15 hover:border-red-500 hover:text-red-500" 
+                                  childLog
+                                    ? "bg-[var(--color-primary)]/15 border-[var(--color-primary)] text-primary hover:bg-red-500/15 hover:border-red-500 hover:text-red-500"
                                     : "border-border-line/85 text-text-dim/40 hover:border-[var(--color-primary)] hover:text-primary"
                                 )}
                                 title={childLog ? "Deshacer ejecución de sub-ítem" : "Registrar ejecución de sub-ítem aquí"}
@@ -705,13 +705,13 @@ export default function CompletadasView({
                                 {childLog && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                               </button>
                               <span className={cn(
-                                "font-light truncate max-w-[15rem] sm:max-w-xs md:max-w-md", 
+                                "font-light truncate max-w-[15rem] sm:max-w-xs md:max-w-md",
                                 childLog ? "text-text-main" : "text-text-dim/50"
                               )}>
                                 {child.text}
                               </span>
                             </div>
-                            
+
                             <div className="flex items-center gap-3 ml-auto">
                               {childLog ? (
                                 <>
@@ -730,14 +730,14 @@ export default function CompletadasView({
                                     )}
                                   </div>
                                   <div className="flex items-center">
-                                    <button 
+                                    <button
                                       onClick={() => startEdit(childLog!)}
                                       className="p-1 text-text-dim hover:text-text-main transition-colors cursor-pointer bg-transparent border-0"
                                       title="Modificar fecha/hora/duración de este sub-registro"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => {
                                         if (window.confirm(`¿Estás segura de eliminar la sesión de ejecución de "${child.text}"? (Esto la marcará como incompleta)`)) {
                                           handleDeleteLog(childLog!);
@@ -755,8 +755,8 @@ export default function CompletadasView({
                                   <div className="flex items-center gap-3">
                                     <label className="flex items-center gap-1.5 cursor-pointer select-none" title="Si está marcado, también completa o reprograma la tarea/hábito en el planificador">
                                       <div className="relative flex items-center">
-                                        <input 
-                                          type="checkbox" 
+                                        <input
+                                          type="checkbox"
                                           className="sr-only"
                                           checked={subTasksMarkCompleted[child.id] !== false}
                                           onChange={() => {
@@ -769,7 +769,7 @@ export default function CompletadasView({
                                         <div className={cn(
                                           "w-3.5 h-3.5 rounded border flex items-center justify-center transition-all duration-150",
                                           (subTasksMarkCompleted[child.id] !== false)
-                                            ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]" 
+                                            ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]"
                                             : "border-border-line bg-transparent text-transparent hover:border-[var(--color-primary)]"
                                         )}>
                                           <Check className="w-2 h-2 stroke-[3]" />
@@ -778,7 +778,7 @@ export default function CompletadasView({
                                       <span className="text-[10px] font-mono uppercase text-text-dim/80">Completar</span>
                                     </label>
 
-                                    <button 
+                                    <button
                                       onClick={() => {
                                         const shouldComplete = subTasksMarkCompleted[child.id] !== false;
                                         const childDur = child.duracion || 0;
@@ -795,14 +795,14 @@ export default function CompletadasView({
                                             onUpdateTask(child.id, { completed: true, view: '' });
                                           } else if (child.type === 'Hábito') {
                                             const chNextDate = getNextPlannedDate(
-                                              child.fechaPlanificada, 
-                                              child.frecuencia || 1, 
+                                              child.fechaPlanificada,
+                                              child.frecuencia || 1,
                                               child.frecuenciaUnidad || 'días'
                                             );
-                                            onUpdateTask(child.id, { 
-                                              completed: false, 
+                                            onUpdateTask(child.id, {
+                                              completed: false,
                                               fechaPlanificada: chNextDate,
-                                              lastExecutedAt: new Date().toISOString() 
+                                              lastExecutedAt: new Date().toISOString()
                                             });
                                           }
                                         }
@@ -837,19 +837,19 @@ export default function CompletadasView({
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6 px-6 md:px-10 pt-10 pb-16 max-w-4xl mx-auto w-full text-left">
-      
+
       {/* Header Statement */}
       <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border-line pb-6">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-text-main stroke-[2]" />
           <h2 className="text-title">Historial de Completadas</h2>
         </div>
-        
+
         {/* Date Filter Dropdown */}
         <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-          <select 
-            value={period} 
-            onChange={(e) => setPeriod(e.target.value)} 
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
             className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
           >
             <option value="todas">Todo el Historial</option>
@@ -869,7 +869,7 @@ export default function CompletadasView({
       </p>
 
       <div className="flex flex-col gap-3 bg-transparent py-4 border-b border-border-line/30">
-        <button 
+        <button
           onClick={() => {
             const hasDatesReady = retroStart && retroEnd;
             if (!hasDatesReady) {
@@ -895,7 +895,7 @@ export default function CompletadasView({
         {showAddForm && (
           <div className="pt-4 border-t border-border-line/40 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              
+
               {/* Task selector */}
               <div className="flex flex-col gap-1 sm:col-span-1 md:col-span-2 lg:col-span-1 relative">
                 <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Buscar Elemento</label>
@@ -903,11 +903,11 @@ export default function CompletadasView({
                   <div className="flex items-center justify-between border border-border-line p-2.5 bg-base-dim text-xs min-h-[38px]">
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider px-1.5 py-0.5", 
+                        <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider px-1.5 py-0.5",
                           selectedTask.type === 'Proyecto' ? 'text-indigo-600' :
-                          selectedTask.type === 'Rutina' ? 'text-orange-600' :
-                          selectedTask.type === 'Hábito' ? 'text-emerald-600' :
-                          'text-text-main'
+                            selectedTask.type === 'Rutina' ? 'text-orange-600' :
+                              selectedTask.type === 'Hábito' ? 'text-emerald-600' :
+                                'text-text-main'
                         )}>
                           [{selectedTask.type}]
                         </span>
@@ -945,9 +945,9 @@ export default function CompletadasView({
                     />
                     {isDropdownOpen && (
                       <>
-                        <div 
-                          className="fixed inset-0 z-10" 
-                          onClick={() => setIsDropdownOpen(false)} 
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setIsDropdownOpen(false)}
                         />
                         <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-base border border-border-line rounded-none shadow-lg no-scrollbar">
                           {filteredTasks.length === 0 ? (
@@ -974,11 +974,11 @@ export default function CompletadasView({
                                 }}
                               >
                                 <div className="flex items-center gap-1.5">
-                                  <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider", 
+                                  <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider",
                                     t.type === 'Proyecto' ? 'text-indigo-500' :
-                                    t.type === 'Rutina' ? 'text-orange-500' :
-                                    t.type === 'Hábito' ? 'text-emerald-500' :
-                                    'text-text-main'
+                                      t.type === 'Rutina' ? 'text-orange-500' :
+                                        t.type === 'Hábito' ? 'text-emerald-500' :
+                                          'text-text-main'
                                   )}>
                                     [{t.type}]
                                   </span>
@@ -1002,8 +1002,8 @@ export default function CompletadasView({
               {/* Start Date & Time */}
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Hora de Inicio</label>
-                <input 
-                  type="datetime-local" 
+                <input
+                  type="datetime-local"
                   className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                   value={retroStart}
                   onChange={e => {
@@ -1023,8 +1023,8 @@ export default function CompletadasView({
               {/* End Date & Time */}
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Hora de Fin</label>
-                <input 
-                  type="datetime-local" 
+                <input
+                  type="datetime-local"
                   className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main outline-none font-mono"
                   value={retroEnd}
                   onChange={e => {
@@ -1044,8 +1044,8 @@ export default function CompletadasView({
                 <div className="flex flex-col">
                   <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-text-dim">Duración Real Sesión:</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       min={0}
                       step="0.01"
                       className="w-20 text-xs px-3 py-1 border border-border-line bg-base text-center font-mono font-bold text-text-main outline-none"
@@ -1060,16 +1060,16 @@ export default function CompletadasView({
 
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <div className="relative flex items-center">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="sr-only"
                       checked={retroMarkCompleted}
                       onChange={e => setRetroMarkCompleted(e.target.checked)}
                     />
                     <div className={cn(
                       "w-4 h-4 rounded border flex items-center justify-center transition-all duration-150",
-                      retroMarkCompleted 
-                        ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]" 
+                      retroMarkCompleted
+                        ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-base)]"
                         : "border-border-line bg-transparent text-transparent hover:border-[var(--color-primary)]"
                     )}>
                       <Check className="w-3 h-3 stroke-[3]" />
@@ -1082,7 +1082,7 @@ export default function CompletadasView({
                 </label>
               </div>
 
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   if (!retroTaskId) return;
@@ -1130,10 +1130,10 @@ export default function CompletadasView({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* SIMPLE ITEMS (TASKS/EVENTS) */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div 
+          <div
             onClick={() => setShowSimple(!showSimple)}
             className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
           >
@@ -1152,7 +1152,7 @@ export default function CompletadasView({
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div 
+          <div
             onClick={() => setShowRecurring(!showRecurring)}
             className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
           >
@@ -1171,7 +1171,7 @@ export default function CompletadasView({
 
         {/* PULSES */}
         <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div 
+          <div
             onClick={() => setShowPulses(!showPulses)}
             className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
           >

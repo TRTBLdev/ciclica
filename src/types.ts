@@ -99,6 +99,7 @@ export interface HistoryRecord {
   startTime?: string;
   endTime?: string;
   isCompletion?: boolean;
+  taskSnapshotText?: string;
 }
 
 // --- Intention System (Fase 3) ---

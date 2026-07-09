@@ -1159,7 +1159,7 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setOpenMenuPulsoId(null);
-                                if (confirm('¿Eliminar pulso?')) onDeleteTask(t.id);
+                                onDeleteTask(t.id);
                               }}
                               className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                             >

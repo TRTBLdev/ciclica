@@ -113,7 +113,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
         }
       } else {
         const taskId = originalTask ? originalTask.id : h.taskId;
-        const text = originalTask ? originalTask.text : '(Elemento Eliminado)';
+        const text = originalTask ? originalTask.text : (h.taskSnapshotText || '(Elemento Eliminado)');
         const type = originalTask ? originalTask.type : 'Tarea';
         const area = originalTask ? (originalTask.category || 'Sin Área') : 'Sin Área';
 
@@ -174,7 +174,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
           </h4>
           <span className="text-xs font-mono font-bold text-text-main">{totalPeriodHours.toFixed(1)} h totales</span>
         </div>
-        
+
         <div className="w-full h-4 flex rounded-full overflow-hidden border border-border-line/30 bg-base-dim/20">
           {occupancyNodes.map((node) => {
             const percent = (node.totalHours / totalPeriodHours) * 100;
@@ -190,13 +190,13 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
           })}
         </div>
         <div className="flex flex-wrap gap-3 mt-2">
-           {/* Legend grouped by area based on top nodes */}
-           {Array.from(new Set(occupancyNodes.map(n => n.area))).map(area => (
-             <div key={area} className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-text-dim">
-               <div className={cn("w-2 h-2 rounded-full", getAreaColor(area))} />
-               {area}
-             </div>
-           ))}
+          {/* Legend grouped by area based on top nodes */}
+          {Array.from(new Set(occupancyNodes.map(n => n.area))).map(area => (
+            <div key={area} className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-text-dim">
+              <div className={cn("w-2 h-2 rounded-full", getAreaColor(area))} />
+              {area}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -208,21 +208,21 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
           <div className="flex-[1] text-right">Horas</div>
           <div className="flex-[1] text-right">% del Total</div>
         </div>
-        
+
         {/* Rows */}
         <div className="divide-y divide-border-line/20">
           {occupancyNodes.map((node) => {
             const isExpanded = !!expandedNodes[node.id];
             const hasChildren = node.children.length > 0;
             const percent = ((node.totalHours / totalPeriodHours) * 100).toFixed(1);
-            
+
             const areaConfig = config.areas?.[node.area];
             const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-            
+
             return (
               <React.Fragment key={node.id}>
                 {/* Parent Row */}
-                <div 
+                <div
                   className={cn(
                     "flex p-3 items-center hover:bg-base-dim/5 transition-colors group",
                     hasChildren ? "cursor-pointer" : ""
@@ -239,8 +239,8 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
                     {/* Type icon */}
                     <div className={cn("p-1.5 rounded-full bg-base-dim/20 text-text-main", getAreaTextClasses(color))}>
                       {node.type === 'Proyecto' ? <Layers className="w-3 h-3" /> :
-                       node.type === 'Rutina' ? <Repeat className="w-3 h-3" /> : 
-                       <CheckCircle2 className="w-3 h-3" />}
+                        node.type === 'Rutina' ? <Repeat className="w-3 h-3" /> :
+                          <CheckCircle2 className="w-3 h-3" />}
                     </div>
                     <div>
                       <div className="font-bold text-text-main">{node.text}</div>
