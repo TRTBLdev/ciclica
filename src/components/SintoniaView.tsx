@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Compass, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Compass, BookOpen, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { Config, CycleTrackingType, BiologicalPhase } from '../types';
-import { calculateBiologicalPhase, getCyclePeriods, parseLocalDate } from '../domain/cycle';
+import { calculateBiologicalPhase, getCyclePeriods, parseLocalDate, getCycleProjections, CycleProjections } from '../domain/cycle';
 import { getLunarArchetype, getLunarDetailsForDate } from '../domain/lunar';
 import { cn } from '../lib/utils';
 import SyllabusView from './SyllabusView';
@@ -21,61 +21,8 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
   const effectiveCycleType = (config?.cycleConfig?.menstruates === false && cycleType === 'menstrual') ? 'lunar' : cycleType;
   const currentPhase = calculateBiologicalPhase(config);
 
-  const getActiveCycleStats = () => {
-    const flowLogs = config?.cycleConfig?.flowLogs || {};
-    const flowEntries = Object.entries(flowLogs)
-      .filter(([_, intensity]) => intensity > 0)
-      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
-      
-    if (flowEntries.length === 0) return null;
-    
-    // Group consecutive flow days into periods (gap >= 10 days = new cycle)
-    interface PeriodGroup {
-      startDate: string;
-      endDate: string;
-    }
-    const periods: PeriodGroup[] = [];
-    let currentGroup: PeriodGroup | null = null;
-    
-    flowEntries.forEach(([dateStr]) => {
-      if (!currentGroup) {
-        currentGroup = { startDate: dateStr, endDate: dateStr };
-      } else {
-        const lastDay = parseLocalDate(currentGroup.endDate);
-        const thisDay = parseLocalDate(dateStr);
-        const diffDays = Math.floor((thisDay.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays >= 10) {
-          periods.push(currentGroup);
-          currentGroup = { startDate: dateStr, endDate: dateStr };
-        } else {
-          currentGroup.endDate = dateStr;
-        }
-      }
-    });
-    if (currentGroup) periods.push(currentGroup);
-
-    const stats = {
-      meanCycleLength: config?.cycleConfig?.cycleLengthDays || 28,
-    };
-
-    const lastPeriodStart = periods.length > 0 ? parseLocalDate(periods[periods.length - 1].startDate) : null;
-    
-    if (lastPeriodStart) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const daysSinceLastPeriod = Math.floor((today.getTime() - lastPeriodStart.getTime()) / (1000 * 60 * 60 * 24));
-      const currentCycleDay = daysSinceLastPeriod + 1;
-      
-      return {
-        currentCycleDay,
-        daysSinceExpected: daysSinceLastPeriod - Math.round(stats.meanCycleLength),
-      };
-    }
-
-    return null;
-  };
-
-  const cycleStats = getActiveCycleStats();
+  const cycleProjections = getCycleProjections(config);
+  const [showCalendarEditor, setShowCalendarEditor] = useState(false);
 
   const handleUpdateCycleType = (type: CycleTrackingType) => {
     onUpdateConfig({
@@ -176,49 +123,154 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
             {/* MENSTRUAL VIEW CONTENT */}
             {effectiveCycleType === 'menstrual' && config?.cycleConfig?.menstruates !== false && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                {/* Active Cycle Status Banner */}
-                {cycleStats ? (
-                  <div className="py-4 border-b border-border-line flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div className="text-left">
+                {/* 1. Quick Editor Accordion */}
+                <div className="border-b border-border-line/40 pb-2">
+                  <button 
+                    onClick={() => setShowCalendarEditor(!showCalendarEditor)}
+                    className="w-full flex items-center justify-between py-3 bg-transparent border-0 outline-none cursor-pointer hover:bg-base-dim/5 transition-colors"
+                  >
+                    <span className="text-xs font-mono tracking-widest uppercase font-bold text-text-main">Historial de Sangrado</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-text-dim lowercase tracking-wider">{showCalendarEditor ? 'cerrar' : 'editar'}</span>
+                      {showCalendarEditor ? <X className="w-4 h-4 text-text-dim" /> : <Plus className="w-4 h-4 text-text-dim" />}
+                    </div>
+                  </button>
+                  {showCalendarEditor && (
+                    <div className="animate-in slide-in-from-top-2 pt-2">
+                      <CycleCalendar config={config} onUpdateConfig={onUpdateConfig} projections={cycleProjections} />
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Predictive Banner */}
+                {cycleProjections && (
+                  <div className="py-4 border-b border-border-line flex flex-col sm:flex-row justify-between items-start gap-4">
+                    <div className="text-left flex-1">
                       <span className="text-[10px] font-mono uppercase tracking-widest text-text-dim block">Estado del Ciclo Activo</span>
                       <span className="text-sm font-light text-text-main font-sans mt-0.5 block">
-                        Hoy te encuentras en el <span className="text-primary font-mono font-bold">Día {cycleStats.currentCycleDay}</span>
+                        Hoy te encuentras en el <span className="text-primary font-mono font-bold">Día {cycleProjections.currentCycleDay || '?'}</span>
                       </span>
                     </div>
-                    {cycleStats.daysSinceExpected !== null && (
-                      <div className="text-left sm:text-right">
-                        {cycleStats.daysSinceExpected > 0 ? (
-                          <>
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-[#e07a5f] block">Retraso Estimado</span>
-                            <span className="text-xs font-mono font-bold text-[#e07a5f] mt-0.5 block">
-                              {cycleStats.daysSinceExpected} día{cycleStats.daysSinceExpected !== 1 ? 's' : ''} tarde
-                            </span>
-                          </>
-                        ) : cycleStats.daysSinceExpected < 0 ? (
-                          <>
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-[#81b29a] block">Próxima Menstruación</span>
-                            <span className="text-xs font-mono font-bold text-[#81b29a] mt-0.5 block">
-                              En {Math.abs(cycleStats.daysSinceExpected)} día{Math.abs(cycleStats.daysSinceExpected) !== 1 ? 's' : ''}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37] block">Periodo Esperado</span>
-                            <span className="text-xs font-mono font-bold text-[#d4af37] mt-0.5 block">Hoy</span>
-                          </>
-                        )}
+                    
+                    <div className="text-left sm:text-right flex-1 border-l-0 sm:border-l border-t sm:border-t-0 border-border-line/40 pt-4 sm:pt-0 sm:pl-4">
+                      {cycleProjections.daysSinceExpected !== null && (
+                        <>
+                          {cycleProjections.daysSinceExpected > 0 ? (
+                            <>
+                              <span className="text-[10px] font-mono uppercase tracking-widest text-[#e07a5f] block">Retraso Estimado</span>
+                              <span className="text-xs font-mono font-bold text-[#e07a5f] mt-0.5 block">
+                                {cycleProjections.daysSinceExpected} día{cycleProjections.daysSinceExpected !== 1 ? 's' : ''} tarde
+                              </span>
+                            </>
+                          ) : cycleProjections.daysSinceExpected < 0 ? (
+                            <>
+                              <span className="text-[10px] font-mono uppercase tracking-widest text-[#81b29a] block">Próxima Menstruación</span>
+                              <span className="text-xs font-mono font-bold text-[#81b29a] mt-0.5 block">
+                                En {Math.abs(cycleProjections.daysSinceExpected)} día{Math.abs(cycleProjections.daysSinceExpected) !== 1 ? 's' : ''}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37] block">Periodo Esperado</span>
+                              <span className="text-xs font-mono font-bold text-[#d4af37] mt-0.5 block">Hoy</span>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    {cycleProjections.projectedPeriods.length > 0 && (
+                      <div className="text-left sm:text-right flex-1 border-l-0 sm:border-l border-t sm:border-t-0 border-border-line/40 pt-4 sm:pt-0 sm:pl-4">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-[#73c2b8] block">Próx. Ovulación</span>
+                        <span className="text-xs font-mono font-bold text-text-main mt-0.5 block">
+                          {cycleProjections.projectedPeriods[0].ovulationDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        </span>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="py-6 border-b border-border-line/30">
-                    <span className="text-xs font-mono text-text-dim leading-relaxed block">
-                      Aún no has registrado ciclos pasados. Toca los días en el calendario debajo para inicializar las predicciones y calibrar automáticamente tus duraciones.
-                    </span>
-                  </div>
                 )}
 
-                <CycleCalendar config={config} onUpdateConfig={onUpdateConfig} />
+                {/* 3. Trend Dashboard (Stats + Line Chart) */}
+                {cycleProjections && cycleProjections.pastCycles.length > 0 && (
+                  <CycleTrendChart projections={cycleProjections} />
+                )}
+
+                {/* 4. Analysis Tables (No Horizontal Scroll) */}
+                {cycleProjections && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    {/* A. Future Projections */}
+                    <div className="flex flex-col">
+                      <div className="pb-2 mb-2 border-b border-border-line/40">
+                        <h4 className="text-[10px] font-mono tracking-widest text-text-dim font-bold uppercase">Proyecciones Futuras</h4>
+                      </div>
+                      <div className="w-full">
+                        <table className="w-full text-[10px] font-mono border-collapse text-left">
+                          <thead>
+                            <tr className="bg-transparent border-b border-border-line/40">
+                              <th className="py-2 px-3 text-text-dim uppercase tracking-wider font-bold">Próx. Periodo</th>
+                              <th className="py-2 px-3 text-text-dim uppercase tracking-wider font-bold">Ovulación</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cycleProjections.projectedPeriods.slice(1).map((p, idx) => (
+                              <tr key={idx} className="border-b border-border-line/20 last:border-0">
+                                <td className="py-2.5 px-3 text-text-main whitespace-nowrap">
+                                  {p.startDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} - {p.endDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                </td>
+                                <td className="py-2.5 px-3 text-[#73c2b8] font-bold whitespace-nowrap flex items-center gap-1.5">
+                                  <span>✨</span> {p.ovulationDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* B. History */}
+                    <div className="flex flex-col max-h-[300px]">
+                      <div className="pb-2 mb-2 border-b border-border-line/40 shrink-0">
+                        <h4 className="text-[10px] font-mono tracking-widest text-text-dim font-bold uppercase">Ciclos Anteriores</h4>
+                      </div>
+                      <div className="w-full overflow-y-auto scrollbar-thin">
+                        <table className="w-full text-[10px] font-mono border-collapse text-left">
+                          <thead className="sticky top-0 bg-base border-b border-border-line z-10">
+                            <tr>
+                              <th className="py-2 px-3 text-text-dim uppercase tracking-wider font-bold">Fechas</th>
+                              <th className="py-2 px-3 text-text-dim uppercase tracking-wider font-bold">Ciclo</th>
+                              <th className="py-2 px-3 text-text-dim uppercase tracking-wider font-bold">Flujo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cycleProjections.pastCycles.map((c, idx) => {
+                              const s = parseLocalDate(c.startDate);
+                              const e = parseLocalDate(c.endDate);
+                              return (
+                                <tr key={idx} className="border-b border-border-line/20 last:border-0 hover:bg-base-dim/5 transition-colors">
+                                  <td className="py-2.5 px-3 text-text-main whitespace-nowrap font-bold">
+                                    {s.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}<span className="text-text-dim font-light mx-1">-</span>{e.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-text-main whitespace-nowrap">
+                                    {c.cycleLength ? `${c.cycleLength}d` : '-'}
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    <div className="flex items-end h-4 gap-[2px]">
+                                      {c.days.map((d, i) => {
+                                        const h = d.intensity === 1 ? 'h-1.5' : d.intensity === 2 ? 'h-2.5' : 'h-4';
+                                        const bg = d.intensity === 1 ? 'bg-[#e5b3b3] dark:bg-[#c27c7c]' : d.intensity === 2 ? 'bg-[#d88282] dark:bg-[#a64d4d]' : 'bg-[#b84a4a] dark:bg-[#7a2e2e]';
+                                        return <div key={i} className={cn("w-1.5 rounded-sm", h, bg)} title={`Intensidad: ${d.intensity}`} />
+                                      })}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -580,19 +632,85 @@ function LunarMirrorPanel({ config, onUpdateConfig, onNavigate }: { config: Conf
   );
 }
 
-function CycleCalendar({ config, onUpdateConfig }: { config: Config | null; onUpdateConfig: (c: Partial<Config>) => void }) {
+function CycleTrendChart({ projections }: { projections: CycleProjections }) {
+  const cycles = projections.pastCycles
+    .filter(c => c.cycleLength !== null)
+    .slice(0, 6)
+    .reverse();
+
+  if (cycles.length < 2) return null;
+
+  const maxLen = Math.max(...cycles.map(c => c.cycleLength as number), 35);
+  const minLen = Math.min(...cycles.map(c => c.cycleLength as number), 21);
+  
+  const pMin = minLen - 2;
+  const pMax = maxLen + 2;
+  const range = pMax - pMin;
+
+  return (
+    <div className="py-4 border-b border-border-line/40 flex flex-col md:flex-row items-center gap-6">
+      <div className="flex gap-6 shrink-0 w-full md:w-auto md:border-r md:border-border-line/40 md:pr-6 justify-around md:justify-start">
+        <div className="text-center md:text-left">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-text-dim block mb-1">Promedio Ciclo</span>
+          <span className="text-2xl font-sans font-semibold text-text-main">{projections.meanCycleLength} <span className="text-xs font-mono font-light text-text-dim">días</span></span>
+        </div>
+        <div className="text-center md:text-left">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-text-dim block mb-1">Promedio Sangrado</span>
+          <span className="text-2xl font-sans font-semibold text-[#d88282]">{projections.meanPeriodLength} <span className="text-xs font-mono font-light text-[#d88282]/70">días</span></span>
+        </div>
+      </div>
+      
+      <div className="flex-1 w-full relative h-20 pt-4">
+        <span className="absolute -top-1 left-0 text-[8px] font-mono text-text-dim">Tendencia (días totales)</span>
+        <svg className="w-full h-full overflow-visible">
+          {cycles.map((c, i) => {
+            if (i === 0) return null;
+            const prev = cycles[i - 1];
+            const x1 = cycles.length === 1 ? 50 : ((i - 1) / (cycles.length - 1)) * 100;
+            const y1 = 100 - (((prev.cycleLength as number - pMin) / range) * 100);
+            const x2 = cycles.length === 1 ? 50 : (i / (cycles.length - 1)) * 100;
+            const y2 = 100 - (((c.cycleLength as number - pMin) / range) * 100);
+            return (
+              <line 
+                key={`line-${i}`}
+                x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`}
+                stroke="var(--color-text-dim)" strokeWidth="1.5" strokeOpacity="0.4"
+              />
+            );
+          })}
+          {cycles.map((c, i) => {
+            const x = cycles.length === 1 ? 50 : (i / (cycles.length - 1)) * 100;
+            const y = 100 - (((c.cycleLength as number - pMin) / range) * 100);
+            return (
+              <g key={`point-${i}`}>
+                <circle cx={`${x}%`} cy={`${y}%`} r="3.5" fill="var(--color-base)" stroke="var(--color-text-dim)" strokeWidth="1.5" strokeOpacity="0.8" />
+                <text x={`${x}%`} y={`${y}%`} dy="-12px" fontSize="10px" fill="var(--color-text-main)" textAnchor="middle" className="font-mono font-bold">{c.cycleLength}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function CycleCalendar({ config, onUpdateConfig, projections }: { config: Config | null; onUpdateConfig: (c: Partial<Config>) => void; projections: CycleProjections | null }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), parseInt(e.target.value), 1));
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setCurrentMonth(new Date(parseInt(e.target.value), currentMonth.getMonth(), 1));
+  };
+
   const prevMonth = () => {
-    const d = new Date(currentMonth);
-    d.setMonth(d.getMonth() - 1);
-    setCurrentMonth(d);
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
   const nextMonth = () => {
-    const d = new Date(currentMonth);
-    d.setMonth(d.getMonth() + 1);
-    setCurrentMonth(d);
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
   const flowLogs = config?.cycleConfig?.flowLogs || {};
@@ -614,13 +732,12 @@ function CycleCalendar({ config, onUpdateConfig }: { config: Config | null; onUp
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   
-  // 0 = Sunday, 1 = Monday...
   let startOffset = firstDay.getDay() - 1;
-  if (startOffset === -1) startOffset = 6; // Make Monday first day of week
+  if (startOffset === -1) startOffset = 6; 
 
   const daysInMonth = lastDay.getDate();
   const weeks = [];
-  let currentWeek = [];
+  let currentWeek: (string | null)[] = [];
 
   for (let i = 0; i < startOffset; i++) {
     currentWeek.push(null);
@@ -641,28 +758,61 @@ function CycleCalendar({ config, onUpdateConfig }: { config: Config | null; onUp
     weeks.push(currentWeek);
   }
 
-  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
   const getIntensityColor = (intensity: number) => {
     switch (intensity) {
-      case 1: return 'bg-[#e5b3b3] text-white font-bold dark:bg-[#c27c7c]'; // light red
-      case 2: return 'bg-[#d88282] text-white font-bold dark:bg-[#a64d4d]'; // medium red
-      case 3: return 'bg-[#b84a4a] text-white font-bold dark:bg-[#7a2e2e]'; // dark red
+      case 1: return 'bg-[#e5b3b3] text-white font-bold dark:bg-[#c27c7c]';
+      case 2: return 'bg-[#d88282] text-white font-bold dark:bg-[#a64d4d]';
+      case 3: return 'bg-[#b84a4a] text-white font-bold dark:bg-[#7a2e2e]';
       default: return 'hover:bg-base-dim/10 text-text-main';
     }
   };
 
+  const isFertile = (dateStr: string) => {
+    if (!projections) return false;
+    const d = parseLocalDate(dateStr).getTime();
+    return projections.projectedPeriods.some(p => d >= p.fertileWindowStart.getTime() && d <= p.fertileWindowEnd.getTime());
+  };
+
+  const isOvulation = (dateStr: string) => {
+    if (!projections) return false;
+    const d = parseLocalDate(dateStr).getTime();
+    return projections.projectedPeriods.some(p => d === p.ovulationDate.getTime());
+  };
+
   return (
-    <div className="border border-border-line p-6 rounded-none text-left space-y-6">
+    <div className="p-4 sm:p-6 text-left space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase mb-1">Archivo de Ciclos</h4>
-          <p className="text-[10px] text-text-dim leading-relaxed font-sans font-light">Toca los días para registrar sangrado (Vacío ➔ 💧 ➔ 🩸 ➔ 🔴)</p>
+          <p className="text-[10px] text-text-dim leading-relaxed font-sans font-light">
+            Toca los días para registrar sangrado (Vacío ➔ 💧 ➔ 🩸 ➔ 🔴)<br/>
+            Los días con fondo <span className="text-[#73c2b8] font-bold">verde</span> indican ventana fértil.
+          </p>
         </div>
-        <div className="flex items-center gap-4 bg-base-dim/10 px-4 py-2 border border-border-line rounded-none">
-          <button onClick={prevMonth} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"><ChevronLeft className="w-4 h-4" /></button>
-          <span className="text-xs font-mono font-bold uppercase w-24 text-center">{monthNames[month]} {year}</span>
-          <button onClick={nextMonth} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"><ChevronRight className="w-4 h-4" /></button>
+        <div className="flex items-center bg-base-dim/5 p-1 rounded-sm gap-1 border border-border-line/40">
+          <button onClick={prevMonth} className="p-1.5 text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 hover:bg-base-dim/10 rounded transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+          
+          <select 
+            value={month} 
+            onChange={handleMonthChange}
+            className="text-xs font-mono font-bold uppercase bg-transparent border-0 text-text-main py-1 outline-none cursor-pointer appearance-none text-center hover:bg-base-dim/10 rounded px-2 transition-colors"
+          >
+            {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
+              <option key={i} value={i} className="bg-base">{m}</option>
+            ))}
+          </select>
+          
+          <select 
+            value={year} 
+            onChange={handleYearChange}
+            className="text-xs font-mono font-bold uppercase bg-transparent border-0 text-text-main py-1 outline-none cursor-pointer appearance-none text-center hover:bg-base-dim/10 rounded px-2 transition-colors"
+          >
+            {Array.from({ length: 11 }).map((_, i) => {
+              const y = new Date().getFullYear() - 5 + i;
+              return <option key={y} value={y} className="bg-base">{y}</option>;
+            })}
+          </select>
+
+          <button onClick={nextMonth} className="p-1.5 text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 hover:bg-base-dim/10 rounded transition-colors"><ChevronRight className="w-4 h-4" /></button>
         </div>
       </div>
       
@@ -679,16 +829,23 @@ function CycleCalendar({ config, onUpdateConfig }: { config: Config | null; onUp
                 if (!dateStr) return <div key={j} className="h-10" />;
                 const day = parseInt(dateStr.split('-')[2], 10);
                 const intensity = flowLogs[dateStr] || 0;
+                
+                const fertile = intensity === 0 && isFertile(dateStr);
+                const ovulation = intensity === 0 && isOvulation(dateStr);
+
                 return (
                   <button 
                     key={j}
                     onClick={() => handleDayClick(dateStr)}
                     className={cn(
-                      "h-10 border border-border-line/30 flex items-center justify-center text-xs font-sans transition-colors cursor-pointer",
-                      getIntensityColor(intensity)
+                      "h-10 border border-border-line/30 flex flex-col items-center justify-center text-xs font-sans transition-colors cursor-pointer relative",
+                      getIntensityColor(intensity),
+                      fertile ? "bg-[#73c2b8]/10" : ""
                     )}
                   >
-                    {day}
+                    <span>{day}</span>
+                    {ovulation && <span className="absolute bottom-0.5 text-[8px] leading-none">✨</span>}
+                    {fertile && !ovulation && <span className="absolute bottom-0.5 text-[#73c2b8] text-[8px] leading-none">·</span>}
                   </button>
                 );
               })}

@@ -49,6 +49,160 @@ export function getCyclePeriods(flowLogs: Record<string, number> | undefined): P
   return periods;
 }
 
+export interface PastCycleInfo {
+  startDate: string;
+  endDate: string;
+  periodLength: number;
+  cycleLength: number | null;
+  days: { date: string; intensity: number }[];
+}
+
+export interface ProjectedCycleInfo {
+  startDate: Date;
+  endDate: Date;
+  ovulationDate: Date;
+  fertileWindowStart: Date;
+  fertileWindowEnd: Date;
+}
+
+export interface CycleProjections {
+  currentCycleDay: number | null;
+  daysSinceExpected: number | null;
+  meanCycleLength: number;
+  meanPeriodLength: number;
+  pastCycles: PastCycleInfo[];
+  projectedPeriods: ProjectedCycleInfo[];
+}
+
+export function getCycleProjections(config: Config | null): CycleProjections | null {
+  if (!config || !config.cycleConfig) return null;
+  const flowLogs = config.cycleConfig.flowLogs || {};
+  const periods = getCyclePeriods(flowLogs);
+
+  const fallbackCycleLength = config.cycleConfig.cycleLengthDays || 28;
+  const fallbackPeriodLength = config.cycleConfig.periodLengthDays || 5;
+
+  if (periods.length === 0) {
+    return {
+      currentCycleDay: null,
+      daysSinceExpected: null,
+      meanCycleLength: fallbackCycleLength,
+      meanPeriodLength: fallbackPeriodLength,
+      pastCycles: [],
+      projectedPeriods: []
+    };
+  }
+
+  // Calculate past cycles
+  const pastCycles: PastCycleInfo[] = [];
+  let totalCycleDays = 0;
+  let cycleCountForMean = 0;
+  let totalPeriodDays = 0;
+
+  for (let i = 0; i < periods.length; i++) {
+    const p = periods[i];
+    const startDate = parseLocalDate(p.startDate);
+    const endDate = parseLocalDate(p.endDate);
+    const periodLength = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / DAY_MS) + 1);
+    
+    totalPeriodDays += periodLength;
+
+    let cycleLength: number | null = null;
+    if (i < periods.length - 1) {
+      const nextStartDate = parseLocalDate(periods[i + 1].startDate);
+      cycleLength = Math.max(1, Math.floor((nextStartDate.getTime() - startDate.getTime()) / DAY_MS));
+      totalCycleDays += cycleLength;
+      cycleCountForMean++;
+    }
+
+    pastCycles.push({
+      startDate: p.startDate,
+      endDate: p.endDate,
+      periodLength,
+      cycleLength,
+      days: p.days
+    });
+  }
+
+  const meanCycleLength = cycleCountForMean > 0 ? Math.round(totalCycleDays / cycleCountForMean) : fallbackCycleLength;
+  const meanPeriodLength = periods.length > 0 ? Math.round(totalPeriodDays / periods.length) : fallbackPeriodLength;
+
+  // Reverse pastCycles so newest is first
+  pastCycles.reverse();
+
+  // Current status
+  const lastPeriodStart = parseLocalDate(periods[periods.length - 1].startDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysSinceLastPeriod = Math.floor((today.getTime() - lastPeriodStart.getTime()) / DAY_MS);
+  const currentCycleDay = daysSinceLastPeriod + 1;
+  const daysSinceExpected = daysSinceLastPeriod - meanCycleLength;
+
+  // Projections
+  const projectedPeriods: ProjectedCycleInfo[] = [];
+  let nextStart = new Date(lastPeriodStart);
+  
+  for (let i = 0; i < 3; i++) {
+    // If it's the very first projection and we are past the expected date, we still project based on last start
+    // but we need to step forward by meanCycleLength each time.
+    nextStart.setDate(nextStart.getDate() + meanCycleLength);
+    
+    const nextEnd = new Date(nextStart);
+    nextEnd.setDate(nextEnd.getDate() + meanPeriodLength - 1);
+
+    const ovulationDate = new Date(nextStart);
+    // Next cycle's start minus 14 days is this cycle's ovulation.
+    // So ovulation for THIS upcoming cycle would be the start of the following cycle minus 14.
+    // Wait, the projection is for the UPCOMING period. The ovulation we care about is BEFORE that period!
+    ovulationDate.setDate(ovulationDate.getDate() - 14);
+
+    const fertileStart = new Date(ovulationDate);
+    fertileStart.setDate(fertileStart.getDate() - 5);
+    
+    const fertileEnd = new Date(ovulationDate);
+    fertileEnd.setDate(fertileEnd.getDate() + 1);
+
+    projectedPeriods.push({
+      startDate: new Date(nextStart),
+      endDate: new Date(nextEnd),
+      ovulationDate: new Date(ovulationDate),
+      fertileWindowStart: new Date(fertileStart),
+      fertileWindowEnd: new Date(fertileEnd)
+    });
+  }
+
+  // Also include the projection for the CURRENT cycle if we haven't ovulated yet!
+  // The next period is projectedPeriods[0]. Its ovulation is projectedPeriods[0].ovulationDate.
+  // Actually, we can just insert the current cycle's projection at the start.
+  const currentCycleOvulation = new Date(projectedPeriods[0].startDate);
+  currentCycleOvulation.setDate(currentCycleOvulation.getDate() - 14);
+  const currentFertileStart = new Date(currentCycleOvulation);
+  currentFertileStart.setDate(currentFertileStart.getDate() - 5);
+  const currentFertileEnd = new Date(currentCycleOvulation);
+  currentFertileEnd.setDate(currentFertileEnd.getDate() + 1);
+
+  const currentCycleProjection: ProjectedCycleInfo = {
+    startDate: new Date(lastPeriodStart), // It already started
+    endDate: new Date(lastPeriodStart.getTime() + (meanPeriodLength - 1) * DAY_MS),
+    ovulationDate: currentCycleOvulation,
+    fertileWindowStart: currentFertileStart,
+    fertileWindowEnd: currentFertileEnd
+  };
+
+  // If we are currently BEFORE the projected next period, the 'current' projection is relevant
+  // We prepend it and just take the first 3.
+  projectedPeriods.unshift(currentCycleProjection);
+
+  return {
+    currentCycleDay,
+    daysSinceExpected,
+    meanCycleLength,
+    meanPeriodLength,
+    pastCycles,
+    projectedPeriods: projectedPeriods.slice(0, 3)
+  };
+}
+
 export function calculateBiologicalPhase(config: Config | null, todayDate = new Date()): BiologicalPhase {
   if (!config || !config.cycleConfig) return 'expresiva';
 
