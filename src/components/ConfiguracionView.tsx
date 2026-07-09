@@ -261,6 +261,62 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                 </button>
               </div>
             )}
+
+            {/* Calibración de Parámetros (solo si menstrua) */}
+            {config?.cycleConfig?.menstruates !== false && (
+              <div className="border-t border-border-line/40 pt-6 space-y-4 animate-in fade-in duration-200">
+                <div className="text-left max-w-md">
+                  <span className="text-xs font-bold text-text-main font-sans block">Calibración de Parámetros</span>
+                  <span className="text-[10px] text-text-dim leading-relaxed font-sans font-light mt-0.5 block">
+                    Define la duración promedio de tu ciclo y sangrado para las predicciones futuras si no has introducido suficientes datos en tu historial.
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Duración ciclo (días):</label>
+                    <input 
+                      type="number" 
+                      min={20}
+                      max={45}
+                      value={config?.cycleConfig?.cycleLengthDays || 28}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        if (val >= 20 && val <= 45) {
+                          onUpdateConfig({
+                            cycleConfig: {
+                              ...config?.cycleConfig,
+                              cycleLengthDays: val
+                            }
+                          });
+                        }
+                      }}
+                      className="text-xs bg-base-dim/10 border border-border-line focus:border-[var(--color-text-main)] text-text-main px-3 py-2 outline-none font-mono font-bold rounded-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Sangrado estimado (días):</label>
+                    <input 
+                      type="number" 
+                      min={2}
+                      max={12}
+                      value={config?.cycleConfig?.periodLengthDays || 5}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        if (val >= 2 && val <= 12) {
+                          onUpdateConfig({
+                            cycleConfig: {
+                              ...config?.cycleConfig,
+                              periodLengthDays: val
+                            }
+                          });
+                        }
+                      }}
+                      className="text-xs bg-base-dim/10 border border-border-line focus:border-[var(--color-text-main)] text-text-main px-3 py-2 outline-none font-mono font-bold rounded-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

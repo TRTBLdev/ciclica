@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Compass, BookOpen } from 'lucide-react';
+import { Compass, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Config, CycleTrackingType, BiologicalPhase } from '../types';
 import { calculateBiologicalPhase, getCyclePeriods, parseLocalDate } from '../domain/cycle';
 import { getLunarArchetype, getLunarDetailsForDate } from '../domain/lunar';
@@ -213,86 +213,12 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
                 ) : (
                   <div className="py-6 border-b border-border-line/30">
                     <span className="text-xs font-mono text-text-dim leading-relaxed block">
-                      Aún no has registrado ciclos pasados. Visita la pestaña de <span onClick={() => onNavigate('bitacora')} className="text-primary hover:underline font-bold cursor-pointer font-sans text-xs">Bitácora ➔ Archivo de Ciclos</span> para inicializar las predicciones y calibrar automáticamente tus duraciones.
+                      Aún no has registrado ciclos pasados. Toca los días en el calendario debajo para inicializar las predicciones y calibrar automáticamente tus duraciones.
                     </span>
                   </div>
                 )}
 
-                <div className="border border-border-line p-6 rounded-none text-left space-y-6">
-                  <div>
-                    <span className="text-3xl block mb-2">🩸</span>
-                    <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase mb-2">Seguimiento Menstrual Predictivo</h4>
-                    <p className="text-xs text-text-dim leading-relaxed font-sans font-light">
-                      Su Barra de Energía Dinámica y los arquetipos cognitivos de Foco mutarán diariamente en sintonía con su ritmo hormonal. Puede consultar y descargar el historial completo de sus ciclos y periodos pasados dentro de la vista de <span onClick={() => onNavigate('bitacora')} className="text-primary hover:underline cursor-pointer font-bold">Bitácora</span>.
-                    </p>
-                  </div>
-
-                  {/* Form to update menstrual configuration directly in Sintonía */}
-                  <div className="border-t border-border-line/40 pt-6 space-y-4">
-                    <h5 className="text-[10px] font-mono tracking-widest text-text-main font-bold uppercase">Calibración de Parámetros</h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Último inicio periodo:</label>
-                        <input 
-                          type="date" 
-                          value={config?.cycleConfig?.lastCycleStartDate ? new Date(config.cycleConfig.lastCycleStartDate).toISOString().slice(0, 10) : ''}
-                          onChange={e => {
-                            if (!e.target.value) return;
-                            onUpdateConfig({
-                              cycleConfig: {
-                                ...config?.cycleConfig,
-                                lastCycleStartDate: new Date(e.target.value).toISOString()
-                              }
-                            });
-                          }}
-                          className="text-[11px] bg-transparent border-b border-border-line focus:border-[var(--color-text-main)] text-text-main py-1.5 outline-none font-mono"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Duración ciclo (días):</label>
-                        <input 
-                          type="number" 
-                          min={20}
-                          max={45}
-                          value={config?.cycleConfig?.cycleLengthDays || 28}
-                          onChange={e => {
-                            const val = Number(e.target.value);
-                            if (val >= 20 && val <= 45) {
-                              onUpdateConfig({
-                                cycleConfig: {
-                                  ...config?.cycleConfig,
-                                  cycleLengthDays: val
-                                }
-                              });
-                            }
-                          }}
-                          className="text-xs bg-transparent border-b border-border-line focus:border-[var(--color-text-main)] text-text-main py-1.5 outline-none font-mono font-bold"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim pl-1">Sangrado estimado (días):</label>
-                        <input 
-                          type="number" 
-                          min={2}
-                          max={12}
-                          value={config?.cycleConfig?.periodLengthDays || 5}
-                          onChange={e => {
-                            const val = Number(e.target.value);
-                            if (val >= 2 && val <= 12) {
-                              onUpdateConfig({
-                                cycleConfig: {
-                                  ...config?.cycleConfig,
-                                  periodLengthDays: val
-                                }
-                              });
-                            }
-                          }}
-                          className="text-xs bg-transparent border-b border-border-line focus:border-[var(--color-text-main)] text-text-main py-1.5 outline-none font-mono font-bold"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <CycleCalendar config={config} onUpdateConfig={onUpdateConfig} />
               </div>
             )}
 
@@ -612,7 +538,7 @@ function LunarMirrorPanel({ config, onUpdateConfig, onNavigate }: { config: Conf
                     <tr key={idx} className="border-b border-border-line/30 last:border-0 hover:bg-base-dim/5 transition-colors">
                       <td className="py-3 px-4 text-text-dim">{item.index}</td>
                       <td className="py-3 px-4 text-text-main font-bold">
-                        {new Date(item.period.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {parseLocalDate(item.period.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
                       <td className="py-3 px-4 text-text-main">
                         <span className="text-base mr-1.5">{item.lunar.emoji}</span>
@@ -649,6 +575,126 @@ function LunarMirrorPanel({ config, onUpdateConfig, onNavigate }: { config: Conf
         >
           ✕ Desactivar Espejo Lunar
         </button>
+      </div>
+    </div>
+  );
+}
+
+function CycleCalendar({ config, onUpdateConfig }: { config: Config | null; onUpdateConfig: (c: Partial<Config>) => void }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const prevMonth = () => {
+    const d = new Date(currentMonth);
+    d.setMonth(d.getMonth() - 1);
+    setCurrentMonth(d);
+  };
+
+  const nextMonth = () => {
+    const d = new Date(currentMonth);
+    d.setMonth(d.getMonth() + 1);
+    setCurrentMonth(d);
+  };
+
+  const flowLogs = config?.cycleConfig?.flowLogs || {};
+
+  const handleDayClick = (dateStr: string) => {
+    const currentIntensity = flowLogs[dateStr] || 0;
+    const nextIntensity = (currentIntensity + 1) % 4;
+    const newLogs = { ...flowLogs };
+    if (nextIntensity === 0) {
+      delete newLogs[dateStr];
+    } else {
+      newLogs[dateStr] = nextIntensity;
+    }
+    onUpdateConfig({ cycleConfig: { ...config?.cycleConfig, flowLogs: newLogs } });
+  };
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
+  // 0 = Sunday, 1 = Monday...
+  let startOffset = firstDay.getDay() - 1;
+  if (startOffset === -1) startOffset = 6; // Make Monday first day of week
+
+  const daysInMonth = lastDay.getDate();
+  const weeks = [];
+  let currentWeek = [];
+
+  for (let i = 0; i < startOffset; i++) {
+    currentWeek.push(null);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    currentWeek.push(dateStr);
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+  }
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) {
+      currentWeek.push(null);
+    }
+    weeks.push(currentWeek);
+  }
+
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  const getIntensityColor = (intensity: number) => {
+    switch (intensity) {
+      case 1: return 'bg-[#e5b3b3] text-white font-bold dark:bg-[#c27c7c]'; // light red
+      case 2: return 'bg-[#d88282] text-white font-bold dark:bg-[#a64d4d]'; // medium red
+      case 3: return 'bg-[#b84a4a] text-white font-bold dark:bg-[#7a2e2e]'; // dark red
+      default: return 'hover:bg-base-dim/10 text-text-main';
+    }
+  };
+
+  return (
+    <div className="border border-border-line p-6 rounded-none text-left space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h4 className="text-xs font-mono tracking-widest text-text-main font-bold uppercase mb-1">Archivo de Ciclos</h4>
+          <p className="text-[10px] text-text-dim leading-relaxed font-sans font-light">Toca los días para registrar sangrado (Vacío ➔ 💧 ➔ 🩸 ➔ 🔴)</p>
+        </div>
+        <div className="flex items-center gap-4 bg-base-dim/10 px-4 py-2 border border-border-line rounded-none">
+          <button onClick={prevMonth} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="text-xs font-mono font-bold uppercase w-24 text-center">{monthNames[month]} {year}</span>
+          <button onClick={nextMonth} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+      </div>
+      
+      <div className="w-full">
+        <div className="grid grid-cols-7 mb-2">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
+            <div key={d} className="text-center text-[10px] font-mono text-text-dim font-bold">{d}</div>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1">
+          {weeks.map((w, i) => (
+            <div key={i} className="grid grid-cols-7 gap-1">
+              {w.map((dateStr, j) => {
+                if (!dateStr) return <div key={j} className="h-10" />;
+                const day = parseInt(dateStr.split('-')[2], 10);
+                const intensity = flowLogs[dateStr] || 0;
+                return (
+                  <button 
+                    key={j}
+                    onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-10 border border-border-line/30 flex items-center justify-center text-xs font-sans transition-colors cursor-pointer",
+                      getIntensityColor(intensity)
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
