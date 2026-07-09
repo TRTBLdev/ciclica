@@ -456,9 +456,10 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                   const hora = form.elements.sep_hora.value.trim();
                   const text = form.elements.sep_text.value.trim();
                   const detalle = form.elements.sep_detalle.value.trim();
+                  const color = form.elements.sep_color.value;
                   if (!hora || !text) return;
                   const newSeps = [...(config?.separators || [])];
-                  newSeps.push({ hora, text, detalle });
+                  newSeps.push({ hora, text, detalle, color: color || undefined });
                   // Sort separators by time
                   newSeps.sort((a, b) => {
                     const timeToMins = (tStr: string) => {
@@ -500,6 +501,21 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                     placeholder="Ej. Foco e inicio"
                     className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none focus:outline-none focus:border-[#a2b29f]"
                   />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-text-dim uppercase">Color</label>
+                  <select
+                    name="sep_color"
+                    className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none focus:outline-none focus:border-[#a2b29f]"
+                  >
+                    <option value="">Sin Color</option>
+                    <option value="slate">Gris (Predeterminado)</option>
+                    <option value="emerald">Verde (Emerald)</option>
+                    <option value="rose">Rosa (Rose)</option>
+                    <option value="amber">Ámbar (Amber)</option>
+                    <option value="indigo">Índigo (Indigo)</option>
+                    <option value="purple">Morado (Purple)</option>
+                  </select>
                 </div>
                 <button
                   type="submit"

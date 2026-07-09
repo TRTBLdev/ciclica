@@ -46,6 +46,7 @@ export interface Separator {
   hora: string;
   text: string;
   detalle: string;
+  color?: string;
 }
 
 export type TaskType = 'Hábito' | 'Pulso' | 'Proyecto' | 'Tarea' | 'Rutina';

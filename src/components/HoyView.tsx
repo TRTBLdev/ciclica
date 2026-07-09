@@ -6,6 +6,7 @@ import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
 import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, getAreaColorClasses } from '../lib/utils';
 import TaskItem from './TaskItem';
+import ListControls from './ui/ListControls';
 
 interface Props {
   config: Config | null;
@@ -75,6 +76,51 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [showBacklog, setShowBacklog] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showFlowLogger, setShowFlowLogger] = useState(false);
+  const [sortFlexiblesBy, setSortFlexiblesBy] = useState('manual');
+  const [sortBacklogBy, setSortBacklogBy] = useState('manual');
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const getSortedTasks = (taskList: AppTask[], criterion: string) => {
+    let sorted = [...taskList];
+    if (criterion === 'manual') {
+      sorted.sort((a, b) => (a.order || 0) - (b.order || 0));
+    } else if (criterion === 'priority') {
+      const pVal: any = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
+      sorted.sort((a, b) => (pVal[b.priority || 'Baja'] || 1) - (pVal[a.priority || 'Baja'] || 1));
+    } else if (criterion === 'name') {
+      sorted.sort((a, b) => a.text.localeCompare(b.text));
+    } else if (criterion === 'date') {
+      sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
+    return sorted;
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string, list: AppTask[]) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) return;
+
+    const draggedItem = tasks.find(t => t.id === draggedId);
+    if (!draggedItem) return;
+
+    // Check if both items belong to the same list
+    const sourceInList = list.some(t => t.id === draggedId);
+    const targetInList = list.some(t => t.id === targetId);
+
+    if (!sourceInList || !targetInList) return; // Strict D&D constraint: only within the same list
+
+    const currentIndex = list.findIndex(t => t.id === draggedId);
+    const targetIndex = list.findIndex(t => t.id === targetId);
+
+    const newList = [...list];
+    newList.splice(currentIndex, 1);
+    newList.splice(targetIndex, 0, draggedItem);
+
+    // Re-assign order for the whole list
+    newList.forEach((t, idx) => {
+      onUpdateTask(t.id, { order: (idx + 1) * 1000 });
+    });
+    setDraggedId(null);
+  };
 
   const pulsos = tasks.filter(t => t.type === 'Pulso');
   const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed);
@@ -961,40 +1007,60 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
 
           {/* Tareas Flexibles Section */}
           <div className="flex flex-col gap-4">
-            <h3
-              onClick={() => setShowFlexible(!showFlexible)}
-              className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
-            >
-              <span className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <h3
+                onClick={() => setShowFlexible(!showFlexible)}
+                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
+              >
                 <Inbox className="w-4 h-4 text-text-main silhouette-icon" /> Tareas Flexibles
-              </span>
-              <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal">
-                {showFlexible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {showFlexible ? 'Ocultar' : 'Mostrar'}
-              </span>
-            </h3>
+                <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
+                  {showFlexible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {showFlexible ? 'Ocultar' : 'Mostrar'}
+                </span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <ListControls
+                  sortOptions={[
+                    { label: 'Orden manual', value: 'manual' },
+                    { label: 'Prioridad', value: 'priority' },
+                    { label: 'Fecha de creación', value: 'date' },
+                    { label: 'Alfabético', value: 'name' }
+                  ]}
+                  currentSort={sortFlexiblesBy}
+                  onSortChange={setSortFlexiblesBy}
+                />
+              </div>
+            </div>
 
             {showFlexible && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 {untimedTasks.length === 0 ? (
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Sin elementos flexibles.</p>
                 ) : (
-                  untimedTasks.map(t => (
-                    <TaskItem
-                      key={t.id}
-                      task={t}
-                      config={config}
-                      allTasks={tasks}
-                      history={history}
-                      onToggle={onToggleTask}
-                      onDelete={() => onDeleteTask(t.id)}
-                      onUpdate={onUpdateTask}
-                      onAddTask={onAddTask}
-                      onDeleteTask={onDeleteTask}
-                      activeTimer={activeTimer}
-                      onStartTimer={onStartTimer}
-                      onNavigate={onNavigate}
-                    />
+                  getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
+                    <div 
+                      key={t.id} 
+                      draggable={sortFlexiblesBy === 'manual'}
+                      onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, t.id, untimedTasks)}
+                      className={cn(sortFlexiblesBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
+                    >
+                      <TaskItem
+                        task={t}
+                        config={config}
+                        allTasks={tasks}
+                        history={history}
+                        onToggle={onToggleTask}
+                        onDelete={() => onDeleteTask(t.id)}
+                        onUpdate={onUpdateTask}
+                        onAddTask={onAddTask}
+                        onDeleteTask={onDeleteTask}
+                        activeTimer={activeTimer}
+                        onStartTimer={onStartTimer}
+                        onNavigate={onNavigate}
+                      />
+                    </div>
                   ))
                 )}
               </div>
@@ -1003,40 +1069,60 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
 
           {/* Backlog Section */}
           <div className="flex flex-col gap-4 border-t border-border-line pt-8">
-            <h3
-              onClick={() => setShowBacklog(!showBacklog)}
-              className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
-            >
-              <span className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <h3
+                onClick={() => setShowBacklog(!showBacklog)}
+                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
+              >
                 <Database className="w-4 h-4 text-text-main silhouette-icon" /> Backlog
-              </span>
-              <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal">
-                {showBacklog ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {showBacklog ? 'Ocultar' : 'Mostrar'}
-              </span>
-            </h3>
+                <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
+                  {showBacklog ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {showBacklog ? 'Ocultar' : 'Mostrar'}
+                </span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <ListControls
+                  sortOptions={[
+                    { label: 'Orden manual', value: 'manual' },
+                    { label: 'Prioridad', value: 'priority' },
+                    { label: 'Fecha de creación', value: 'date' },
+                    { label: 'Alfabético', value: 'name' }
+                  ]}
+                  currentSort={sortBacklogBy}
+                  onSortChange={setSortBacklogBy}
+                />
+              </div>
+            </div>
 
             {showBacklog && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 {backlogTasks.length === 0 ? (
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Backlog vacío. Buen trabajo.</p>
                 ) : (
-                  backlogTasks.map(t => (
-                    <TaskItem
+                  getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
+                    <div 
                       key={t.id}
-                      task={t}
-                      config={config}
-                      allTasks={tasks}
-                      history={history}
-                      onToggle={onToggleTask}
-                      onDelete={() => onDeleteTask(t.id)}
-                      onUpdate={onUpdateTask}
-                      onAddTask={onAddTask}
-                      onDeleteTask={onDeleteTask}
-                      activeTimer={activeTimer}
-                      onStartTimer={onStartTimer}
-                      onNavigate={onNavigate}
-                    />
+                      draggable={sortBacklogBy === 'manual'}
+                      onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, t.id, backlogTasks)}
+                      className={cn(sortBacklogBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
+                    >
+                      <TaskItem
+                        task={t}
+                        config={config}
+                        allTasks={tasks}
+                        history={history}
+                        onToggle={onToggleTask}
+                        onDelete={() => onDeleteTask(t.id)}
+                        onUpdate={onUpdateTask}
+                        onAddTask={onAddTask}
+                        onDeleteTask={onDeleteTask}
+                        activeTimer={activeTimer}
+                        onStartTimer={onStartTimer}
+                        onNavigate={onNavigate}
+                      />
+                    </div>
                   ))
                 )}
               </div>
@@ -1077,6 +1163,7 @@ function TimelineRenderer({
   onNavigate?: (view: string, taskId?: string) => void
 }) {
   let lastEndTimeMins: number | null = null;
+  let activeSeparatorColor: string | null = null;
   const renderedItems = [];
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHora, setEditHora] = useState('');
@@ -1088,6 +1175,7 @@ function TimelineRenderer({
     const startMins = timeToMins(t.hora);
 
     if (t.isSeparator) {
+      activeSeparatorColor = t.color || null;
       const idx = t.separatorIndex;
       if (editingId === `sep-${i}`) {
         renderedItems.push(
@@ -1149,12 +1237,26 @@ function TimelineRenderer({
           </div>
         );
       } else {
+        const colorBorderClasses = t.color === 'slate' ? 'border-slate-500/50' :
+          t.color === 'emerald' ? 'border-emerald-500/50' :
+          t.color === 'rose' ? 'border-rose-500/50' :
+          t.color === 'amber' ? 'border-amber-500/50' :
+          t.color === 'indigo' ? 'border-indigo-500/50' :
+          t.color === 'purple' ? 'border-purple-500/50' : 'border-border-line/50';
+
+        const colorTextClasses = t.color === 'slate' ? 'text-slate-500' :
+          t.color === 'emerald' ? 'text-emerald-600' :
+          t.color === 'rose' ? 'text-rose-500' :
+          t.color === 'amber' ? 'text-amber-600' :
+          t.color === 'indigo' ? 'text-indigo-500' :
+          t.color === 'purple' ? 'text-purple-500' : 'text-primary';
+
         renderedItems.push(
           <div key={`sep-${i}`} className="relative flex items-center py-3 my-1 opacity-80 group">
-            <div className="flex-grow border-t border-dashed border-border-line/50"></div>
+            <div className={cn("flex-grow border-t border-dashed", colorBorderClasses)}></div>
             <div className="relative group/sep">
-              <span className="flex-shrink-0 mx-4 text-xs font-mono font-medium text-primary flex items-center gap-2 transition-all cursor-default">
-                {t.hora} - {t.text} {t.detalle && <span className="text-text-dim ml-1 font-sans font-light">({t.detalle})</span>}
+              <span className={cn("flex-shrink-0 mx-4 text-xs font-mono font-medium flex items-center gap-2 transition-all cursor-default", colorTextClasses)}>
+                {t.hora} - {t.text} {t.detalle && <span className={t.color ? colorTextClasses + ' font-sans font-light opacity-80' : 'text-text-dim ml-1 font-sans font-light'}>({t.detalle})</span>}
               </span>
               <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/sep:flex gap-2 bg-base border border-border-line px-2 py-1 z-10">
                 <button onClick={() => { setEditHora(t.hora); setEditText(t.text); setEditDetalle(t.detalle || ''); setEditingId(`sep-${i}`); }} className="p-1 text-text-dim hover:text-primary cursor-pointer bg-transparent border-0 outline-none"><Edit2 className="w-3 h-3" /></button>
@@ -1167,7 +1269,7 @@ function TimelineRenderer({
                 }} className="p-1 text-text-dim hover:text-red-500 cursor-pointer bg-transparent border-0 outline-none"><X className="w-3 h-3" /></button>
               </div>
             </div>
-            <div className="flex-grow border-t border-dashed border-border-line/50"></div>
+            <div className={cn("flex-grow border-t border-dashed", colorBorderClasses)}></div>
           </div>
         );
       }
@@ -1243,11 +1345,18 @@ function TimelineRenderer({
       const plannedHours = t.duracion || 0;
       const hasComparison = plannedHours > 0 || totalExecutedHours > 0;
 
+      const brumaClass = activeSeparatorColor === 'slate' ? 'bg-gradient-to-r from-slate-500/5 to-transparent' :
+        activeSeparatorColor === 'emerald' ? 'bg-gradient-to-r from-emerald-500/5 to-transparent' :
+        activeSeparatorColor === 'rose' ? 'bg-gradient-to-r from-rose-500/5 to-transparent' :
+        activeSeparatorColor === 'amber' ? 'bg-gradient-to-r from-amber-500/5 to-transparent' :
+        activeSeparatorColor === 'indigo' ? 'bg-gradient-to-r from-indigo-500/5 to-transparent' :
+        activeSeparatorColor === 'purple' ? 'bg-gradient-to-r from-purple-500/5 to-transparent' : '';
+
       renderedItems.push(
         <div key={t.id} className="relative flex flex-col mb-4">
-          <div className="flex items-stretch gap-2">
+          <div className={cn("flex items-stretch gap-2 rounded-r-md transition-colors", brumaClass)}>
             <div className="w-0.5 flex-shrink-0" style={{ backgroundColor: `var(--color-${color}-400, #94a3b8)` }}></div>
-            <div className="flex-1 w-full">
+            <div className="flex-1 w-full py-1 pr-1">
               <TaskItem
                 task={t}
                 config={config}

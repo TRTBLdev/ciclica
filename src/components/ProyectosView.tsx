@@ -5,6 +5,7 @@ import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import GanttChart, { GanttScale } from './GanttChart';
+import ListControls from './ui/ListControls';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
@@ -569,36 +570,23 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
         
         {/* Left Side: Selectors */}
-        <div className="flex items-center gap-4 sm:gap-6">
-          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-            <select 
-              value={filter} 
-              onChange={(e) => setFilter(e.target.value)} 
-              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-            >
-              <option value="Todas">Todas</option>
-              {Object.keys(config?.areas || {}).map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
-          </div>
-
-          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value as any)} 
-              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-            >
-              <option value="manual">Manual</option>
-              <option value="priority">Prioridad</option>
-              <option value="date">Fecha</option>
-              <option value="name">Nombre</option>
-              <option value="progress">Progreso</option>
-            </select>
-            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
-          </div>
-        </div>
+        <ListControls 
+          currentFilter={filter}
+          onFilterChange={setFilter}
+          filterOptions={[
+            { label: 'Todas las áreas', value: 'Todas' },
+            ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
+          ]}
+          currentSort={sortBy}
+          onSortChange={(val) => setSortBy(val as any)}
+          sortOptions={[
+            { label: 'Manual', value: 'manual' },
+            { label: 'Prioridad', value: 'priority' },
+            { label: 'Fecha', value: 'date' },
+            { label: 'Nombre', value: 'name' },
+            { label: 'Progreso', value: 'progress' }
+          ]}
+        />
         
         {/* Right Side: Actions */}
         {!isAdding && !isAddingTask && (

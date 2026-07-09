@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BookOpen, Copy, Check, Sparkles, Target, Compass, Flame, Info, Smartphone, Download, RefreshCw, Layers, ChevronDown } from 'lucide-react';
 import { BiologicalPhase } from '../types';
 import { cn } from '../lib/utils';
+import SyllabusPhasesLesson from './SyllabusPhasesLesson';
 
 interface Props {
   currentPhase: BiologicalPhase;
@@ -16,6 +17,13 @@ export default function SyllabusView({ currentPhase }: Props) {
 
   // Sovereign Guide states
   const [activeGuideTab, setActiveGuideTab] = useState<'instalacion' | 'casos'>('instalacion');
+
+  // Active Lesson state
+  const [activeLesson, setActiveLesson] = useState<string | null>(null);
+
+  if (activeLesson === 'Módulo I') {
+    return <SyllabusPhasesLesson onBack={() => setActiveLesson(null)} />;
+  }
 
   const prompts = [
     {
@@ -354,7 +362,17 @@ Procesa esta información y estrucúrala en un desglose recursivo limpio y legib
             ].map(m => (
               <div key={m.mod} className="border-b border-border-line pb-6 space-y-3">
                 <span className="text-[10px] tracking-widest font-mono uppercase text-primary font-bold">{m.mod}</span>
-                <h4 className="text-base font-light tracking-tight text-text-main">{m.title}</h4>
+                <div className="flex items-center gap-3 justify-between">
+                  <h4 className="text-base font-light tracking-tight text-text-main">{m.title}</h4>
+                  {m.mod === 'Módulo I' && (
+                    <button
+                      onClick={() => setActiveLesson(m.mod)}
+                      className="px-4 py-1.5 text-xs font-mono uppercase tracking-wider text-primary border border-primary/40 hover:bg-primary/10 transition-colors bg-transparent cursor-pointer rounded"
+                    >
+                      Leer
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-text-dim italic">{m.desc}</p>
                 <div className="bg-base-dim/20 p-5 border border-border-line text-xs text-text-dim leading-relaxed whitespace-pre-line">
                   {m.content}

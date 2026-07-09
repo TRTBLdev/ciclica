@@ -1,5 +1,5 @@
 import { BiologicalPhase, Config, Intention, IntentionScale } from '../types';
-import { calculateBiologicalPhase } from './cycle';
+import { calculateBiologicalPhase, getCycleProjections } from './cycle';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -41,16 +41,6 @@ function formatRangeText(startStr: string, endStr: string): string {
   return `${startMonth} ${startDay}, ${startYear} - ${endMonth} ${endDay}, ${endYear}`;
 }
 
-function getEarliestFlowDate(config: Config | null): Date | null {
-  if (!config || !config.cycleConfig || !config.cycleConfig.flowLogs) return null;
-  const logs = config.cycleConfig.flowLogs;
-  const dates = Object.keys(logs)
-    .filter(d => logs[d] > 0)
-    .sort();
-  if (dates.length === 0) return null;
-  return parseLocalDate(dates[0]);
-}
-
 export function getCycleRange(config: Config | null, todayDate = new Date()) {
   const isFixed = !config || 
                   config.cycleConfig?.currentManualPhase || 
@@ -68,54 +58,47 @@ export function getCycleRange(config: Config | null, todayDate = new Date()) {
     };
   }
 
-  const earliestFlow = config.cycleConfig?.trackingType === 'menstrual' ? getEarliestFlowDate(config) : null;
-
-  // Scan backward to find start of 'reflexiva' phase
-  let start = new Date(todayDate);
-  for (let i = 0; i < 45; i++) {
-    if (earliestFlow && start < earliestFlow) {
-      start = new Date(earliestFlow);
-      break;
-    }
-    const phase = calculateBiologicalPhase(config, start);
-    if (phase === 'reflexiva') {
-      let temp = new Date(start);
-      for (let j = 0; j < 15; j++) {
-        const prev = new Date(temp.getTime() - DAY_MS);
-        if ((earliestFlow && prev < earliestFlow) || calculateBiologicalPhase(config, prev) !== 'reflexiva') {
-          break;
-        }
-        temp = prev;
-      }
-      start = temp;
-      break;
-    }
-    start = new Date(start.getTime() - DAY_MS);
+  const projections = getCycleProjections(config);
+  if (!projections) {
+    const start = new Date(todayDate);
+    const end = new Date(start.getTime() + 27 * DAY_MS);
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
   }
 
-  // Scan forward to find end of 'creativa' phase
-  let end = new Date(todayDate);
-  for (let i = 0; i < 45; i++) {
-    const phase = calculateBiologicalPhase(config, end);
-    if (phase === 'creativa') {
-      let temp = new Date(end);
-      for (let j = 0; j < 15; j++) {
-        const next = new Date(temp.getTime() + DAY_MS);
-        if (calculateBiologicalPhase(config, next) !== 'creativa') {
-          break;
-        }
-        temp = next;
-      }
-      end = temp;
-      break;
+  const todayTime = todayDate.getTime();
+
+  // First check past cycles
+  for (const c of projections.pastCycles) {
+    const s = parseLocalDate(c.startDate).getTime();
+    const e = parseLocalDate(c.endDate).getTime();
+    if (todayTime >= s && todayTime <= e) {
+      return { start: c.startDate, end: c.endDate };
     }
-    end = new Date(end.getTime() + DAY_MS);
   }
 
-  return {
-    start: formatLocalDate(start),
-    end: formatLocalDate(end)
-  };
+  // Then check projected cycles
+  for (const p of projections.projectedPeriods) {
+    const s = p.startDate.getTime();
+    const e = p.endDate.getTime();
+    if (todayTime >= s && todayTime <= e) {
+      return { start: formatLocalDate(p.startDate), end: formatLocalDate(p.endDate) };
+    }
+  }
+
+  // Fallback to the most recent cycle if today is in a gap
+  if (projections.pastCycles.length > 0) {
+    const mostRecent = projections.pastCycles[0];
+    return { start: mostRecent.startDate, end: mostRecent.endDate };
+  }
+
+  if (projections.projectedPeriods.length > 0) {
+    const firstProj = projections.projectedPeriods[0];
+    return { start: formatLocalDate(firstProj.startDate), end: formatLocalDate(firstProj.endDate) };
+  }
+
+  const start = new Date(todayDate);
+  const end = new Date(start.getTime() + 27 * DAY_MS);
+  return { start: formatLocalDate(start), end: formatLocalDate(end) };
 }
 
 export function getPhaseRange(config: Config | null, todayDate = new Date()) {
@@ -137,12 +120,10 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
     };
   }
 
-  // Get cycle range to bound phase scanning
   const cycle = getCycleRange(config, todayDate);
   const cycleStartLimit = parseLocalDate(cycle.start);
   const cycleEndLimit = parseLocalDate(cycle.end);
 
-  // Scan backward
   let start = new Date(todayDate);
   for (let i = 0; i < 40; i++) {
     const prev = new Date(start.getTime() - DAY_MS);
@@ -152,7 +133,6 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
     start = prev;
   }
 
-  // Scan forward
   let end = new Date(todayDate);
   for (let i = 0; i < 40; i++) {
     const next = new Date(end.getTime() + DAY_MS);

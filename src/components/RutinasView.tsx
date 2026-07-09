@@ -3,6 +3,7 @@ import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
+import ListControls from './ui/ListControls';
 import { RotateCw, Plus, ChevronDown, ChevronUp, ChevronRight, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, getAreaColorClasses, isSameDay, isFutureDate } from '../lib/utils';
 
@@ -308,21 +309,16 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
         
         {/* Left Side: Selectors */}
-        <div className="flex items-center gap-4 sm:gap-6">
-          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value as any)} 
-              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-            >
-              <option value="manual">Manual</option>
-              <option value="priority">Prioridad</option>
-              <option value="date">Fecha</option>
-              <option value="name">Nombre</option>
-            </select>
-            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
-          </div>
-        </div>
+        <ListControls 
+          currentSort={sortBy}
+          onSortChange={(val) => setSortBy(val as any)}
+          sortOptions={[
+            { label: 'Manual', value: 'manual' },
+            { label: 'Prioridad', value: 'priority' },
+            { label: 'Fecha', value: 'date' },
+            { label: 'Nombre', value: 'name' }
+          ]}
+        />
         
         {/* Right Side: Actions */}
         <div className="flex flex-wrap items-center justify-end gap-4 font-sans text-[10px] uppercase tracking-widest font-bold">
