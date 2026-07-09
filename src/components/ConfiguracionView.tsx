@@ -727,7 +727,8 @@ function MonthDaySelect({
   onChange: (val: string) => void; 
   disabled?: boolean 
 }) {
-  const [mStr, dStr] = value.split('-');
+  const safeValue = value || '01-01';
+  const [mStr, dStr] = safeValue.split('-');
   const month = parseInt(mStr, 10) || 1;
   const day = parseInt(dStr, 10) || 1;
 

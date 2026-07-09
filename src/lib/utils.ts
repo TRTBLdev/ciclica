@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+
 export function extractSafeTime(t: string | undefined): string | null {
   if (!t) return null;
   if (t.includes('1899') || t.includes('GMT') || t.includes('T')) {
@@ -126,16 +127,16 @@ export function getAreaTextClasses(color: string) {
 
 export function getSafeTailwindClasses() {
   return [
-    'text-blue-400', 'text-blue-500', 'text-blue-600', 'text-blue-700', 'bg-blue-50', 'bg-blue-400', 'bg-blue-500', 'border-blue-100', 'border-blue-200',
-    'text-orange-400', 'text-orange-500', 'text-orange-600', 'text-orange-700', 'bg-orange-50', 'bg-orange-400', 'bg-orange-500', 'border-orange-100', 'border-orange-200',
-    'text-purple-400', 'text-purple-500', 'text-purple-600', 'text-purple-700', 'bg-purple-50', 'bg-purple-400', 'bg-purple-500', 'border-purple-100', 'border-purple-200',
-    'text-emerald-400', 'text-emerald-500', 'text-emerald-600', 'text-emerald-700', 'bg-emerald-50', 'bg-emerald-400', 'bg-emerald-500', 'border-emerald-100', 'border-emerald-200',
-    'text-slate-400', 'text-slate-500', 'text-slate-600', 'text-slate-700', 'bg-slate-50', 'bg-slate-400', 'bg-slate-500', 'border-slate-100', 'border-slate-200',
-    'text-amber-400', 'text-amber-500', 'text-amber-600', 'text-amber-700', 'bg-amber-50', 'bg-amber-400', 'bg-amber-500', 'border-amber-100', 'border-amber-200',
-    'text-red-400', 'text-red-500', 'text-red-600', 'text-red-700', 'bg-red-50', 'bg-red-400', 'bg-red-500', 'border-red-100', 'border-red-200',
-    'text-green-400', 'text-green-500', 'text-green-600', 'text-green-700', 'bg-green-50', 'bg-green-400', 'bg-green-500', 'border-green-100', 'border-green-200',
-    'text-teal-400', 'text-teal-500', 'text-teal-600', 'text-teal-700', 'bg-teal-50', 'bg-teal-400', 'bg-teal-500', 'border-teal-100', 'border-teal-200',
-    'text-cyan-400', 'text-cyan-500', 'text-cyan-600', 'text-cyan-700', 'bg-cyan-50', 'bg-cyan-400', 'bg-cyan-500', 'border-cyan-100', 'border-cyan-200',
+    'text-slate-400', 'text-slate-500', 'text-slate-600', 'text-slate-700', 'bg-slate-50', 'bg-slate-100', 'bg-slate-400', 'bg-slate-500', 'border-slate-100', 'border-slate-200', 'border-slate-500/50', 'from-slate-500/5',
+    'text-blue-400', 'text-blue-500', 'text-blue-600', 'text-blue-700', 'bg-blue-50', 'bg-blue-100', 'bg-blue-400', 'bg-blue-500', 'border-blue-100', 'border-blue-200', 'border-blue-500/50', 'from-blue-500/5',
+    'text-orange-400', 'text-orange-500', 'text-orange-600', 'text-orange-700', 'bg-orange-50', 'bg-orange-100', 'bg-orange-400', 'bg-orange-500', 'border-orange-100', 'border-orange-200', 'border-orange-500/50', 'from-orange-500/5',
+    'text-purple-400', 'text-purple-500', 'text-purple-600', 'text-purple-700', 'bg-purple-50', 'bg-purple-100', 'bg-purple-400', 'bg-purple-500', 'border-purple-100', 'border-purple-200', 'border-purple-500/50', 'from-purple-500/5',
+    'text-emerald-400', 'text-emerald-500', 'text-emerald-600', 'text-emerald-700', 'bg-emerald-50', 'bg-emerald-100', 'bg-emerald-400', 'bg-emerald-500', 'border-emerald-100', 'border-emerald-200', 'border-emerald-500/50', 'from-emerald-500/5',
+    'text-amber-400', 'text-amber-500', 'text-amber-600', 'text-amber-700', 'bg-amber-50', 'bg-amber-100', 'bg-amber-400', 'bg-amber-500', 'border-amber-100', 'border-amber-200', 'border-amber-500/50', 'from-amber-500/5',
+    'text-red-400', 'text-red-500', 'text-red-600', 'text-red-700', 'bg-red-50', 'bg-red-100', 'bg-red-400', 'bg-red-500', 'border-red-100', 'border-red-200', 'border-red-500/50', 'from-red-500/5',
+    'text-green-400', 'text-green-500', 'text-green-600', 'text-green-700', 'bg-green-50', 'bg-green-100', 'bg-green-400', 'bg-green-500', 'border-green-100', 'border-green-200', 'border-green-500/50', 'from-green-500/5',
+    'text-teal-400', 'text-teal-500', 'text-teal-600', 'text-teal-700', 'bg-teal-50', 'bg-teal-100', 'bg-teal-400', 'bg-teal-500', 'border-teal-100', 'border-teal-200', 'border-teal-500/50', 'from-teal-500/5',
+    'text-cyan-400', 'text-cyan-500', 'text-cyan-600', 'text-cyan-700', 'bg-cyan-50', 'bg-cyan-100', 'bg-cyan-400', 'bg-cyan-500', 'border-cyan-100', 'border-cyan-200', 'border-cyan-500/50', 'from-cyan-500/5',
   ];
 }
 

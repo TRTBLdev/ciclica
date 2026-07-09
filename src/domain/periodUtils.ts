@@ -282,7 +282,10 @@ export function generatePeriodLabel(scale: IntentionScale, start: string, end: s
   return `${start} / ${end}`;
 }
 
-export function getCurrentPeriod(scale: IntentionScale, config: Config | null, todayDate = new Date()) {
+export function getCurrentPeriod(scale: IntentionScale | 'free', config: Config | null, todayDate = new Date()) {
+  if (scale === 'free') {
+    return { start: '', end: '', label: 'Todo el tiempo' };
+  }
   if (scale === 'phase') {
     const range = getPhaseRange(config, todayDate);
     const label = generatePeriodLabel('phase', range.start, range.end, range.phaseName);

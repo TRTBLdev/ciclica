@@ -1237,19 +1237,17 @@ function TimelineRenderer({
           </div>
         );
       } else {
-        const colorBorderClasses = t.color === 'slate' ? 'border-slate-500/50' :
-          t.color === 'emerald' ? 'border-emerald-500/50' :
-          t.color === 'rose' ? 'border-rose-500/50' :
-          t.color === 'amber' ? 'border-amber-500/50' :
-          t.color === 'indigo' ? 'border-indigo-500/50' :
-          t.color === 'purple' ? 'border-purple-500/50' : 'border-border-line/50';
+        const getBorderClass = (c: string) => {
+          const valid = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
+          return valid.includes(c) ? `border-${c}-500/50` : 'border-border-line/50';
+        };
+        const getTextClass = (c: string) => {
+          const valid = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
+          return valid.includes(c) ? `text-${c}-600` : 'text-primary';
+        };
 
-        const colorTextClasses = t.color === 'slate' ? 'text-slate-500' :
-          t.color === 'emerald' ? 'text-emerald-600' :
-          t.color === 'rose' ? 'text-rose-500' :
-          t.color === 'amber' ? 'text-amber-600' :
-          t.color === 'indigo' ? 'text-indigo-500' :
-          t.color === 'purple' ? 'text-purple-500' : 'text-primary';
+        const colorBorderClasses = getBorderClass(t.color || '');
+        const colorTextClasses = getTextClass(t.color || '');
 
         renderedItems.push(
           <div key={`sep-${i}`} className="relative flex items-center py-3 my-1 opacity-80 group">
@@ -1345,12 +1343,10 @@ function TimelineRenderer({
       const plannedHours = t.duracion || 0;
       const hasComparison = plannedHours > 0 || totalExecutedHours > 0;
 
-      const brumaClass = activeSeparatorColor === 'slate' ? 'bg-gradient-to-r from-slate-500/5 to-transparent' :
-        activeSeparatorColor === 'emerald' ? 'bg-gradient-to-r from-emerald-500/5 to-transparent' :
-        activeSeparatorColor === 'rose' ? 'bg-gradient-to-r from-rose-500/5 to-transparent' :
-        activeSeparatorColor === 'amber' ? 'bg-gradient-to-r from-amber-500/5 to-transparent' :
-        activeSeparatorColor === 'indigo' ? 'bg-gradient-to-r from-indigo-500/5 to-transparent' :
-        activeSeparatorColor === 'purple' ? 'bg-gradient-to-r from-purple-500/5 to-transparent' : '';
+      const validColors = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
+      const brumaClass = validColors.includes(activeSeparatorColor || '') 
+        ? `bg-gradient-to-r from-${activeSeparatorColor}-500/5 to-transparent` 
+        : '';
 
       renderedItems.push(
         <div key={t.id} className="relative flex flex-col mb-4">

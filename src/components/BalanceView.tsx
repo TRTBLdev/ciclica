@@ -5,6 +5,7 @@ import { CheckCircle2, CircleDashed, Clock, CalendarDays, Flame, Wrench } from '
 import { cn } from '../lib/utils';
 import ReportesView from './ReportesView';
 import DedicationChart from './DedicationChart';
+import WeeklyGanttChart from './WeeklyGanttChart';
 
 interface Props {
   scale: IntentionScale | 'free';
@@ -169,15 +170,25 @@ export default function BalanceView({
         </div>
       )}
 
-      {/* DEDICATION CHART (HORAS) */}
+      {/* ANALÍTICAS */}
       <div className="border-t border-border-line pt-8">
-        <DedicationChart 
-          tasks={tasks}
-          history={history}
-          periodStart={periodStart}
-          periodEnd={periodEnd}
-          config={config}
-        />
+        {scale === 'phase' ? (
+          <WeeklyGanttChart 
+            tasks={tasks}
+            history={history}
+            periodStart={periodStart}
+            periodEnd={periodEnd}
+            config={config}
+          />
+        ) : (
+          <DedicationChart 
+            tasks={tasks}
+            history={history}
+            periodStart={periodStart}
+            periodEnd={periodEnd}
+            config={config}
+          />
+        )}
       </div>
     </div>
   );

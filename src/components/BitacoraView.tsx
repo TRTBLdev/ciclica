@@ -3,6 +3,7 @@ import { Calendar, BarChart3, CheckCircle2, BookOpen, X, Download } from 'lucide
 import { Config, AppTask, HistoryRecord, Intention, IntentionScale } from '../types';
 import { cn } from '../lib/utils';
 import CalendarioView from './CalendarioView';
+import CalendarioSemanalView from './CalendarioSemanalView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
 import PlanificarView from './PlanificarView';
@@ -56,8 +57,8 @@ export default function BitacoraView({
   onAddHistory,
 }: Props) {
   const { showToast } = useToast();
-  // Tabs: 'planificar' | 'balance' | 'historial'
-  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'historial'>('balance');
+  // Tabs: 'calendario' | 'planificar' | 'balance' | 'historial' | 'archivo'
+  const [activeTab, setActiveTab] = useState<'calendario' | 'planificar' | 'balance' | 'historial' | 'archivo'>('calendario');
   const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('phase');
   const [cursorDate, setCursorDate] = useState<Date>(new Date());
 
@@ -467,6 +468,16 @@ export default function BitacoraView({
 
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">
+        {activeTab === 'calendario' && (
+          <div className="animate-in fade-in duration-200 h-full p-6 md:p-10 w-full flex flex-col">
+            <CalendarioSemanalView
+              config={config}
+              tasks={tasks}
+              onUpdateTask={onUpdateTask}
+            />
+          </div>
+        )}
+
         {activeTab === 'planificar' && activeScale !== 'free' && (
           <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto text-left">
             <PlanificarView
@@ -481,6 +492,7 @@ export default function BitacoraView({
               onAddIntention={onAddIntention}
               onUpdateIntention={onUpdateIntention}
               onDeleteIntention={onDeleteIntention}
+              onUpdateTask={onUpdateTask}
             />
           </div>
         )}

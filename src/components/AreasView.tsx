@@ -129,7 +129,7 @@ function AreasList({
                   value={editForm.color}
                   onChange={e => setEditForm({ ...editForm, color: e.target.value })}
                 >
-                  {COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                  {APP_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>

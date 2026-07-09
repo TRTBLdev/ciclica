@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AppTask, HistoryRecord, Config } from '../types';
 import { cn, getAreaColorClasses, getAreaTextClasses } from '../lib/utils';
 import { Layers, CheckCircle2, Repeat, ChevronRight, ChevronDown } from 'lucide-react';
-
+import { calculateBiologicalPhase, parseLocalDate } from '../domain/cycle';
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
   let current = allTasks.find(t => t.id === taskId);
   while (current) {
@@ -164,9 +164,90 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     return colors[idx % colors.length] || 'bg-text-dim';
   };
 
+  // --- Phase Breakdown Logic ---
+
+  const phaseBreakdown: Record<string, { vital: number, inversion: number }> = {
+    'reflexiva': { vital: 0, inversion: 0 },
+    'dinamica': { vital: 0, inversion: 0 },
+    'expresiva': { vital: 0, inversion: 0 },
+    'creativa': { vital: 0, inversion: 0 },
+  };
+
+  const getEffectiveAllocation = (task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' => {
+    if (task.allocationType) return task.allocationType;
+    if (task.type === 'Hábito' || task.type === 'Contador') return 'fixed';
+    if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
+    const project = getProjectForTask(task.id, allTasks);
+    if (project) return 'growth';
+    return 'mixed';
+  };
+
+  history.filter(h => {
+    const d = h.date.slice(0, 10);
+    return d >= periodStart && d <= periodEnd;
+  }).forEach(h => {
+    const originalTask = tasks.find(t => t.id === h.taskId);
+    if (originalTask) {
+      const dateObj = parseLocalDate(h.date.slice(0, 10));
+      const phase = calculateBiologicalPhase(config, dateObj);
+      const energy = getEffectiveAllocation(originalTask, tasks) === 'fixed' ? 'vital' : 'inversion';
+      if (phaseBreakdown[phase]) {
+        phaseBreakdown[phase][energy] += (h.duration || 0);
+      }
+    }
+  });
+
+  const phaseLabels = {
+    'reflexiva': { label: 'Reflexiva', color: 'text-[#d4a373]' },
+    'dinamica': { label: 'Dinámica', color: 'text-[#81b29a]' },
+    'expresiva': { label: 'Expresiva', color: 'text-[#e07a5f]' },
+    'creativa': { label: 'Creativa', color: 'text-[#f2cc8f]' },
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Stacked Bar */}
+    <div className="space-y-12">
+      {/* Phase Breakdown */}
+      <div className="space-y-4">
+        <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
+          Diferencia de Dedicación por Fase Biológica
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {Object.entries(phaseBreakdown).map(([phase, data]) => {
+            const total = data.vital + data.inversion;
+            const pInfo = phaseLabels[phase as keyof typeof phaseLabels];
+            return (
+              <div key={phase} className="bg-base-dim/10 border border-border-line/30 rounded-xl p-4 flex flex-col gap-2">
+                <div className={cn("text-xs font-mono uppercase tracking-widest font-bold", pInfo.color)}>
+                  {pInfo.label}
+                </div>
+                <div className="text-xl font-sans font-light text-text-main">
+                  {total.toFixed(1)} <span className="text-xs text-text-dim">h</span>
+                </div>
+                <div className="space-y-1 mt-2">
+                  <div className="flex justify-between text-[9px] font-mono text-text-dim">
+                    <span>Soporte Vital</span>
+                    <span>{data.vital.toFixed(1)}h</span>
+                  </div>
+                  <div className="w-full bg-base-dim/20 h-1 rounded-full overflow-hidden">
+                    <div className="bg-[#81b29a] h-full" style={{ width: `${total > 0 ? (data.vital / total) * 100 : 0}%` }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between text-[9px] font-mono text-text-dim pt-1">
+                    <span>Inversión</span>
+                    <span>{data.inversion.toFixed(1)}h</span>
+                  </div>
+                  <div className="w-full bg-base-dim/20 h-1 rounded-full overflow-hidden">
+                    <div className="bg-[#e07a5f] h-full" style={{ width: `${total > 0 ? (data.inversion / total) * 100 : 0}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* Stacked Bar */}
       <div className="space-y-2">
         <div className="flex justify-between items-end">
           <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
@@ -284,6 +365,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );
