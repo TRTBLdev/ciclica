@@ -61,10 +61,10 @@ export default function FloatingTimer({
 
   if (!activeTimer) {
     return (
-      <div className="w-full bg-base border-t border-border-line select-none flex flex-col shrink-0">
+      <div className="w-full bg-base border-t border-border-line select-none flex flex-col shrink-0 fixed md:relative bottom-[50px] md:bottom-0 left-0 right-0 z-50">
         <button 
           onClick={() => setIsOpen(!isOpen)} 
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-border-line)]/20 transition-all text-left text-xs font-mono font-bold uppercase tracking-wider text-text-dim hover:text-text-main bg-transparent border-0 outline-none cursor-pointer"
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-border-line)]/20 transition-all text-left text-[11px] font-sans font-medium uppercase tracking-wider text-text-dim hover:text-text-main bg-transparent border-0 outline-none cursor-pointer"
         >
           <span className="flex items-center gap-2">⏱️ INICIAR TRACKER</span>
           <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200 text-text-dim", isOpen && "rotate-180")} />

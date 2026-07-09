@@ -421,8 +421,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Content */}
         <div className={cn(
-          "flex-1 h-screen bg-base overflow-y-auto w-full pb-[60px] md:pb-0",
-          activeTimer && (isTimerMinimized ? "pb-[112px] md:pb-0" : "pb-[270px] md:pb-0")
+          "flex-1 h-screen bg-base overflow-y-auto w-full",
+          activeTimer 
+            ? (isTimerMinimized ? "pb-[112px] md:pb-0" : "pb-[270px] md:pb-0") 
+            : "pb-[100px] md:pb-0"
         )}>
           <Suspense fallback={<ViewLoader />}>
             {currentView === 'hoy' && (
@@ -542,22 +544,20 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         </div>
       </div>
 
-      {activeTimer && (
-        <div className="md:hidden">
-          <FloatingTimer 
-            activeTimer={activeTimer}
-            tasks={tasks}
-            onPause={handlePauseTimer}
-            onResume={handleResumeTimer}
-            onStop={handleStopTimer}
-            onDiscard={handleDiscardTimer}
-            onStartTimer={handleStartTimer}
-            onUpdateStartTime={handleUpdateTimerStartTime}
-            isMinimized={isTimerMinimized}
-            onToggleMinimize={() => setIsTimerMinimized(!isTimerMinimized)}
-          />
-        </div>
-      )}
+      <div className="md:hidden">
+        <FloatingTimer 
+          activeTimer={activeTimer}
+          tasks={tasks}
+          onPause={handlePauseTimer}
+          onResume={handleResumeTimer}
+          onStop={handleStopTimer}
+          onDiscard={handleDiscardTimer}
+          onStartTimer={handleStartTimer}
+          onUpdateStartTime={handleUpdateTimerStartTime}
+          isMinimized={isTimerMinimized}
+          onToggleMinimize={() => setIsTimerMinimized(!isTimerMinimized)}
+        />
+      </div>
 
       {showOnboarding && (
         <Onboarding 
