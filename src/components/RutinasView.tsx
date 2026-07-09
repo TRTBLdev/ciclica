@@ -304,9 +304,9 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   };
 
   return (
-    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-6 px-6 md:px-10 max-w-4xl mx-auto w-full text-left bg-transparent">
+    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-6 px-6 md:px-10 max-w-4xl mx-auto w-full text-left bg-transparent relative z-10">
        {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
         
         {/* Left Side: Selectors */}
         <ListControls 

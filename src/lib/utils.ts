@@ -74,6 +74,8 @@ export function isFutureDate(dateStr: string | undefined): boolean {
   return calendarDateValue(dateStr) > calendarDateValue(new Date());
 }
 
+export const APP_COLORS = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
+
 export function getAreaColorClasses(color: string) {
   const map: Record<string, string> = {
     slate: 'bg-slate-100 border-slate-200 text-slate-700',
@@ -132,6 +134,8 @@ export function getSafeTailwindClasses() {
     'text-amber-400', 'text-amber-500', 'text-amber-600', 'text-amber-700', 'bg-amber-50', 'bg-amber-400', 'bg-amber-500', 'border-amber-100', 'border-amber-200',
     'text-red-400', 'text-red-500', 'text-red-600', 'text-red-700', 'bg-red-50', 'bg-red-400', 'bg-red-500', 'border-red-100', 'border-red-200',
     'text-green-400', 'text-green-500', 'text-green-600', 'text-green-700', 'bg-green-50', 'bg-green-400', 'bg-green-500', 'border-green-100', 'border-green-200',
+    'text-teal-400', 'text-teal-500', 'text-teal-600', 'text-teal-700', 'bg-teal-50', 'bg-teal-400', 'bg-teal-500', 'border-teal-100', 'border-teal-200',
+    'text-cyan-400', 'text-cyan-500', 'text-cyan-600', 'text-cyan-700', 'bg-cyan-50', 'bg-cyan-400', 'bg-cyan-500', 'border-cyan-100', 'border-cyan-200',
   ];
 }
 

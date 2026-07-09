@@ -564,10 +564,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   };
 
   return (
-    <div className="flex flex-col gap-6 pt-6 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full">
+    <div className="flex flex-col gap-6 pt-6 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full relative z-10">
       
       {/* Toolbar instead of ViewHeader */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
         
         {/* Left Side: Selectors */}
         <ListControls 

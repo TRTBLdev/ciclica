@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
-import { cn, getAreaColorClasses } from '../lib/utils';
+import { cn, getAreaColorClasses, APP_COLORS } from '../lib/utils';
 import { calculateItemProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
-
-const COLORS = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
 
 interface Props {
   config: Config | null;
@@ -497,13 +495,20 @@ function AreaDetail({
             </div>
             <div>
               <label className="text-[10px] font-mono uppercase tracking-wider text-text-dim block mb-1">Color de Acento</label>
-              <select 
-                className="w-full bg-base border border-border-line rounded-xl px-4 py-2 text-sm focus:outline-none uppercase text-text-main"
-                value={editColor}
-                onChange={e => setEditColor(e.target.value)}
-              >
-                {COLORS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div className="flex flex-wrap gap-2">
+                {APP_COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEditColor(c)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-2 transition-all cursor-pointer",
+                      editColor === c ? "border-[var(--color-text-main)] scale-110" : "border-transparent hover:scale-110",
+                      `bg-${c}-500`
+                    )}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
