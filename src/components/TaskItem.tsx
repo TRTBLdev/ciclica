@@ -327,11 +327,42 @@ export default function TaskItem({
   
   const getTrackedDuration = () => {
     if (!history) return 0;
-    if (task.type !== 'Proyecto' && task.type !== 'Rutina' && !hasSubtasks) {
-      return history.filter(h => h.taskId === task.id).reduce((acc, h) => acc + (h.duration || 0), 0);
+    
+    if (task.type === 'Proyecto') {
+      const childrenIds = allTasks.filter(t => t.parentId === task.id).map(t => t.id);
+      return history.filter(h => childrenIds.includes(h.taskId)).reduce((acc, h) => acc + (h.duration || 0), 0);
     }
-    const childrenIds = allTasks.filter(t => t.parentId === task.id).map(t => t.id);
-    return history.filter(h => childrenIds.includes(h.taskId)).reduce((acc, h) => acc + (h.duration || 0), 0);
+    
+    if (task.type === 'Rutina' || (hasSubtasks && task.type !== 'Proyecto')) {
+      const childrenIds = allTasks.filter(t => t.parentId === task.id).map(t => t.id);
+      let totalAvg = 0;
+      for (const cid of childrenIds) {
+        const cRecs = history.filter(h => h.taskId === cid && h.duration);
+        if (cRecs.length > 0) {
+          const uniqueDays = new Set(cRecs.map(h => h.date.substring(0, 10))).size;
+          const cTotal = cRecs.reduce((acc, h) => acc + (h.duration || 0), 0);
+          totalAvg += (cTotal / uniqueDays);
+        }
+      }
+      const selfRecs = history.filter(h => h.taskId === task.id && h.duration);
+      if (selfRecs.length > 0) {
+         const uniqueDays = new Set(selfRecs.map(h => h.date.substring(0, 10))).size;
+         const sTotal = selfRecs.reduce((acc, h) => acc + (h.duration || 0), 0);
+         totalAvg += (sTotal / uniqueDays);
+      }
+      return totalAvg;
+    }
+    
+    // Tarea, Hábito, Pulso
+    const records = history.filter(h => h.taskId === task.id && h.duration);
+    const total = records.reduce((acc, h) => acc + (h.duration || 0), 0);
+    
+    if (task.type === 'Hábito') {
+      const uniqueDays = new Set(records.map(h => h.date.substring(0, 10))).size;
+      return uniqueDays > 0 ? total / uniqueDays : 0;
+    }
+    
+    return total;
   };
 
   const trackedHours = getTrackedDuration();
@@ -802,13 +833,13 @@ export default function TaskItem({
               {(task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks) ? (
                 (plannedHours > 0 || trackedHours > 0) && (
                   <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Acumulado real vs planeado">
-                    {trackedHours.toFixed(2)}h real / {plannedHours.toFixed(1)}h plan
+                    {task.type === 'Rutina' ? `${trackedHours.toFixed(2)}h prom` : `${trackedHours.toFixed(2)}h real`} / {plannedHours.toFixed(1)}h plan
                   </span>
                 )
               ) : (
                 (plannedHours > 0 || trackedHours > 0) && (
                   <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Progreso real vs estimado">
-                    {trackedHours > 0 ? `${trackedHours.toFixed(2)}h real ` : ''}{plannedHours > 0 ? `(Est: ${plannedHours}h)` : ''}
+                    {trackedHours > 0 ? (task.type === 'Hábito' ? `${trackedHours.toFixed(2)}h prom ` : `${trackedHours.toFixed(2)}h real `) : ''}{plannedHours > 0 ? `(Est: ${plannedHours}h)` : ''}
                   </span>
                 )
               )}
