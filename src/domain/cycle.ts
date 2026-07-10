@@ -20,7 +20,11 @@ export function parseLocalDate(dateStr: string): Date {
 export function getCyclePeriods(flowLogs: Record<string, number> | undefined): PeriodGroup[] {
   if (!flowLogs) return [];
   const flowEntries = Object.entries(flowLogs)
-    .filter(([_, intensity]) => intensity > 0)
+    .filter(([dateStr, intensity]) => {
+      if (intensity <= 0) return false;
+      const d = parseLocalDate(dateStr);
+      return !isNaN(d.getTime());
+    })
     .sort((a, b) => parseLocalDate(a[0]).getTime() - parseLocalDate(b[0]).getTime());
 
   if (flowEntries.length === 0) return [];
@@ -203,18 +207,22 @@ export function getCycleProjections(config: Config | null): CycleProjections | n
   };
 }
 
-export function calculateBiologicalPhase(config: Config | null, todayDate = new Date()): BiologicalPhase {
+export function calculateBiologicalPhase(config: Config | null, todayDate = new Date(), ignoreManual = false): BiologicalPhase {
   if (!config || !config.cycleConfig) return 'expresiva';
 
   const { trackingType, currentManualPhase, flowLogs, cycleLengthDays } = config.cycleConfig;
 
-  if (currentManualPhase && currentManualPhase !== 'none' as any) {
+  if (!ignoreManual && currentManualPhase && currentManualPhase !== 'none' as any) {
     return currentManualPhase;
   }
 
   if (trackingType === 'menstrual' && flowLogs && Object.keys(flowLogs).length > 0) {
     const logEntries = Object.entries(flowLogs)
-      .filter(([_, intensity]) => intensity > 0)
+      .filter(([dateStr, intensity]) => {
+        if (intensity <= 0) return false;
+        const d = parseLocalDate(dateStr);
+        return !isNaN(d.getTime()); // Ensure it's a valid date
+      })
       .sort((a, b) => parseLocalDate(a[0]).getTime() - parseLocalDate(b[0]).getTime());
 
     if (logEntries.length === 0) return 'expresiva';

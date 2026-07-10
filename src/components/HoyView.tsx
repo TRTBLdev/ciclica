@@ -6,6 +6,7 @@ import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
 import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, getAreaColorClasses } from '../lib/utils';
 import TaskItem from './TaskItem';
+import CategoryBadge from './ui/CategoryBadge';
 import ListControls from './ui/ListControls';
 
 interface Props {
@@ -848,11 +849,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <h4 className="text-xs font-medium text-text-main truncate" title={t.text}>{t.text}</h4>
                             {t.category && (
-                              <span className={cn("text-[7.5px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded-full border border-dashed leading-none",
-                                getAreaColorClasses(typeof (config?.areas?.[t.category] || 'slate') === 'string' ? config?.areas?.[t.category] as string || 'slate' : (config?.areas?.[t.category] as any)?.color || 'slate')
-                              )}>
-                                {t.category}
-                              </span>
+                              <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
                             )}
                             {t.polaridad && (
                               <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
@@ -1299,14 +1296,7 @@ function TimelineRenderer({
               {t.text}
             </span>
             {t.category && (
-              <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full shrink-0 leading-none",
-                color === 'emerald' ? 'border-emerald-500/20 text-emerald-600 bg-emerald-500/5' :
-                  color === 'teal' ? 'border-teal-500/20 text-teal-600 bg-teal-500/5' :
-                    color === 'amber' ? 'border-amber-500/20 text-amber-600 bg-amber-500/5' :
-                      'border-slate-500/20 text-slate-600 bg-slate-500/5'
-              )}>
-                {t.category}
-              </span>
+              <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
             )}
           </div>
 

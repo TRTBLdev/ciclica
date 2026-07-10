@@ -3,7 +3,10 @@ import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../type
 import { isFutureDate } from '../lib/utils';
 import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
-import { cn, getAreaColorClasses } from '../lib/utils';
+import { cn } from '../lib/utils';
+import CategoryBadge from './ui/CategoryBadge';
+import PriorityBadge from './ui/PriorityBadge';
+import AllocationBadge from './ui/AllocationBadge';
 
 
 const GripIcon = () => (
@@ -368,9 +371,7 @@ export default function TaskItem({
   };
 
   const prioBadge = () => {
-    if (task.priority === 'Alta') return <span className="flex items-center h-5 px-2 rounded-full text-[10px] font-mono uppercase tracking-wider font-bold border border-red-200 bg-red-100 text-red-700 leading-none">🔥 Alta</span>;
-    if (task.priority === 'Media') return <span className="flex items-center h-5 px-2 rounded-full text-[10px] font-mono uppercase tracking-wider font-bold border border-amber-200 bg-amber-100 text-amber-700 leading-none">🟡 Media</span>;
-    if (task.priority === 'Baja') return <span className="flex items-center h-5 px-2 rounded-full text-[10px] font-mono uppercase tracking-wider font-bold border border-emerald-200 bg-emerald-100 text-emerald-700 leading-none">🟢 Baja</span>;
+    if (task.priority) return <PriorityBadge priority={task.priority} />;
     return null;
   };
 
@@ -776,41 +777,18 @@ export default function TaskItem({
             
             <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">
               {(task.type === 'Tarea' || task.type === 'Proyecto') && <div>{prioBadge()}</div>}
-              {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displayCategory && (
-                <span 
-                  onClick={(e) => {
-                    if (onNavigate) {
-                      e.stopPropagation();
+              {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && (displayCategory || displaySubCategory) && (
+                <CategoryBadge 
+                  area={displayCategory || undefined}
+                  subCategory={displaySubCategory || undefined}
+                  config={config}
+                  onClick={onNavigate ? (e) => {
+                    e.stopPropagation();
+                    if (displayCategory) {
                       onNavigate('areas', displayCategory);
                     }
-                  }}
-                  className={cn(
-                    "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
-                    onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
-                    getAreaColorClasses(color)
-                  )}
-                  title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
-                >
-                  {displayCategory}
-                </span>
-              )}
-              {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && displaySubCategory && (
-                <span 
-                  onClick={(e) => {
-                    if (onNavigate) {
-                      e.stopPropagation();
-                      onNavigate('areas', displayCategory);
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center h-5 text-[10px] font-mono font-medium uppercase tracking-wider border px-2 rounded-full leading-none",
-                    onNavigate && "cursor-pointer hover:opacity-80 transition-opacity",
-                    getAreaColorClasses(color)
-                  )}
-                  title={onNavigate ? `Área: ${displayCategory}. Haz clic para ver en Estrategia.` : undefined}
-                >
-                  {displaySubCategory}
-                </span>
+                  } : undefined}
+                />
               )}
               {task.type === 'Hábito' && (
                 <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Cumplimiento en los últimos 30 días">
@@ -837,9 +815,7 @@ export default function TaskItem({
               {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
               {isFutureDate(task.fechaPlanificada) && !isHabit && !isActualSubtask && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
               {task.allocationType && (
-                <span className="flex items-center h-5 text-[10px] font-mono font-medium leading-none text-text-dim/80 bg-base-dim px-2 rounded-full border border-border-line/30" title="Asignación Energética">
-                  {task.allocationType === 'fixed' ? '🛡️ Soporte' : task.allocationType === 'growth' ? '⚡ Inversión' : '☯️ Mixto'}
-                </span>
+                <AllocationBadge allocation={task.allocationType} />
               )}
               
               {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (

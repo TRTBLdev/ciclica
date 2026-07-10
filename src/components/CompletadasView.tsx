@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
+import CategoryBadge from './ui/CategoryBadge';
 
 const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
   let nextPlan = new Date(plannedDateStr || new Date().toISOString());
@@ -454,9 +455,7 @@ export default function CompletadasView({
                           </span>
                         )}
                         {displayCategory && (
-                          <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full", getAreaColorClasses(color))}>
-                            {displayCategory}
-                          </span>
+                          <CategoryBadge area={displayCategory} subCategory={task?.subCategory} config={config} />
                         )}
                         {h.isCompletion === false ? (
                           <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-border-line/30 text-text-dim bg-base-dim/40 rounded-full select-none" title="Esta sesión registra tiempo de progreso, pero el ítem no se marcó como completado en el planificador">

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
-import { cn, getAreaColorClasses, APP_COLORS } from '../lib/utils';
+import { cn, getAreaColorClasses, getAreaBorderClasses, getAreaTextClasses, APP_COLORS } from '../lib/utils';
 import { calculateItemProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
+import CategoryBadge from './ui/CategoryBadge';
 
 interface Props {
   config: Config | null;
@@ -57,12 +58,13 @@ export default function AreasView({ config, tasks, history, intentions = [], onU
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base pt-4">
 
-      <AreasList areas={areas} tasks={tasks} history={history} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
+      <AreasList config={config} areas={areas} tasks={tasks} history={history} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
     </div>
   );
 }
 
 function AreasList({ 
+  config,
   areas, 
   tasks, 
   history = [], 
@@ -70,6 +72,7 @@ function AreasList({
   onSelect, 
   onUpdate 
 }: { 
+  config: Config | null,
   areas: Record<string, string | AreaConfig>, 
   tasks: AppTask[], 
   history?: HistoryRecord[], 
@@ -186,8 +189,8 @@ function AreasList({
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 bg-base">
             {areaEntries.map(([key, val], index) => {
-            const categories = typeof val === 'string' ? [] : (val.categories || []);
-            const areaColor = typeof val === 'string' ? val : (val.color || 'slate');
+            const categories = (val && typeof val === 'object' && 'categories' in val) ? (val.categories || []) : [];
+            const areaColor = typeof val === 'string' ? val : ((val && typeof val === 'object' && 'color' in val && val.color) || 'slate');
             const activeProjects = tasks.filter(t => t.category === key && t.type === 'Proyecto' && !t.completed);
             const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
             const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed);
@@ -197,16 +200,18 @@ function AreasList({
             const areaIntentions: Array<{ item: IntentionItem; scale: string; periodStart: string; periodEnd: string }> = [];
 
             intentions.forEach(intent => {
-              if (intent.periodStart <= todayStr && intent.periodEnd >= todayStr) {
-                intent.items.forEach(item => {
+              if (intent && intent.periodStart && intent.periodEnd && intent.periodStart <= todayStr && intent.periodEnd >= todayStr) {
+                const items = intent.items || [];
+                items.forEach(item => {
+                  if (!item) return;
                   let isMatch = false;
                   if (item.areaName === key) {
                     isMatch = true;
                   } else if (item.projectId) {
-                    const p = tasks.find(t => t.id === item.projectId);
+                    const p = tasks.find(t => t && t.id === item.projectId);
                     if (p?.category === key) isMatch = true;
                   } else if (item.taskId) {
-                    const t = tasks.find(t => t.id === item.taskId);
+                    const t = tasks.find(t => t && t.id === item.taskId);
                     if (t?.category === key) isMatch = true;
                   }
 
@@ -320,9 +325,7 @@ function AreasList({
                 <div className="flex items-end justify-between w-full mt-auto">
                   <div className="flex flex-wrap gap-1.5">
                     {categories.slice(0, 3).map(cat => (
-                      <span key={cat} className={cn("text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-dashed", getAreaColorClasses(areaColor))}>
-                        {cat}
-                      </span>
+                      <CategoryBadge key={cat} area={key} subCategory={cat} config={config} hideArea />
                     ))}
                     {categories.length > 3 && (
                       <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-transparent text-text-dim">
@@ -470,9 +473,7 @@ function AreaDetail({
             
             <div className="flex flex-wrap gap-1.5 mt-2">
               {categories.map(cat => (
-                <span key={cat} className={cn("text-[9px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded-full border border-dashed", getAreaColorClasses(areaColor))}>
-                  {cat}
-                </span>
+                <CategoryBadge key={cat} area={areaName} subCategory={cat} config={config} hideArea />
               ))}
             </div>
          </div>
@@ -520,7 +521,7 @@ function AreaDetail({
                 <span className="text-xs text-primary italic">Sin subcategorías</span>
               ) : (
                 editCats.map(cat => (
-                  <div key={cat} className={cn("flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-wider border border-dashed", getAreaColorClasses(editColor))}>
+                  <div key={cat} className={cn("flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-wider border", getAreaTextClasses(editColor), getAreaBorderClasses(editColor))}>
                     {cat}
                     <button type="button" onClick={() => setEditCats(editCats.filter(c => c !== cat))} className="hover:text-red-500 cursor-pointer">
                       <X className="w-3 h-3" />
@@ -601,9 +602,7 @@ function AreaDetail({
                            )}
                          </div>
                          {proj.subCategory && (
-                           <span className="text-[9px] font-mono uppercase tracking-wider border border-border-line text-accent px-2 py-0.5 rounded-full mt-1 bg-transparent">
-                             {proj.subCategory}
-                           </span>
+                           <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} className="mt-1" hideArea />
                          )}
                        </div>
                        <button onClick={() => { if(confirm('¿Eliminar proyecto?')) onDeleteTask(proj.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-red-500 p-1 rounded hover:bg-red-50/10 cursor-pointer">

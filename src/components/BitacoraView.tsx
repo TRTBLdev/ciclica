@@ -71,6 +71,7 @@ export default function BitacoraView({
   const getCycleStats = () => {
     const flowLogs = config?.cycleConfig?.flowLogs || {};
     const allEntries = Object.entries(flowLogs)
+      .filter(([dateStr]) => !isNaN(new Date(dateStr).getTime()))
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
     const flowEntries = allEntries.filter(([_, intensity]) => intensity > 0)
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
@@ -246,6 +247,7 @@ export default function BitacoraView({
   const handleDownloadCSV = () => {
     const flowLogs = config?.cycleConfig?.flowLogs || {};
     const allEntries = Object.entries(flowLogs)
+      .filter(([dateStr]) => !isNaN(new Date(dateStr).getTime()))
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
     const flowEntries = allEntries.filter(([_, intensity]) => intensity > 0)
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());

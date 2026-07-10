@@ -42,15 +42,26 @@ function formatRangeText(startStr: string, endStr: string): string {
 }
 
 export function getCycleRange(config: Config | null, todayDate = new Date()) {
-  const isFixed = !config || 
-                  config.cycleConfig?.currentManualPhase || 
-                  config.cycleConfig?.trackingType === 'none';
+  const isFixed = !config || config.cycleConfig?.trackingType === 'none';
 
   if (isFixed) {
     const d = new Date(todayDate);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     const start = new Date(d.setDate(diff));
+    const end = new Date(start.getTime() + 27 * DAY_MS);
+    return {
+      start: formatLocalDate(start),
+      end: formatLocalDate(end)
+    };
+  }
+
+  if (config.cycleConfig?.trackingType === 'weekly') {
+    const today = new Date(todayDate);
+    const epochMonday = new Date(1970, 0, 5);
+    const daysSinceEpoch = Math.floor((today.getTime() - epochMonday.getTime()) / DAY_MS);
+    const cycleDaysSinceEpoch = daysSinceEpoch - (daysSinceEpoch % 28);
+    const start = new Date(epochMonday.getTime() + cycleDaysSinceEpoch * DAY_MS);
     const end = new Date(start.getTime() + 27 * DAY_MS);
     return {
       start: formatLocalDate(start),
@@ -103,11 +114,22 @@ export function getCycleRange(config: Config | null, todayDate = new Date()) {
 
 export function getPhaseRange(config: Config | null, todayDate = new Date()) {
   const currentPhase = calculateBiologicalPhase(config, todayDate);
-  const isFixed = !config || 
-                  config.cycleConfig?.currentManualPhase || 
-                  config.cycleConfig?.trackingType === 'none';
+  const isFixed = !config || config.cycleConfig?.trackingType === 'none';
 
   if (isFixed) {
+    const d = new Date(todayDate);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    const sunday = new Date(monday.getTime() + 6 * DAY_MS);
+    return {
+      start: formatLocalDate(monday),
+      end: formatLocalDate(sunday),
+      phaseName: currentPhase
+    };
+  }
+
+  if (config.cycleConfig?.trackingType === 'weekly') {
     const d = new Date(todayDate);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -124,10 +146,12 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
   const cycleStartLimit = parseLocalDate(cycle.start);
   const cycleEndLimit = parseLocalDate(cycle.end);
 
+  const biologicalPhase = calculateBiologicalPhase(config, todayDate, true);
+
   let start = new Date(todayDate);
   for (let i = 0; i < 40; i++) {
     const prev = new Date(start.getTime() - DAY_MS);
-    if (prev < cycleStartLimit || calculateBiologicalPhase(config, prev) !== currentPhase) {
+    if (prev < cycleStartLimit || calculateBiologicalPhase(config, prev, true) !== biologicalPhase) {
       break;
     }
     start = prev;
@@ -136,7 +160,7 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
   let end = new Date(todayDate);
   for (let i = 0; i < 40; i++) {
     const next = new Date(end.getTime() + DAY_MS);
-    if (next > cycleEndLimit || calculateBiologicalPhase(config, next) !== currentPhase) {
+    if (next > cycleEndLimit || calculateBiologicalPhase(config, next, true) !== biologicalPhase) {
       break;
     }
     end = next;

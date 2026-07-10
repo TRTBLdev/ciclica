@@ -79,16 +79,32 @@ export const APP_COLORS = ['slate', 'blue', 'orange', 'purple', 'emerald', 'ambe
 
 export function getAreaColorClasses(color: string) {
   const map: Record<string, string> = {
-    slate: 'bg-slate-100 border-slate-200 text-slate-700',
-    blue: 'bg-blue-100 border-blue-200 text-blue-700',
-    orange: 'bg-orange-100 border-orange-200 text-orange-700',
-    purple: 'bg-purple-100 border-purple-200 text-purple-700',
-    emerald: 'bg-emerald-100 border-emerald-200 text-emerald-700',
-    amber: 'bg-amber-100 border-amber-200 text-amber-700',
-    red: 'bg-red-100 border-red-200 text-red-700',
-    green: 'bg-green-100 border-green-200 text-green-700',
-    teal: 'bg-teal-100 border-teal-200 text-teal-700',
-    cyan: 'bg-cyan-100 border-cyan-200 text-cyan-700',
+    slate: 'bg-slate-500/10 text-slate-700',
+    blue: 'bg-blue-500/10 text-blue-700',
+    orange: 'bg-orange-500/10 text-orange-700',
+    purple: 'bg-purple-500/10 text-purple-700',
+    emerald: 'bg-emerald-500/10 text-emerald-700',
+    amber: 'bg-amber-500/10 text-amber-700',
+    red: 'bg-red-500/10 text-red-700',
+    green: 'bg-green-500/10 text-green-700',
+    teal: 'bg-teal-500/10 text-teal-700',
+    cyan: 'bg-cyan-500/10 text-cyan-700',
+  };
+  return map[color] || map.slate;
+}
+
+export function getAreaBorderClasses(color: string) {
+  const map: Record<string, string> = {
+    slate: 'border border-slate-400 text-slate-700 bg-transparent',
+    blue: 'border border-blue-400 text-blue-700 bg-transparent',
+    orange: 'border border-orange-400 text-orange-700 bg-transparent',
+    purple: 'border border-purple-400 text-purple-700 bg-transparent',
+    emerald: 'border border-emerald-400 text-emerald-700 bg-transparent',
+    amber: 'border border-amber-400 text-amber-700 bg-transparent',
+    red: 'border border-red-400 text-red-700 bg-transparent',
+    green: 'border border-green-400 text-green-700 bg-transparent',
+    teal: 'border border-teal-400 text-teal-700 bg-transparent',
+    cyan: 'border border-cyan-400 text-cyan-700 bg-transparent',
   };
   return map[color] || map.slate;
 }

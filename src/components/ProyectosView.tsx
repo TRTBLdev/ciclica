@@ -6,6 +6,9 @@ import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import GanttChart, { GanttScale } from './GanttChart';
 import ListControls from './ui/ListControls';
+import CategoryBadge from './ui/CategoryBadge';
+import PriorityBadge from './ui/PriorityBadge';
+import AllocationBadge from './ui/AllocationBadge';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
@@ -351,21 +354,14 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               <h3 className={cn("text-base font-medium text-text-main", proj.completed ? "line-through opacity-60 font-light" : "")}>
                 {proj.text}
               </h3>
-              <div className="flex gap-1.5">
-                <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full leading-none flex items-center", getAreaColorClasses(pColor))}>
-                  {proj.category}
-                </span>
-                {proj.subCategory && (
-                  <span className={cn("text-[9px] font-mono uppercase tracking-wider border px-2 py-0.5 rounded-full bg-transparent opacity-85 leading-none flex items-center", getAreaColorClasses(pColor))}>
-                    {proj.subCategory}
-                  </span>
-                )}
-              </div>
+              <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} />
+              {proj.priority && <PriorityBadge priority={proj.priority} />}
+              {proj.allocationType && <AllocationBadge allocation={proj.allocationType} />}
             </div>
             
-            <p className="text-[10px] text-text-dim font-mono uppercase tracking-wider mb-2">
-              {proj.priority} • {subtasks.length} Tareas 
-              {projDuration > 0 && <span className="ml-1.5 font-bold">• ⏱ {projDuration.toFixed(1)}h</span>}
+            <p className="text-[10px] text-text-dim font-mono uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <span>{subtasks.length} Tareas</span>
+              {projDuration > 0 && <span className="font-bold">• ⏱ {projDuration.toFixed(1)}h</span>}
             </p>
 
             <div className="flex items-center gap-3 w-full max-w-xs">
