@@ -148,6 +148,8 @@ export default function EstrategiaView({
               onUpdateTask={onUpdateTask}
               onAddTask={onAddTask}
               focusTaskId={focusTaskId}
+              activeTimer={activeTimer}
+              onStartTimer={onStartTimer}
             />
           </div>
         )}

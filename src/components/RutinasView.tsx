@@ -20,9 +20,28 @@ interface Props {
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   focusTaskId?: string | null;
+  activeTimer?: {
+    taskId: string;
+    startTime: string;
+    sessionStart?: string;
+    elapsedSeconds: number;
+    isRunning: boolean;
+  } | null;
+  onStartTimer?: (taskId: string) => void;
 }
 
-export default function RutinasView({ config, tasks, history, onToggleTask, onDeleteTask, onUpdateTask, onAddTask, focusTaskId }: Props) {
+export default function RutinasView({ 
+  config, 
+  tasks, 
+  history, 
+  onToggleTask, 
+  onDeleteTask, 
+  onUpdateTask, 
+  onAddTask, 
+  focusTaskId,
+  activeTimer,
+  onStartTimer
+}: Props) {
   // Collapsible Add Forms state
   const [showAddRoutine, setShowAddRoutine] = useState(false);
   const [showAddHabit, setShowAddHabit] = useState(false);
@@ -751,6 +770,8 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                             isSubtask
                             hideAreaCategory={false}
                             showMoveArrows={sortBy === 'manual'}
+                            activeTimer={activeTimer}
+                            onStartTimer={onStartTimer}
                           />
                         ))}
                       </div>
@@ -804,6 +825,8 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                     isSubtask={false}
                     hideAreaCategory={false}
                     showMoveArrows={sortBy === 'manual'}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
                   />
                 ))}
               </div>
