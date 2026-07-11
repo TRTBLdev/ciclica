@@ -5,7 +5,8 @@ import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, Chevr
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
-import PriorityBadge from './ui/PriorityBadge';
+import DecayIndicator from './ui/DecayIndicator';
+import { getDecayIndicator } from '../lib/decayUtils';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 
@@ -105,7 +106,6 @@ export default function TaskItem({
   showMoveArrows = false
 }: Props) {  const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const [editPriority, setEditPriority] = useState('Baja');
   const [editHora, setEditHora] = useState('');
   const [editFrecuencia, setEditFrecuencia] = useState(1);
   const [editFrecuenciaUnidad, setEditFrecuenciaUnidad] = useState('días');
@@ -213,7 +213,6 @@ export default function TaskItem({
   React.useEffect(() => {
     if (isEditing) {
       setEditText(task.text);
-      setEditPriority(task.priority || 'Baja');
       setEditHora(task.hora || '');
       setEditFrecuencia(task.frecuencia || 1);
       setEditFrecuenciaUnidad(task.frecuenciaUnidad || 'días');
@@ -357,23 +356,7 @@ export default function TaskItem({
     return Math.min(100, Math.round((checksInPeriod / finalExpected) * 100));
   };
 
-  const prioBadge = () => {
-    if (task.priority) return <PriorityBadge priority={task.priority} />;
-    return null;
-  };
-
-  const daysPending = (() => {
-    if (isCompletedVisual) return 0;
-    const refDateStr = task.lastExecutedAt || task.fechaPlanificada;
-    if (!refDateStr) return 0;
-    const refDate = new Date(refDateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    refDate.setHours(0, 0, 0, 0);
-    const diffMs = today.getTime() - refDate.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
-  })();
+  const decay = getDecayIndicator(task, allTasks, history || []);
 
   return (
     <div 
@@ -759,22 +742,12 @@ export default function TaskItem({
                 )}
                 title={(!locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
-                {daysPending >= 4 && (
-                  <span 
-                    className={cn(
-                      "inline-block w-2 h-2 rounded-full shrink-0 animate-pulse",
-                      daysPending >= 8 ? "bg-red-400" : "bg-amber-400"
-                    )}
-                    title={`Pendiente hace ${daysPending} días`}
-                  />
-                )}
                 <span>{task.text}</span>
               </p>
               {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
             </div>
             
             <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">
-              {(task.type === 'Tarea' || task.type === 'Proyecto') && <div>{prioBadge()}</div>}
               {!hideAreaCategory && (!isActualSubtask || task.type === 'Hábito') && (displayCategory || displaySubCategory) && (
                 <CategoryBadge 
                   area={displayCategory || undefined}
@@ -788,14 +761,7 @@ export default function TaskItem({
                   } : undefined}
                 />
               )}
-              {task.type === 'Hábito' && (
-                <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Cumplimiento en los últimos 30 días">
-                  🌱 {(() => {
-                    const percent = getHabitCompletionPercentage();
-                    return percent !== null ? `${percent}%` : '0%';
-                  })()} de Cumplimiento {task.frecuencia ? `(Meta: ${task.frecuencia}x/${task.frecuenciaUnidad})` : ''}
-                </span>
-              )}
+              {decay && <DecayIndicator decay={decay} className="h-5" />}
               {task.hora && <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none">{task.hora}</span>}
               {(task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks) ? (
                 (plannedHours > 0 || trackedHours > 0) && (

@@ -49,16 +49,12 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [sortBacklogBy, setSortBacklogBy] = useState('manual');
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
-  const [filterPriority, setFilterPriority] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
 
   const getSortedTasks = (taskList: AppTask[], criterion: string) => {
     let sorted = [...taskList];
     if (criterion === 'manual') {
       sorted.sort((a, b) => (a.order || 0) - (b.order || 0));
-    } else if (criterion === 'priority') {
-      const pVal: any = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
-      sorted.sort((a, b) => (pVal[b.priority || 'Baja'] || 1) - (pVal[a.priority || 'Baja'] || 1));
     } else if (criterion === 'name') {
       sorted.sort((a, b) => a.text.localeCompare(b.text));
     } else if (criterion === 'date') {
@@ -134,11 +130,6 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     filteredTodayTasks = filteredTodayTasks.filter(t => t.category === filterArea);
     filteredBacklogTasks = filteredBacklogTasks.filter(t => t.category === filterArea);
     filteredPulsos = filteredPulsos.filter(t => t.category === filterArea);
-  }
-
-  if (filterPriority !== 'Todas') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => t.priority === filterPriority);
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.priority === filterPriority);
   }
 
   if (filterAllocation !== 'Todas') {
@@ -418,26 +409,14 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                     { label: 'Inversión ⚡', value: 'growth' },
                     { label: 'Mixto ☯️', value: 'mixed' }
                   ]
-                },
-                {
-                  key: 'priority',
-                  label: 'Prioridad',
-                  options: [
-                    { label: 'Todas las prioridades', value: 'Todas' },
-                    { label: 'Alta', value: 'Alta' },
-                    { label: 'Media', value: 'Media' },
-                    { label: 'Baja', value: 'Baja' }
-                  ]
                 }
               ]}
               activeFilters={{
                 area: filterArea,
-                priority: filterPriority,
                 allocation: filterAllocation
               }}
               onChange={(key, val) => {
                 if (key === 'area') setFilterArea(val);
-                if (key === 'priority') setFilterPriority(val);
                 if (key === 'allocation') setFilterAllocation(val);
               }}
             />

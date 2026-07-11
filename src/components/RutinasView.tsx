@@ -8,7 +8,6 @@ import SortDropdown from './ui/SortDropdown';
 import { RotateCw, Plus, ChevronDown, ChevronUp, ChevronRight, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react';
 import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
-import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 interface Props {
@@ -101,13 +100,6 @@ export default function RutinasView({
         order: t.order !== undefined ? t.order : (idx + 1) * 1000
       }));
       sortedPending = withOrders.sort((a, b) => a.order - b.order);
-    } else if (criterion === 'priority') {
-      const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
-      sortedPending.sort((a, b) => {
-        const aVal = pVal[a.priority || 'Baja'] || 1;
-        const bVal = pVal[b.priority || 'Baja'] || 1;
-        return bVal - aVal;
-      });
     } else if (criterion === 'name') {
       sortedPending.sort((a, b) => a.text.localeCompare(b.text));
     } else if (criterion === 'date') {

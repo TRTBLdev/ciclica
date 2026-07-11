@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { AppTask, Config } from '../types';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
-import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { getTypeIcon } from './TaskItem';
@@ -290,7 +289,6 @@ export default function Omnibar({
                 <span>{task.type === 'Rutina' ? 'Rutina' : task.type === 'Proyecto' ? 'Proyecto' : task.type === 'Hábito' ? 'Hábito' : 'Tarea'}</span>
               </span>
               <CategoryBadge area={task.category} subCategory={task.subCategory} config={config} />
-              {hasPriority && task.priority && <PriorityBadge priority={task.priority} />}
               {hasAllocation && task.allocationType && <AllocationBadge allocation={task.allocationType} />}
             </div>
           )}

@@ -36,7 +36,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [area, setArea] = useState(initialData?.category || '');
   const [subCategory, setSubCategory] = useState(initialData?.subCategory || '');
   const [parentId, setParentId] = useState(initialData?.parentId || '');
-  const [fechaPlanificada, setFechaPlanificada] = useState(initialData?.fechaPlanificada ? new Date(initialData.fechaPlanificada).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10));
+  const [fechaPlanificada, setFechaPlanificada] = useState(initialData?.fechaPlanificada ? new Date(initialData.fechaPlanificada).toISOString().substring(0, 10) : '');
   const [duracion, setDuracion] = useState<number>(initialData?.duracion || 0);
   const [dependencyId, setDependencyId] = useState(initialData?.dependencyId || '');
   const [allocationType, setAllocationType] = useState<'fixed' | 'growth' | 'mixed'>(initialData?.allocationType || 'growth');
@@ -80,10 +80,6 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       allocationType,
     };
 
-    if (type === 'Tarea' || type === 'Proyecto') {
-      data.priority = priority;
-    }
-
     if (type !== 'Proyecto' && !isActualSubtask) {
       data.hora = hora;
       if (type === 'Tarea' || type === 'Pulso') {
@@ -98,11 +94,16 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     if (type === 'Hábito' || type === 'Rutina') {
       data.frecuencia = frecuencia;
       data.frecuenciaUnidad = frecuenciaUnidad as any;
-      if (type === 'Rutina') {
+    }
+
+    if (type === 'Tarea' || type === 'Proyecto' || type === 'Rutina') {
+      if (fechaPlanificada) {
         const planDate = new Date(fechaPlanificada);
         if (!isNaN(planDate.getTime())) {
           data.fechaPlanificada = planDate.toISOString();
         }
+      } else {
+        data.fechaPlanificada = undefined;
       }
     }
 
@@ -217,14 +218,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </>
         )}
 
-        {/* Fecha Planificada (Rutina) */}
-        {type === 'Rutina' && (
+        {/* Fecha Planificada (Tarea/Proyecto/Rutina) */}
+        {(type === 'Tarea' || type === 'Proyecto' || type === 'Rutina') && (
           <input 
             type="date"
-            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[120px] outline-none"
+            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[130px] outline-none"
             value={fechaPlanificada}
             onChange={e => setFechaPlanificada(e.target.value)}
-            title="Próxima Ejecución"
+            title="Fecha Planificada / Límite (Opcional)"
           />
         )}
 
@@ -248,22 +249,6 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             >
                <option value="Hoy">☀️ Hoy</option>
                <option value="Backlog">📥 Backlog</option>
-            </select>
-            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-          </div>
-        )}
-
-        {/* Prioridad (Tarea) */}
-        {type === 'Tarea' && (
-          <div className="relative flex items-center bg-transparent rounded-md">
-            <select 
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
-              value={priority} 
-              onChange={e => setPriority(e.target.value)}
-            >
-               <option value="Baja">🟢 Prioridad Baja</option>
-               <option value="Media">🟡 Prioridad Media</option>
-               <option value="Alta">🔥 Prioridad Alta</option>
             </select>
             <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
           </div>

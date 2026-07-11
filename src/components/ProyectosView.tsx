@@ -8,7 +8,8 @@ import GanttChart, { GanttScale } from './GanttChart';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import CategoryBadge from './ui/CategoryBadge';
-import PriorityBadge from './ui/PriorityBadge';
+import DecayIndicator from './ui/DecayIndicator';
+import { getDecayIndicator } from '../lib/decayUtils';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
@@ -42,7 +43,6 @@ interface Props {
 export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
-  const [filterPriority, setFilterPriority] = useState('Todas');
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -79,13 +79,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         order: t.order !== undefined ? t.order : (idx + 1) * 1000
       }));
       sortedPending = withOrders.sort((a, b) => a.order - b.order);
-    } else if (criterion === 'priority') {
-      const pVal = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
-      sortedPending.sort((a, b) => {
-        const aVal = pVal[a.priority || 'Baja'] || 1;
-        const bVal = pVal[b.priority || 'Baja'] || 1;
-        return bVal - aVal;
-      });
     } else if (criterion === 'name') {
       sortedPending.sort((a, b) => a.text.localeCompare(b.text));
     } else if (criterion === 'date') {
@@ -140,11 +133,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         return false;
       });
     }
-    if (filterPriority !== 'Todas') {
-      result = result.filter(t => t.priority === filterPriority);
-    }
     return result;
-  }, [tasks, filterArea, filterAllocation, filterPriority]);
+  }, [tasks, filterArea, filterAllocation]);
 
   React.useEffect(() => {
     if (focusTaskId) {
@@ -190,9 +180,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   if (filterAllocation !== 'Todas') {
     projects = projects.filter(p => p.allocationType === filterAllocation);
   }
-  if (filterPriority !== 'Todas') {
-    projects = projects.filter(p => p.priority === filterPriority);
-  }
+
 
   const activeProjs = sortTasks(projects.filter(p => !p.completed), sortBy);
   const compProjs = sortTasks(projects.filter(p => p.completed), sortBy);
@@ -215,9 +203,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   if (filterAllocation !== 'Todas') {
     standaloneTasks = standaloneTasks.filter(t => t.allocationType === filterAllocation);
   }
-  if (filterPriority !== 'Todas') {
-    standaloneTasks = standaloneTasks.filter(t => t.priority === filterPriority);
-  }
+
 
   const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed), sortBy);
   const completedStandaloneTasks = sortTasks(standaloneTasks.filter(t => t.completed), sortBy);
@@ -353,6 +339,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     const idx = projList.findIndex(p => p.id === proj.id);
     const isFirstItem = idx <= 0;
     const isLastItem = idx === -1 || idx === projList.length - 1;
+    const decay = getDecayIndicator(proj, tasks, history || []);
 
     return (
       <div key={proj.id} id={`task-item-${proj.id}`} className={cn("relative p-4 transition-all group border-b last:border-b-0 border-border-line/40", proj.completed && "grayscale")}>
@@ -376,7 +363,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 {proj.text}
               </h3>
               <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} />
-              {proj.priority && <PriorityBadge priority={proj.priority} />}
+              {decay && <DecayIndicator decay={decay} />}
               {proj.allocationType && <AllocationBadge allocation={proj.allocationType} />}
             </div>
             
@@ -607,33 +594,20 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   { label: 'Inversión ⚡', value: 'growth' },
                   { label: 'Mixto ☯️', value: 'mixed' }
                 ]
-              },
-              {
-                key: 'priority',
-                label: 'Prioridad',
-                options: [
-                  { label: 'Todas las prioridades', value: 'Todas' },
-                  { label: 'Alta', value: 'Alta' },
-                  { label: 'Media', value: 'Media' },
-                  { label: 'Baja', value: 'Baja' }
-                ]
               }
             ]}
             activeFilters={{
               area: filterArea,
-              allocation: filterAllocation,
-              priority: filterPriority
+              allocation: filterAllocation
             }}
             onChange={(key, val) => {
               if (key === 'area') setFilterArea(val);
               if (key === 'allocation') setFilterAllocation(val);
-              if (key === 'priority') setFilterPriority(val);
             }}
           />
           <SortDropdown
             options={[
               { label: 'Manual', value: 'manual' },
-              { label: 'Prioridad', value: 'priority' },
               { label: 'Fecha', value: 'date' },
               { label: 'Nombre', value: 'name' },
               { label: 'Progreso', value: 'progress' }

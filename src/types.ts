@@ -67,7 +67,7 @@ export interface AppTask {
   view?: string;
   hora?: string;
   type: TaskType;
-  priority?: string;
+  priority?: string; // @deprecated - Kept for compatibility with existing data, decay indicator is used instead
   parentId?: string;
   dependencyId?: string;
   fechaPlanificada?: string;
