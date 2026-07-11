@@ -2,6 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { AppTask, Config, TaskType, ChecklistItem } from '../types';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Reorder } from 'motion/react';
+
+const GripIcon = () => (
+  <svg className="w-3.5 h-3.5 text-text-dim/40 shrink-0 cursor-grab active:cursor-grabbing mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="5" r="1" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="9" cy="19" r="1" />
+    <circle cx="15" cy="5" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <circle cx="15" cy="19" r="1" />
+  </svg>
+);
 
 interface Props {
   initialData?: AppTask;
@@ -38,6 +50,16 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialData?.checklist || []);
   const [newChecklistItemText, setNewChecklistItemText] = useState('');
   const [depSearch, setDepSearch] = useState('');
+
+  const [editingChecklistItemId, setEditingChecklistItemId] = useState<string | null>(null);
+  const [editingChecklistItemText, setEditingChecklistItemText] = useState('');
+
+  const handleSaveChecklistItemText = (id: string) => {
+    if (editingChecklistItemText.trim()) {
+      setChecklist(prev => prev.map(item => item.id === id ? { ...item, text: editingChecklistItemText.trim() } : item));
+    }
+    setEditingChecklistItemId(null);
+  };
 
   const parentTaskHere = parentId ? allTasks.find(t => t.id === parentId) : null;
   const isRutinaParent = parentTaskHere && parentTaskHere.type === 'Rutina';
@@ -313,11 +335,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         )}
       </div>
 
-      {/* Pertenece a / Asociar a Rutina (Tarea/Hábito) */}
+      {/* Pertenece a / Asociar a Rutina o Proyecto (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && !isRutinaParent && (
         <div className="mt-2 text-left w-full flex flex-col gap-1.5">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">
-            {type === 'Hábito' ? 'Rutina asociada:' : 'Subtarea de / Pertenece a:'}
+            {type === 'Hábito' ? 'Rutina asociada:' : 'Proyecto asociado:'}
           </span>
           <div className="relative max-w-sm">
             <select
@@ -337,6 +359,9 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 .filter(t => {
                   if (type === 'Hábito') {
                     return t.type === 'Rutina';
+                  }
+                  if (type === 'Tarea') {
+                    return t.type === 'Proyecto';
                   }
                   return (t.type === 'Proyecto' || t.type === 'Rutina' || (t.type === 'Tarea' && t.id !== initialData?.id && t.parentId !== initialData?.id));
                 })
@@ -416,18 +441,54 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             {checklist.length === 0 ? (
               <span className="text-[10px] text-primary italic pl-2">Sin ítems</span>
             ) : (
-              checklist.map(item => (
-                <div key={item.id} className="flex items-center justify-between bg-base-dim/20 px-3 py-1.5 rounded-lg border border-border-line/40">
-                  <span className={cn("text-xs text-text-main", item.done && "line-through opacity-60")}>{item.text}</span>
-                  <button
-                    type="button"
-                    onClick={() => setChecklist(checklist.filter(i => i.id !== item.id))}
-                    className="text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer text-xs"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
+              <Reorder.Group axis="y" values={checklist} onReorder={setChecklist} className="space-y-1.5">
+                {checklist.map(item => {
+                  const isEditing = editingChecklistItemId === item.id;
+                  return (
+                    <Reorder.Item 
+                      key={item.id} 
+                      value={item} 
+                      className="flex items-center bg-base-dim/20 px-3 py-1.5 rounded-lg border border-border-line/40 select-none cursor-grab active:cursor-grabbing gap-2"
+                    >
+                      <GripIcon />
+                      <div className="flex-1 min-w-0">
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            className="w-full bg-base border border-border-line rounded-md px-2 py-0.5 text-xs text-text-main focus:outline-none focus:border-[#a2b29f]"
+                            value={editingChecklistItemText}
+                            onChange={e => setEditingChecklistItemText(e.target.value)}
+                            onBlur={() => handleSaveChecklistItemText(item.id)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveChecklistItemText(item.id);
+                              if (e.key === 'Escape') setEditingChecklistItemId(null);
+                            }}
+                          />
+                        ) : (
+                          <span 
+                            onClick={() => {
+                              setEditingChecklistItemId(item.id);
+                              setEditingChecklistItemText(item.text);
+                            }}
+                            className={cn("text-xs text-text-main cursor-text block truncate", item.done && "line-through opacity-60")}
+                            title="Haz clic para editar"
+                          >
+                            {item.text}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setChecklist(checklist.filter(i => i.id !== item.id))}
+                        className="text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer text-xs shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </Reorder.Item>
+                  );
+                })}
+              </Reorder.Group>
             )}
           </div>
           <div className="flex gap-2 mt-1">
