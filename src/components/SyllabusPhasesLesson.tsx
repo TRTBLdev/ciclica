@@ -60,6 +60,57 @@ export default function SyllabusPhasesLesson({ onBack }: Props) {
           Es la fase del invierno biológico. No intentes construir ni ejecutar. Tu intuición está al máximo: es el momento perfecto para revisar la brújula, evaluar si tus metas de vida siguen alineadas, hacer journaling y descansar.
         </p>
 
+        <h3 className="text-lg font-bold text-text-main mt-12 mb-4 border-l-2 border-primary pl-4">Presupuesto de Energía Cíclica (Soporte vs Inversión)</h3>
+        <p>
+          No toda la energía subjetiva de tu fase debe ir al mismo tipo de esfuerzo. Para evitar el desgaste biológico, Cíclica divide la capacidad energética diaria en dos presupuestos clave:
+        </p>
+        <ul className="list-disc pl-5 mb-6 text-sm text-text-main">
+          <li><strong>🛡️ Soporte Vital:</strong> Tareas esenciales de mantenimiento (limpieza, administración básica, rutinas repetitivas, contestar correos).</li>
+          <li><strong>⚡ Inversión:</strong> Proyectos creativos, estudio, tareas de alta concentración y crecimiento estratégico.</li>
+        </ul>
+        
+        <p>
+          Según la fase activa, el reparto recomendado cambia para optimizar tu fisiología:
+        </p>
+        <div className="overflow-x-auto my-6 border border-border-line/60 rounded-xl">
+          <table className="w-full text-xs text-left text-text-main border-collapse">
+            <thead>
+              <tr className="bg-base-dim/20 border-b border-border-line">
+                <th className="p-3 font-mono uppercase tracking-wider text-text-dim text-[10px]">Fase</th>
+                <th className="p-3 font-mono uppercase tracking-wider text-text-dim text-[10px] text-center">Límite Total</th>
+                <th className="p-3 font-mono uppercase tracking-wider text-text-dim text-[10px] text-center">Soporte Vital</th>
+                <th className="p-3 font-mono uppercase tracking-wider text-text-dim text-[10px] text-center">Inversión / Crecimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border-line/40">
+                <td className="p-3 font-medium">Fase Dinámica</td>
+                <td className="p-3 text-center font-mono">12.0h</td>
+                <td className="p-3 text-center font-mono text-[#81b29a]">2.0h</td>
+                <td className="p-3 text-center font-mono text-[#d4af37]">10.0h</td>
+              </tr>
+              <tr className="border-b border-border-line/40">
+                <td className="p-3 font-medium">Fase Expresiva</td>
+                <td className="p-3 text-center font-mono">10.0h</td>
+                <td className="p-3 text-center font-mono text-[#81b29a]">2.0h</td>
+                <td className="p-3 text-center font-mono text-[#d4af37]">8.0h</td>
+              </tr>
+              <tr className="border-b border-border-line/40">
+                <td className="p-3 font-medium">Fase Creativa</td>
+                <td className="p-3 text-center font-mono">8.0h</td>
+                <td className="p-3 text-center font-mono text-[#81b29a]">3.0h</td>
+                <td className="p-3 text-center font-mono text-[#d4af37]">5.0h</td>
+              </tr>
+              <tr>
+                <td className="p-3 font-medium">Fase Reflexiva</td>
+                <td className="p-3 text-center font-mono">5.0h</td>
+                <td className="p-3 text-center font-mono text-[#81b29a]">4.0h</td>
+                <td className="p-3 text-center font-mono text-[#d4af37]">1.0h</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div className="my-10 bg-base-dim/10 border border-border-line p-6 rounded-lg">
           <h4 className="text-sm font-mono uppercase tracking-widest text-primary font-bold mb-3 flex items-center gap-2">
             <BookOpen className="w-4 h-4" /> Conclusión Práctica

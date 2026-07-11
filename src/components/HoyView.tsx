@@ -175,7 +175,16 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const totalInversionReal = growthHoursToday + (mixedHoursToday * 0.5);
   const hoursWorkedToday = fixedHoursToday + growthHoursToday + mixedHoursToday;
 
-  // Capacidad de Crecimiento Real = Límite Biológico - Soporte Vital Real
+  const getPhaseBudgets = (phaseName: string) => {
+    switch (phaseName) {
+      case 'dinamica': return { soporte: 2.0, inversion: 10.0 };
+      case 'expresiva': return { soporte: 2.0, inversion: 8.0 };
+      case 'creativa': return { soporte: 3.0, inversion: 5.0 };
+      case 'reflexiva': return { soporte: 4.0, inversion: 1.0 };
+      default: return { soporte: 2.0, inversion: 6.0 };
+    }
+  };
+  const { soporte: soporteBudget, inversion: inversionBudget } = getPhaseBudgets(phase);
   const growthCapacityToday = Math.max(0, ENERGY_LIMIT - totalSoporteReal);
   const remainingGrowthLimit = Math.max(0, growthCapacityToday - totalInversionReal);
 
@@ -467,25 +476,40 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
             )}
           </div>
 
-          <div className="flex justify-between text-[9px] tracking-wide text-text-dim/80 font-mono">
-            <span>🛡️ Soporte: <span className="font-bold text-text-main">{totalSoporteReal.toFixed(1)}h</span></span>
-            <span>⚡ Crecimiento Disp: <span className="font-bold text-text-main">{growthCapacityToday.toFixed(1)}h</span></span>
-            {totalInversionReal > growthCapacityToday ? (
-              <span className="text-red-500 font-bold" title={`Excedido: +${(totalInversionReal - growthCapacityToday).toFixed(1)}h`}>Excedido: +{(totalInversionReal - growthCapacityToday).toFixed(1)}h ⚠️</span>
-            ) : (
-              <span>Disp: <span className="font-bold text-text-main">{remainingGrowthLimit.toFixed(1)}h</span></span>
-            )}
+          <div className="flex justify-between text-[9px] tracking-wide font-mono">
+            <span className={cn(
+              "transition-colors",
+              totalSoporteReal > soporteBudget ? "text-red-500 font-semibold" : "text-text-dim/80"
+            )}>
+              🛡️ Soporte: <span className={cn("font-bold", totalSoporteReal > soporteBudget ? "text-red-500" : "text-text-main")}>{totalSoporteReal.toFixed(1)}h / {soporteBudget.toFixed(1)}h</span>
+            </span>
+            <span className={cn(
+              "transition-colors",
+              totalInversionReal > inversionBudget ? "text-red-500 font-semibold" : "text-text-dim/80"
+            )}>
+              ⚡ Inversión: <span className={cn("font-bold", totalInversionReal > inversionBudget ? "text-red-500" : "text-text-main")}>{totalInversionReal.toFixed(1)}h / {inversionBudget.toFixed(1)}h</span>
+            </span>
           </div>
 
           {/* Validating/celebratory messages */}
-          {totalSoporteReal > 0 && (
+          {totalSoporteReal > 0 && totalSoporteReal <= soporteBudget && (
             <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-2 uppercase tracking-wider">
               🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital. ¡Base sostenida!
             </div>
           )}
-          {totalInversionReal >= growthCapacityToday && growthCapacityToday > 0 && (
+          {totalSoporteReal > soporteBudget && (
+            <div className="text-[9px] text-red-500 font-mono leading-tight mt-2 uppercase tracking-wider font-semibold">
+              ⚠️ Has superado el presupuesto de soporte sugerido para hoy.
+            </div>
+          )}
+          {totalInversionReal >= inversionBudget && inversionBudget > 0 && totalInversionReal <= (inversionBudget + 1) && (
             <div className="text-[9px] text-primary font-mono leading-tight mt-1 uppercase tracking-wider font-bold">
-              🎉 100% de crecimiento disponible completado hoy.
+              🎉 100% de inversión disponible completado hoy.
+            </div>
+          )}
+          {totalInversionReal > (inversionBudget + 1) && (
+            <div className="text-[9px] text-orange-500 font-mono leading-tight mt-1 uppercase tracking-wider font-semibold">
+              ⚠️ Inversión alta: considera descansar para evitar el sobreesfuerzo.
             </div>
           )}
         </div>
