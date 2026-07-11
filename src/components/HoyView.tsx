@@ -284,9 +284,9 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   return (
     <div className="flex flex-col gap-8 animate-in fade-in w-full px-6 md:px-10 py-8 pb-12 mx-auto">
 
-      {/* Header Foco de Hoy - Flexible, responsive and non-overlapping layout */}
-      <div className="w-full flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 border-b border-border-line pb-6">
-        <div className="flex flex-col gap-1 text-left">
+      {/* Header Foco de Hoy - Grid alignment matching main content */}
+      <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 border-b border-border-line pb-6">
+        <div className="lg:col-span-2 flex flex-col gap-1 text-left justify-start">
           <h2 className="text-title flex items-center gap-3">
             <Target className="w-6 h-6 stroke-[2]" /> Foco de Hoy {getPhaseIcon(phase)}
           </h2>
@@ -338,51 +338,6 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               <option value="creativa">Lútea (Creativa)</option>
               <option value="reflexiva">Menstrual (Reflexiva)</option>
             </select>
-
-            <span className="text-text-dim/30 font-mono text-[10px]">|</span>
-
-            <FilterDropdown
-              configs={[
-                {
-                  key: 'area',
-                  label: 'Área',
-                  options: [
-                    { label: 'Todas las áreas', value: 'Todas' },
-                    ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
-                  ]
-                },
-                {
-                  key: 'allocation',
-                  label: 'Inversión',
-                  options: [
-                    { label: 'Todas las asignaciones', value: 'Todas' },
-                    { label: 'Soporte Vital 🛡️', value: 'fixed' },
-                    { label: 'Inversión ⚡', value: 'growth' },
-                    { label: 'Mixto ☯️', value: 'mixed' }
-                  ]
-                },
-                {
-                  key: 'priority',
-                  label: 'Prioridad',
-                  options: [
-                    { label: 'Todas las prioridades', value: 'Todas' },
-                    { label: 'Alta', value: 'Alta' },
-                    { label: 'Media', value: 'Media' },
-                    { label: 'Baja', value: 'Baja' }
-                  ]
-                }
-              ]}
-              activeFilters={{
-                area: filterArea,
-                priority: filterPriority,
-                allocation: filterAllocation
-              }}
-              onChange={(key, val) => {
-                if (key === 'area') setFilterArea(val);
-                if (key === 'priority') setFilterPriority(val);
-                if (key === 'allocation') setFilterAllocation(val);
-              }}
-            />
           </div>
           <span className="text-[11px] text-text-dim italic max-w-sm mt-1 leading-snug">{phaseDetails.details}</span>
 
@@ -438,21 +393,65 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
           )}
         </div>
 
-        {/* Date centered in flexible layout without absolute overlaps */}
-        <div className="text-left lg:text-center text-xs tracking-[0.2em] text-[#a2b29f] uppercase font-mono py-1">
-          {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </div>
+        <div className="w-full lg:col-span-1 flex flex-col justify-start text-left gap-2">
+          {/* Row 1: Date and Filter icon */}
+          <div className="flex justify-between items-center w-full pb-0.5">
+            <span className="text-[10px] tracking-[0.2em] text-[#a2b29f] uppercase font-mono leading-none">
+              {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            <FilterDropdown
+              configs={[
+                {
+                  key: 'area',
+                  label: 'Área',
+                  options: [
+                    { label: 'Todas las áreas', value: 'Todas' },
+                    ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
+                  ]
+                },
+                {
+                  key: 'allocation',
+                  label: 'Inversión',
+                  options: [
+                    { label: 'Todas las asignaciones', value: 'Todas' },
+                    { label: 'Soporte Vital 🛡️', value: 'fixed' },
+                    { label: 'Inversión ⚡', value: 'growth' },
+                    { label: 'Mixto ☯️', value: 'mixed' }
+                  ]
+                },
+                {
+                  key: 'priority',
+                  label: 'Prioridad',
+                  options: [
+                    { label: 'Todas las prioridades', value: 'Todas' },
+                    { label: 'Alta', value: 'Alta' },
+                    { label: 'Media', value: 'Media' },
+                    { label: 'Baja', value: 'Baja' }
+                  ]
+                }
+              ]}
+              activeFilters={{
+                area: filterArea,
+                priority: filterPriority,
+                allocation: filterAllocation
+              }}
+              onChange={(key, val) => {
+                if (key === 'area') setFilterArea(val);
+                if (key === 'priority') setFilterPriority(val);
+                if (key === 'allocation') setFilterAllocation(val);
+              }}
+            />
+          </div>
 
-        <div className="w-full lg:w-80 flex flex-col justify-end text-left">
-          <div className="flex justify-between items-end w-full pb-1 mb-0.5">
-            <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono">Asignación Energética</span>
-            <span className="text-xs text-text-main font-bold">
+          <div className="flex justify-between items-end w-full pb-0.5">
+            <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono leading-none">Asignación Energética</span>
+            <span className="text-xs text-text-main font-bold leading-none">
               {hoursWorkedToday.toFixed(1)}h real / {ENERGY_LIMIT.toFixed(1)}h lím
             </span>
           </div>
 
           {/* Stacked Progress Bar */}
-          <div className="w-full h-[5px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1.5 flex">
+          <div className="w-full h-[5px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1 flex">
             {fixedHoursToday > 0 && (
               <div
                 style={{ width: `${(fixedHoursToday / ENERGY_LIMIT) * 100}%` }}
@@ -493,22 +492,22 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
 
           {/* Validating/celebratory messages */}
           {totalSoporteReal > 0 && totalSoporteReal <= soporteBudget && (
-            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-2 uppercase tracking-wider">
+            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-1 uppercase tracking-wider">
               🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital. ¡Base sostenida!
             </div>
           )}
           {totalSoporteReal > soporteBudget && (
-            <div className="text-[9px] text-red-500 font-mono leading-tight mt-2 uppercase tracking-wider font-semibold">
+            <div className="text-[9px] text-red-500 font-mono leading-tight mt-1 uppercase tracking-wider font-semibold">
               ⚠️ Has superado el presupuesto de soporte sugerido para hoy.
             </div>
           )}
           {totalInversionReal >= inversionBudget && inversionBudget > 0 && totalInversionReal <= (inversionBudget + 1) && (
-            <div className="text-[9px] text-primary font-mono leading-tight mt-1 uppercase tracking-wider font-bold">
+            <div className="text-[9px] text-primary font-mono leading-tight mt-0.5 uppercase tracking-wider font-bold">
               🎉 100% de inversión disponible completado hoy.
             </div>
           )}
           {totalInversionReal > (inversionBudget + 1) && (
-            <div className="text-[9px] text-orange-500 font-mono leading-tight mt-1 uppercase tracking-wider font-semibold">
+            <div className="text-[9px] text-orange-500 font-mono leading-tight mt-0.5 uppercase tracking-wider font-semibold">
               ⚠️ Inversión alta: considera descansar para evitar el sobreesfuerzo.
             </div>
           )}
