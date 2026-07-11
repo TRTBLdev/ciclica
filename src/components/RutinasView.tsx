@@ -9,6 +9,7 @@ import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
+import UniversalItemForm from './UniversalItemForm';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -347,196 +348,74 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
 
       {/* 1. COLLAPSIBLE FORM: CREAR RUTINA */}
       {showAddRoutine && (
-        <form onSubmit={handleAddRoutine} className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200 rounded-2xl">
           <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">Crear Contenedor de Rutina</h4>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <input
-              autoFocus
-              type="text"
-              placeholder="Nombre de la nueva rutina..."
-              value={newRoutineText}
-              onChange={e => setNewRoutineText(e.target.value)}
-              className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full text-sm focus:outline-none focus:border-[#a2b29f] text-text-main"
-            />
-
-            <div className="flex flex-wrap gap-2">
-              <select
-                className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                value={routineArea}
-                onChange={e => { setRoutineArea(e.target.value); setRoutineSubCat(''); }}
-              >
-                <option value="">Sin Área</option>
-                {Object.keys(config?.areas || {}).map(a => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
-
-              {routineArea && typeof config?.areas?.[routineArea] !== 'string' && (config?.areas?.[routineArea] as any)?.categories?.length > 0 && (
-                <select
-                  className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                  value={routineSubCat}
-                  onChange={e => setRoutineSubCat(e.target.value)}
-                >
-                  <option value="">Sin Categoría</option>
-                  {((config?.areas?.[routineArea] as any).categories || []).map((sc: string) => (
-                    <option key={sc} value={sc}>{sc}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-          <button type="submit" disabled={!newRoutineText.trim()} className="self-end text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 bg-transparent border-0 outline-none">
-            Crear Rutina
-          </button>
-        </form>
+          <UniversalItemForm
+            defaultType="Rutina"
+            config={config}
+            allTasks={tasks}
+            onSave={(newTaskData) => {
+              onAddTask({
+                userId: 'placeholder',
+                text: newTaskData.text || 'Sin título',
+                type: newTaskData.type || 'Rutina',
+                completed: false,
+                createdAt: new Date().toISOString(),
+                ...newTaskData
+              });
+              setShowAddRoutine(false);
+            }}
+            onCancel={() => setShowAddRoutine(false)}
+          />
+        </div>
       )}
 
       {/* 2. COLLAPSIBLE FORM: CREAR HABITO */}
       {showAddHabit && (
-        <form onSubmit={handleAddHabit} className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200 rounded-2xl">
           <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">Crear Nuevo Hábito Recurrente</h4>
-          <div className="flex flex-col gap-4">
-            <input
-              autoFocus
-              type="text"
-              placeholder="¿Qué hábito deseas incorporar?..."
-              value={newHabitText}
-              onChange={e => setNewHabitText(e.target.value)}
-              className="px-4 py-2 bg-base border border-border-line rounded-full text-sm focus:outline-none focus:border-[#a2b29f] text-text-main"
-            />
-
-            <div className="flex flex-wrap gap-4 items-center">
-              {/* Frequency */}
-              <div className="flex items-center gap-1.5 text-xs text-text-main pr-4 border border-border-line rounded-full px-3 py-1.5 bg-base">
-                <span className="text-text-dim font-mono">Cada</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={habitFreq}
-                  onChange={e => setHabitFreq(Number(e.target.value))}
-                  className="w-10 bg-transparent text-center font-bold outline-none border-b border-border-line focus:border-[#a2b29f] text-text-main"
-                />
-                <select
-                  value={habitFreqUnit}
-                  onChange={e => setHabitFreqUnit(e.target.value as any)}
-                  className="bg-transparent font-bold focus:outline-none cursor-pointer font-mono text-text-main"
-                >
-                  <option value="días">días</option>
-                  <option value="semanas">sems</option>
-                  <option value="meses">meses</option>
-                </select>
-              </div>
-
-              {/* Area */}
-              <div className="flex flex-wrap gap-2">
-                <select
-                  className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                  value={habitArea}
-                  onChange={e => { setHabitArea(e.target.value); }}
-                >
-                  <option value="">Sin Área</option>
-                  {Object.keys(config?.areas || {}).map(a => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
-
-                {habitArea && typeof config?.areas?.[habitArea] !== 'string' && (config?.areas?.[habitArea] as any)?.categories?.length > 0 && (
-                  <select
-                    className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                    value={habitSubCat}
-                    onChange={e => setHabitSubCat(e.target.value)}
-                  >
-                    <option value="">Sin Categoría</option>
-                    {((config?.areas?.[habitArea] as any).categories || []).map((sc: string) => (
-                      <option key={sc} value={sc}>{sc}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-          </div>
-          <button type="submit" disabled={!newHabitText.trim()} className="self-end text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 bg-transparent border-0 outline-none">
-            Crear Hábito
-          </button>
-        </form>
+          <UniversalItemForm
+            defaultType="Hábito"
+            config={config}
+            allTasks={tasks}
+            onSave={(newTaskData) => {
+              onAddTask({
+                userId: 'placeholder',
+                text: newTaskData.text || 'Sin título',
+                type: newTaskData.type || 'Hábito',
+                completed: false,
+                createdAt: new Date().toISOString(),
+                ...newTaskData
+              });
+              setShowAddHabit(false);
+            }}
+            onCancel={() => setShowAddHabit(false)}
+          />
+        </div>
       )}
 
       {/* 3. COLLAPSIBLE FORM: CREAR PULSO */}
       {showAddPulso && (
-        <form onSubmit={handleAddPulso} className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="bg-base-dim/20 border border-border-line p-5 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200 rounded-2xl">
           <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">Crear Nuevo Pulso Diario</h4>
-          <div className="flex flex-col gap-4">
-            <input
-              autoFocus
-              type="text"
-              placeholder="¿Qué pulso deseas trackear? (ej: Vasos de agua, meditación...)..."
-              value={newPulsoText}
-              onChange={e => setNewPulsoText(e.target.value)}
-              className="px-4 py-2 bg-base border border-border-line rounded-full text-sm focus:outline-none focus:border-[#a2b29f] text-text-main"
-            />
-
-            <div className="flex flex-wrap gap-4 items-center">
-              {/* Target & Unit */}
-              <div className="flex items-center gap-2 text-xs border border-border-line rounded-full px-3 py-1.5 bg-base text-text-main">
-                <span className="text-text-dim font-mono">Meta:</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={pulsoTarget}
-                  onChange={e => setPulsoTarget(Number(e.target.value))}
-                  className="w-10 bg-transparent text-center font-bold outline-none border-b border-border-line text-text-main"
-                />
-                <input
-                  type="text"
-                  placeholder="unidad (vasos)"
-                  value={pulsoUnit}
-                  onChange={e => setPulsoUnit(e.target.value)}
-                  className="w-20 bg-transparent font-bold outline-none text-center border-b border-border-line text-text-main placeholder:opacity-50"
-                />
-              </div>
-
-              {/* Area & Polarity */}
-              <div className="flex flex-wrap gap-2">
-                <select
-                  className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                  value={pulsoPolaridad}
-                  onChange={e => setPulsoPolaridad(e.target.value as any)}
-                  title="Polaridad del Pulso"
-                >
-                  <option value="Reforzar">📈 Reforzar</option>
-                  <option value="Abandonar">📉 Abandonar</option>
-                </select>
-
-                <select
-                  className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                  value={pulsoArea}
-                  onChange={e => { setPulsoArea(e.target.value); setPulsoSubCat(''); }}
-                >
-                  <option value="">Sin Área</option>
-                  {Object.keys(config?.areas || {}).map(a => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
-
-                {pulsoArea && typeof config?.areas?.[pulsoArea] !== 'string' && (config?.areas?.[pulsoArea] as any)?.categories?.length > 0 && (
-                  <select
-                    className="px-4 py-2 bg-base border border-border-line rounded-full text-xs font-mono focus:outline-none text-text-main"
-                    value={pulsoSubCat}
-                    onChange={e => setPulsoSubCat(e.target.value)}
-                  >
-                    <option value="">Sin Categoría</option>
-                    {((config?.areas?.[pulsoArea] as any).categories || []).map((sc: string) => (
-                      <option key={sc} value={sc}>{sc}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-          </div>
-          <button type="submit" disabled={!newPulsoText.trim()} className="self-end text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 bg-transparent border-0 outline-none">
-            Crear Pulso
-          </button>
-        </form>
+          <UniversalItemForm
+            defaultType="Pulso"
+            config={config}
+            allTasks={tasks}
+            onSave={(newTaskData) => {
+              onAddTask({
+                userId: 'placeholder',
+                text: newTaskData.text || 'Sin título',
+                type: newTaskData.type || 'Pulso',
+                completed: false,
+                createdAt: new Date().toISOString(),
+                ...newTaskData
+              });
+              setShowAddPulso(false);
+            }}
+            onCancel={() => setShowAddPulso(false)}
+          />
+        </div>
       )}
 
       {/* ROUTINES LIST */}
@@ -572,85 +451,18 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
 
                 if (editingRoutineId === routine.id) {
                   return (
-                    <div key={routine.id} className="border border-border-line p-5 flex flex-col mb-4 bg-base-dim/10 text-left animate-in zoom-in-95 duration-200">
+                    <div key={routine.id} className="border border-border-line p-5 flex flex-col mb-4 bg-base-dim/10 text-left animate-in zoom-in-95 duration-200 rounded-2xl">
                       <h4 className="text-xs font-mono uppercase tracking-widest text-primary font-bold mb-4">Editando Rutina</h4>
-                      <div className="flex flex-col gap-4 mb-4">
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <input
-                            autoFocus
-                            type="text"
-                            className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f] text-text-main"
-                            value={editRoutineForm.text}
-                            onChange={e => setEditRoutineForm({ ...editRoutineForm, text: e.target.value })}
-                          />
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <select
-                            className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none text-text-main font-mono text-xs"
-                            value={editRoutineForm.category}
-                            onChange={e => setEditRoutineForm({ ...editRoutineForm, category: e.target.value, subCategory: '' })}
-                          >
-                            <option value="">Sin Área</option>
-                            {Object.keys(config?.areas || {}).map(a => (
-                              <option key={a} value={a}>{a}</option>
-                            ))}
-                          </select>
-                          {editRoutineForm.category && typeof config?.areas?.[editRoutineForm.category] !== 'string' && (config?.areas?.[editRoutineForm.category] as any)?.categories?.length > 0 && (
-                            <select
-                              className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none text-text-main font-mono text-xs"
-                              value={editRoutineForm.subCategory}
-                              onChange={e => setEditRoutineForm({ ...editRoutineForm, subCategory: e.target.value })}
-                            >
-                              <option value="">Sin Categoría</option>
-                              {((config?.areas?.[editRoutineForm.category] as any)?.categories || []).map((sc: string) => (
-                                <option key={sc} value={sc}>{sc}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <input
-                            type="date"
-                            className="flex-1 px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none font-mono text-xs text-text-main"
-                            value={editRoutineForm.fechaPlanificada}
-                            onChange={e => setEditRoutineForm({ ...editRoutineForm, fechaPlanificada: e.target.value })}
-                            title="Próxima Ejecución"
-                          />
-                          <input
-                            type="time"
-                            className="w-full sm:w-auto px-4 py-2 bg-base border border-border-line rounded-full focus:outline-none font-mono text-xs text-text-main"
-                            value={editRoutineForm.hora}
-                            onChange={e => setEditRoutineForm({ ...editRoutineForm, hora: e.target.value })}
-                          />
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <div className="flex items-center gap-2 bg-base border border-border-line rounded-full px-4 py-1.5 flex-1 text-text-main">
-                            <span className="text-xs font-mono uppercase tracking-wider text-text-dim whitespace-nowrap">Cada</span>
-                            <input
-                              type="number"
-                              min={1}
-                              className="w-12 px-2 py-0.5 text-center bg-transparent border-b border-border-line font-bold focus:outline-none text-text-main"
-                              value={editRoutineForm.frecuencia}
-                              onChange={e => setEditRoutineForm({ ...editRoutineForm, frecuencia: parseInt(e.target.value) || 1 })}
-                            />
-                            <select
-                              className="py-1 pr-2 bg-transparent focus:outline-none text-text-main font-medium cursor-pointer font-mono text-xs"
-                              value={editRoutineForm.frecuenciaUnidad}
-                              onChange={e => setEditRoutineForm({ ...editRoutineForm, frecuenciaUnidad: e.target.value })}
-                            >
-                              <option value="días">días</option>
-                              <option value="semanas">sem</option>
-                              <option value="meses">meses</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-6 items-center">
-                        <button onClick={() => setEditingRoutineId(null)} className="text-xs font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0">Cancelar</button>
-                        <button onClick={handleSaveEdit} className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0" disabled={!editRoutineForm.text.trim()}>
-                          Guardar
-                        </button>
-                      </div>
+                      <UniversalItemForm
+                        initialData={routine}
+                        config={config}
+                        allTasks={tasks}
+                        onSave={(updates) => {
+                          onUpdateTask(routine.id, updates);
+                          setEditingRoutineId(null);
+                        }}
+                        onCancel={() => setEditingRoutineId(null)}
+                      />
                     </div>
                   );
                 }
@@ -954,101 +766,17 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
 
                   if (editingPulsoId === t.id) {
                     return (
-                      <div key={t.id} className="border border-border-line p-2 flex flex-col gap-2.5 animate-in zoom-in-95 duration-200 rounded-none bg-base-dim/10 text-left font-sans">
-                        <div className="flex flex-col gap-2">
-                          <input
-                            type="text"
-                            className="px-2 py-0.5 bg-base border border-border-line rounded-none text-xs text-text-main focus:outline-none focus:border-[#a2b29f] w-full font-sans"
-                            value={editPulsoForm.text}
-                            onChange={e => setEditPulsoForm({ ...editPulsoForm, text: e.target.value })}
-                            placeholder="Nombre del pulso..."
-                          />
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-1 text-[9px] border border-border-line rounded-none px-1.5 py-0.5 bg-base text-text-main font-mono w-fit">
-                              <span className="text-text-dim">Meta:</span>
-                              <input
-                                type="number"
-                                min={1}
-                                className="w-8 bg-transparent text-center font-bold focus:outline-none border-b border-border-line text-text-main"
-                                value={editPulsoForm.targetCount}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, targetCount: Number(e.target.value) })}
-                              />
-                              <input
-                                type="text"
-                                className="w-10 bg-transparent font-bold focus:outline-none text-center border-b border-border-line text-text-main"
-                                value={editPulsoForm.unitLabel}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, unitLabel: e.target.value })}
-                                placeholder="un."
-                              />
-                            </div>
-
-                            <div className="flex gap-1 flex-wrap">
-                              <select
-                                className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                value={editPulsoForm.polaridad}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, polaridad: e.target.value })}
-                                title="Polaridad"
-                              >
-                                <option value="Reforzar">Reforzar</option>
-                                <option value="Abandonar">Abandonar</option>
-                              </select>
-
-                              <select
-                                className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                value={editPulsoForm.category}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, category: e.target.value, subCategory: '' })}
-                                title="Área"
-                              >
-                                <option value="">Sin Área</option>
-                                {Object.keys(config?.areas || {}).map(a => (
-                                  <option key={a} value={a}>{a}</option>
-                                ))}
-                              </select>
-
-                              {editPulsoForm.category && typeof config?.areas?.[editPulsoForm.category] !== 'string' && (config?.areas?.[editPulsoForm.category] as any)?.categories?.length > 0 && (
-                                <select
-                                  className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                  value={editPulsoForm.subCategory}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, subCategory: e.target.value })}
-                                  title="Categoría"
-                                >
-                                  <option value="">Sin Cat.</option>
-                                  {((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => (
-                                    <option key={sc} value={sc}>{sc}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2 items-center">
-                          <button
-                            type="button"
-                            onClick={() => setEditingPulsoId(null)}
-                            className="text-[8.5px] font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!editPulsoForm.text.trim()) return;
-                              onUpdateTask(t.id, {
-                                text: editPulsoForm.text.trim(),
-                                targetCount: editPulsoForm.targetCount,
-                                unitLabel: editPulsoForm.unitLabel,
-                                polaridad: editPulsoForm.polaridad,
-                                category: editPulsoForm.category || undefined,
-                                subCategory: editPulsoForm.subCategory || undefined
-                              });
-                              setEditingPulsoId(null);
-                            }}
-                            className="text-[8.5px] font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0"
-                            disabled={!editPulsoForm.text.trim()}
-                          >
-                            Guardar
-                          </button>
-                        </div>
+                      <div key={t.id} className="border border-border-line p-2 flex flex-col gap-2.5 animate-in zoom-in-95 duration-200 rounded-2xl bg-base-dim/10 text-left font-sans">
+                        <UniversalItemForm
+                          initialData={t}
+                          config={config}
+                          allTasks={tasks}
+                          onSave={(updates) => {
+                            onUpdateTask(t.id, updates);
+                            setEditingPulsoId(null);
+                          }}
+                          onCancel={() => setEditingPulsoId(null)}
+                        />
                       </div>
                     );
                   }

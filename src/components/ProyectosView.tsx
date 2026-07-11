@@ -9,6 +9,7 @@ import ListControls from './ui/ListControls';
 import CategoryBadge from './ui/CategoryBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
+import UniversalItemForm from './UniversalItemForm';
 import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
 
 // Helper to find parent project of any task recursively
@@ -299,31 +300,18 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
     if (editingProjId === proj.id) {
        return (
-         <div key={proj.id} className="bg-base-dim/20 p-5 border border-border-line mb-4 text-left animate-in slide-in-from-top-1 duration-200">
+         <div key={proj.id} className="bg-base-dim/20 p-5 border border-border-line mb-4 text-left animate-in slide-in-from-top-1 duration-200 rounded-2xl">
             <h4 className="text-[10px] font-mono tracking-widest text-primary font-bold mb-3 uppercase">Editando Proyecto</h4>
-             <div className="flex flex-col md:flex-row gap-3 mb-4">
-               <input 
-                 autoFocus
-                 type="text" 
-                 className="flex-1 px-4 py-2 bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
-                 value={editProjForm.text}
-                 onChange={e => setEditProjForm({...editProjForm, text: e.target.value})}
-               />
-               <AreaCategoryDropdown
-                 config={config}
-                 value={`${editProjForm.category}${editProjForm.subCategory ? ':' + editProjForm.subCategory : ''}`}
-                 onChange={(category, subCategory) => {
-                   setEditProjForm({...editProjForm, category, subCategory, parentId: ''});
-                 }}
-                 placeholder="Seleccionar Área"
-               />
-             </div>
-            <div className="flex justify-end gap-6 items-center">
-              <button onClick={() => setEditingProjId(null)} className="text-xs font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0 outline-none">Cancelar</button>
-              <button onClick={handleSaveEdit} className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 bg-transparent border-0 outline-none" disabled={!editProjForm.text.trim() || !editProjForm.category}>
-                Guardar
-              </button>
-            </div>
+            <UniversalItemForm
+              initialData={proj}
+              config={config}
+              allTasks={tasks}
+              onSave={(updates) => {
+                onUpdateTask(proj.id, updates);
+                setEditingProjId(null);
+              }}
+              onCancel={() => setEditingProjId(null)}
+            />
          </div>
        );
     }
@@ -693,35 +681,31 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       )}
 
       {isAdding && (
-        <form onSubmit={handleAddProject} className="bg-base-dim/20 border border-border-line p-5 mb-6 text-left animate-in slide-in-from-top-2 duration-300">
+        <div className="bg-base-dim/20 border border-border-line p-5 mb-6 text-left animate-in slide-in-from-top-2 duration-300 rounded-2xl">
            <div className="flex justify-between items-center mb-4">
             <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Crear Nuevo Proyecto</h3>
             <button type="button" onClick={() => setIsAdding(false)} className="text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0">
                <X className="w-4 h-4"/>
             </button>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input 
-              autoFocus
-              type="text" 
-              placeholder="Nombre del proyecto..."
-              className="flex-1 px-4 py-2 bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
-              value={newProjForm.text}
-              onChange={e => setNewProjForm({...newProjForm, text: e.target.value})}
-            />
-            <AreaCategoryDropdown
-              config={config}
-              value={`${newProjForm.category}${newProjForm.subCategory ? ':' + newProjForm.subCategory : ''}`}
-              onChange={(category, subCategory) => {
-                setNewProjForm({...newProjForm, category, subCategory, parentId: ''});
-              }}
-              placeholder="SELECCIONAR ÁREA / CATEGORÍA"
-            />
-            <button type="submit" disabled={!newProjForm.text.trim() || !newProjForm.category} className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer disabled:opacity-40 sm:ml-4 bg-transparent border-0 outline-none">
-              Crear
-            </button>
-          </div>
-        </form>
+          <UniversalItemForm
+            defaultType="Proyecto"
+            config={config}
+            allTasks={tasks}
+            onSave={(newTaskData) => {
+              onAddTask({
+                userId: 'placeholder',
+                text: newTaskData.text || 'Sin título',
+                type: newTaskData.type || 'Proyecto',
+                completed: false,
+                createdAt: new Date().toISOString(),
+                ...newTaskData
+              });
+              setIsAdding(false);
+            }}
+            onCancel={() => setIsAdding(false)}
+          />
+        </div>
       )}
 
       {/* Gantt Chart Section */}

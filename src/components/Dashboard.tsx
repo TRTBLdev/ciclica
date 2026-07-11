@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { useData } from '../hooks/useData';
-import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings } from 'lucide-react';
-import FloatingTimer from './FloatingTimer';
+import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings, Plus, Zap } from 'lucide-react';
+import Omnibar from './Omnibar';
 import Onboarding from './Onboarding';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn, isSameDay, isFutureDate } from '../lib/utils';
@@ -21,6 +21,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [showIntentionForm, setShowIntentionForm] = useState(false);
+  const [showOmnibar, setShowOmnibar] = useState(false);
   
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
@@ -31,6 +32,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     else if (view === 'configuracion' || view === 'ajustes') targetView = 'configuracion';
 
     setCurrentView(targetView);
+    setShowOmnibar(false);
     if (taskId) {
       setFocusTaskId(taskId);
       setTimeout(() => setFocusTaskId(null), 3000);
@@ -372,58 +374,101 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         
         <div className="flex flex-col flex-1 py-2 gap-0 overflow-y-auto no-scrollbar">
           <NavButton 
-            active={currentView === 'hoy'} 
+            active={showOmnibar} 
+            icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
+            label="Acción" 
+            onClick={() => setShowOmnibar(!showOmnibar)} 
+            rightElement={
+              activeTimer?.isRunning && !showOmnibar && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm ml-auto mr-2" />
+              )
+            }
+          />
+          <NavButton 
+            active={currentView === 'hoy' && !showOmnibar} 
             icon={<Target className="w-4 h-4" />} 
             label="Foco" 
-            onClick={() => setCurrentView('hoy')} 
+            onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }} 
           />
           <NavButton 
-            active={currentView === 'sintonia'} 
+            active={currentView === 'sintonia' && !showOmnibar} 
             icon={<Compass className="w-4 h-4" />} 
             label="Sintonía" 
-            onClick={() => setCurrentView('sintonia')} 
+            onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }} 
           />
           <NavButton 
-            active={currentView === 'estrategia'} 
+            active={currentView === 'estrategia' && !showOmnibar} 
             icon={<Layers className="w-4 h-4" />} 
             label="Estrategia y Plan" 
-            onClick={() => setCurrentView('estrategia')} 
+            onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }} 
           />
           <NavButton 
-            active={currentView === 'bitacora'} 
+            active={currentView === 'bitacora' && !showOmnibar} 
             icon={<Calendar className="w-4 h-4" />} 
             label="Bitácora" 
-            onClick={() => setCurrentView('bitacora')} 
+            onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }} 
           />
           <NavButton 
-            active={currentView === 'configuracion'} 
+            active={currentView === 'configuracion' && !showOmnibar} 
             icon={<Settings className="w-4 h-4" />} 
             label="Ajustes" 
-            onClick={() => setCurrentView('configuracion')} 
-          />
-        </div>
-          
-        <div className="flex flex-col gap-0 border-t border-border-line bg-base">
-          <FloatingTimer 
-            activeTimer={activeTimer}
-            tasks={tasks}
-            onPause={handlePauseTimer}
-            onResume={handleResumeTimer}
-            onStop={handleStopTimer}
-            onDiscard={handleDiscardTimer}
-            onStartTimer={handleStartTimer}
-            onUpdateStartTime={handleUpdateTimerStartTime}
+            onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }} 
           />
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        {showOmnibar && (
+          <>
+            {/* Desktop Panel */}
+            <div className="hidden md:flex fixed top-[10vh] left-[200px] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200">
+              <Omnibar
+                activeTimer={activeTimer}
+                tasks={tasks}
+                config={config}
+                onPause={handlePauseTimer}
+                onResume={handleResumeTimer}
+                onStop={handleStopTimer}
+                onDiscard={handleDiscardTimer}
+                onStartTimer={handleStartTimer}
+                onUpdateStartTime={handleUpdateTimerStartTime}
+                onAddTask={addTask}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={deleteTask}
+                onNavigate={handleNavigate}
+              />
+            </div>
+            
+            {/* Mobile Panel (Bottom Sheet) */}
+            <div className="md:hidden fixed bottom-[50px] left-0 right-0 max-h-[85vh] bg-base shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden flex-col animate-in slide-in-from-bottom duration-300">
+              <Omnibar
+                activeTimer={activeTimer}
+                tasks={tasks}
+                config={config}
+                onPause={handlePauseTimer}
+                onResume={handleResumeTimer}
+                onStop={handleStopTimer}
+                onDiscard={handleDiscardTimer}
+                onStartTimer={handleStartTimer}
+                onUpdateStartTime={handleUpdateTimerStartTime}
+                onAddTask={addTask}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={deleteTask}
+                onNavigate={handleNavigate}
+              />
+            </div>
+            
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/5 z-40 backdrop-blur-[1px]" onClick={() => setShowOmnibar(false)} />
+          </>
+        )}
+        
         {/* Content */}
         <div className={cn(
           "flex-1 h-screen bg-base overflow-y-auto w-full",
-          activeTimer 
-            ? (isTimerMinimized ? "pb-[112px] md:pb-0" : "pb-[270px] md:pb-0") 
+          activeTimer && !showOmnibar
+            ? "pb-[80px] md:pb-0" 
             : "pb-[100px] md:pb-0"
         )}>
           <Suspense fallback={<ViewLoader />}>
@@ -508,55 +553,52 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         <div className="md:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
           <NavButton 
             isMobile
-            active={currentView === 'hoy'} 
+            active={showOmnibar} 
+            icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
+            label="Acción" 
+            onClick={() => setShowOmnibar(!showOmnibar)} 
+            rightElement={
+              activeTimer?.isRunning && !showOmnibar && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm absolute right-2" />
+              )
+            }
+          />
+          <NavButton 
+            isMobile
+            active={currentView === 'hoy' && !showOmnibar} 
             icon={<Target className="w-4 h-4" />} 
             label="Foco" 
-            onClick={() => setCurrentView('hoy')} 
+            onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }} 
           />
           <NavButton 
             isMobile
-            active={currentView === 'sintonia'} 
+            active={currentView === 'sintonia' && !showOmnibar} 
             icon={<Compass className="w-4 h-4" />} 
             label="Sintonía" 
-            onClick={() => setCurrentView('sintonia')} 
+            onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }} 
           />
           <NavButton 
             isMobile
-            active={currentView === 'estrategia'} 
+            active={currentView === 'estrategia' && !showOmnibar} 
             icon={<Layers className="w-4 h-4" />} 
             label="Estrategia" 
-            onClick={() => setCurrentView('estrategia')} 
+            onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }} 
           />
           <NavButton 
             isMobile
-            active={currentView === 'bitacora'} 
+            active={currentView === 'bitacora' && !showOmnibar} 
             icon={<Calendar className="w-4 h-4" />} 
             label="Bitácora" 
-            onClick={() => setCurrentView('bitacora')} 
+            onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }} 
           />
           <NavButton 
             isMobile
-            active={currentView === 'configuracion'} 
+            active={currentView === 'configuracion' && !showOmnibar} 
             icon={<Settings className="w-4 h-4" />} 
             label="Ajustes" 
-            onClick={() => setCurrentView('configuracion')} 
+            onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }} 
           />
         </div>
-      </div>
-
-      <div className="md:hidden">
-        <FloatingTimer 
-          activeTimer={activeTimer}
-          tasks={tasks}
-          onPause={handlePauseTimer}
-          onResume={handleResumeTimer}
-          onStop={handleStopTimer}
-          onDiscard={handleDiscardTimer}
-          onStartTimer={handleStartTimer}
-          onUpdateStartTime={handleUpdateTimerStartTime}
-          isMinimized={isTimerMinimized}
-          onToggleMinimize={() => setIsTimerMinimized(!isTimerMinimized)}
-        />
       </div>
 
       {showOnboarding && (
@@ -597,7 +639,7 @@ function ViewLoader() {
   );
 }
 
-function NavButton({ active, icon, label, onClick, isMobile }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void, isMobile?: boolean }) {
+function NavButton({ active, icon, label, onClick, isMobile, rightElement }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void, isMobile?: boolean, rightElement?: React.ReactNode }) {
   return (
     <button 
       onClick={onClick}
@@ -609,6 +651,7 @@ function NavButton({ active, icon, label, onClick, isMobile }: { active: boolean
     >
       {icon}
       <span className={cn("text-sm font-light font-sans", isMobile && "text-[10px] tracking-wide uppercase", active && !isMobile && "font-normal", active && isMobile && "font-bold")}>{label}</span>
+      {rightElement}
       {active && (
         isMobile ? (
             <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-[var(--color-text-main)]" />

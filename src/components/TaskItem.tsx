@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
+import UniversalItemForm from './UniversalItemForm';
 
 
 const GripIcon = () => (
@@ -94,34 +95,33 @@ export default function TaskItem({
   onNavigateToLocation,
   onNavigate,
   showMoveArrows = false
-}: Props) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(task.text);
-  const [editPriority, setEditPriority] = useState(task.priority || 'Baja');
-  const [editHora, setEditHora] = useState(task.hora || '');
-  const [editFrecuencia, setEditFrecuencia] = useState(task.frecuencia || 1);
-  const [editFrecuenciaUnidad, setEditFrecuenciaUnidad] = useState(task.frecuenciaUnidad || 'días');
-  const [editView, setEditView] = useState(task.view || 'Backlog');
+}: Props) {  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [editPriority, setEditPriority] = useState('Baja');
+  const [editHora, setEditHora] = useState('');
+  const [editFrecuencia, setEditFrecuencia] = useState(1);
+  const [editFrecuenciaUnidad, setEditFrecuenciaUnidad] = useState('días');
+  const [editView, setEditView] = useState('Backlog');
   const parentTaskHere = task.parentId ? allTasks.find(t => t.id === task.parentId) : null;
   const isRutinaParent = parentTaskHere && parentTaskHere.type === 'Rutina';
-  const [editArea, setEditArea] = useState(task.category || '');
-  const [editSubCategory, setEditSubCategory] = useState(task.subCategory || '');
-  const [editParentId, setEditParentId] = useState(task.parentId || '');
-  const [editFechaPlanificada, setEditFechaPlanificada] = useState(task.fechaPlanificada ? new Date(task.fechaPlanificada).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10));
-  const [editDuracion, setEditDuracion] = useState<number>(task.duracion || 0);
+  const [editArea, setEditArea] = useState('');
+  const [editSubCategory, setEditSubCategory] = useState('');
+  const [editParentId, setEditParentId] = useState('');
+  const [editFechaPlanificada, setEditFechaPlanificada] = useState('');
+  const [editDuracion, setEditDuracion] = useState<number>(0);
   const [editType, setEditType] = useState<TaskType>(task.type);
-  const [editDependencyId, setEditDependencyId] = useState(task.dependencyId || '');
+  const [editDependencyId, setEditDependencyId] = useState('');
   const [depSearch, setDepSearch] = useState('');
-  const [editAllocationType, setEditAllocationType] = useState<'fixed' | 'growth' | 'mixed'>(task.allocationType || 'growth');
+  const [editAllocationType, setEditAllocationType] = useState<'fixed' | 'growth' | 'mixed'>('growth');
+  const [editNotes, setEditNotes] = useState('');
+  const [editChecklist, setEditChecklist] = useState<ChecklistItem[]>([]);
+  const [newChecklistItemText, setNewChecklistItemText] = useState('');
+  const handleSave = () => {};
   const [isExpanded, setIsExpanded] = useState(false);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
   const [openUpwards, setOpenUpwards] = useState(false);
-
-  const [editNotes, setEditNotes] = useState(task.notes || '');
-  const [editChecklist, setEditChecklist] = useState<ChecklistItem[]>(task.checklist || []);
-  const [newChecklistItemText, setNewChecklistItemText] = useState('');
 
   const handleToggleChecklistItem = (itemId: string) => {
     if (!onUpdate) return;
@@ -258,59 +258,7 @@ export default function TaskItem({
     return blockingTask ? !blockingTask.completed : false;
   };
 
-  const handleSave = () => {
-    if (editText.trim() && onUpdate) {
-      const updates: any = { 
-        text: editText.trim(), 
-        priority: editPriority,
-        view: editView,
-        category: editArea,
-        subCategory: editSubCategory,
-        parentId: editParentId,
-        type: editType,
-        dependencyId: editDependencyId,
-        allocationType: editAllocationType,
-        notes: editNotes,
-        checklist: editChecklist,
-      };
-      
-      const planDate = new Date(editFechaPlanificada);
-      // Mantener la hora si ya la tenía programada u otra.
-      if (!isNaN(planDate.getTime())) {
-         updates.fechaPlanificada = planDate.toISOString();
-      }
-
-      if (editType === 'Tarea' && editParentId !== '') {
-        const parentT = allTasks.find(t => t.id === editParentId);
-        if (parentT) {
-          updates.category = parentT.category || editArea;
-          updates.subCategory = parentT.subCategory || '';
-        }
-      }
-
-      if (editHora) {
-        updates.hora = editHora;
-        // Si pone hora, asumimos que va para Hoy
-        if (editView !== 'Hoy') {
-          updates.view = 'Hoy';
-        }
-      } else {
-        updates.hora = '';
-      }
-      
-      if (editType === 'Hábito' || editType === 'Rutina') {
-        updates.frecuencia = Number(editFrecuencia);
-        updates.frecuenciaUnidad = editFrecuenciaUnidad;
-      }
-
-      if (editType === 'Tarea' || editType === 'Hábito') {
-        updates.duracion = Number(editDuracion);
-      }
-
-      onUpdate(task.id, updates);
-    }
-    setIsEditing(false);
-  };
+  // handleSave logic removed
 
 
 
@@ -462,6 +410,17 @@ export default function TaskItem({
         
         <div className="flex-1 min-w-0">
         {isEditing ? (
+          <UniversalItemForm
+            initialData={task}
+            config={config}
+            allTasks={allTasks}
+            onSave={(updates) => {
+              if (onUpdate) onUpdate(task.id, updates);
+              setIsEditing(false);
+            }}
+            onCancel={() => setIsEditing(false)}
+          />
+        ) : false ? (
           <div className="flex flex-col gap-2 mb-1.5 mt-0.5">
             <input 
               autoFocus
