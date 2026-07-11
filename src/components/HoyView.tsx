@@ -50,6 +50,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterPriority, setFilterPriority] = useState('Todas');
+  const [filterAllocation, setFilterAllocation] = useState('Todas');
 
   const getSortedTasks = (taskList: AppTask[], criterion: string) => {
     let sorted = [...taskList];
@@ -138,6 +139,11 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   if (filterPriority !== 'Todas') {
     filteredTodayTasks = filteredTodayTasks.filter(t => t.priority === filterPriority);
     filteredBacklogTasks = filteredBacklogTasks.filter(t => t.priority === filterPriority);
+  }
+
+  if (filterAllocation !== 'Todas') {
+    filteredTodayTasks = filteredTodayTasks.filter(t => t.allocationType === filterAllocation);
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.allocationType === filterAllocation);
   }
 
   const todayTasks = filteredTodayTasks;
@@ -337,6 +343,16 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                   ]
                 },
                 {
+                  key: 'allocation',
+                  label: 'Inversión',
+                  options: [
+                    { label: 'Todas las asignaciones', value: 'Todas' },
+                    { label: 'Soporte Vital 🛡️', value: 'fixed' },
+                    { label: 'Inversión ⚡', value: 'growth' },
+                    { label: 'Mixto ☯️', value: 'mixed' }
+                  ]
+                },
+                {
                   key: 'priority',
                   label: 'Prioridad',
                   options: [
@@ -349,11 +365,13 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               ]}
               activeFilters={{
                 area: filterArea,
-                priority: filterPriority
+                priority: filterPriority,
+                allocation: filterAllocation
               }}
               onChange={(key, val) => {
                 if (key === 'area') setFilterArea(val);
                 if (key === 'priority') setFilterPriority(val);
+                if (key === 'allocation') setFilterAllocation(val);
               }}
             />
           </div>

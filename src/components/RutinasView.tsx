@@ -366,8 +366,8 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                 options: [
                   { label: 'Todas las frecuencias', value: 'Todas' },
                   { label: 'Diario 🔁', value: 'diario' },
-                  { label: 'Semanal 🗓️', value: 'semanal' },
-                  { label: 'Mensual 📅', value: 'mensual' }
+                  { label: 'Mediano Plazo (Semanas) 🗓️', value: 'semanal' },
+                  { label: 'Largo Plazo (Meses) 📅', value: 'mensual' }
                 ]
               },
               {
