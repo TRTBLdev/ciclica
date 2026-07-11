@@ -125,9 +125,6 @@ export function useData(userId: string) {
   };
 
   const deleteTask = async (taskId: string) => {
-    if (!window.confirm("¿Estás seguro de eliminar este elemento? Perderás el vínculo con su historial pasado.")) {
-      return;
-    }
 
     // Preserve task text in history records before deleting
     const taskToDelete = tasks.find(t => t.id === taskId);

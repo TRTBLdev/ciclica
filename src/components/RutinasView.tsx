@@ -868,8 +868,10 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenMenuPulsoId(null);
-                                  onDeleteTask(t.id);
+                                  if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente el pulso "${t.text}"?`)) {
+                                    setOpenMenuPulsoId(null);
+                                    onDeleteTask(t.id);
+                                  }
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                               >
