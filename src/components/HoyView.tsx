@@ -244,7 +244,16 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     ...mappedRecords,
     ...(config?.separators || []).map((s, idx) => ({ ...s, isSeparator: true, separatorIndex: idx }))
   ];
-  timedItems.sort((a, b) => timeToMins(a.hora) - timeToMins(b.hora));
+  timedItems.sort((a, b) => {
+    const minsA = timeToMins(a.hora);
+    const minsB = timeToMins(b.hora);
+    if (minsA !== minsB) {
+      return minsA - minsB;
+    }
+    if (a.isSeparator && !b.isSeparator) return -1;
+    if (!a.isSeparator && b.isSeparator) return 1;
+    return 0;
+  });
 
   // Imminent period warning (1-2 days before estimated period start)
   let daysUntilPeriod: number | null = null;
