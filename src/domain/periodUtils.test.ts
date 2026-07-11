@@ -89,8 +89,8 @@ describe('getYearRange', () => {
 
 describe('generatePeriodLabel', () => {
   it('formats labels for all temporal scales correctly', () => {
-    expect(generatePeriodLabel('phase', '2026-06-15', '2026-06-22', 'reflexiva')).toBe('Fase Reflexiva — Jun 15-22, 2026');
-    expect(generatePeriodLabel('cycle', '2026-06-01', '2026-06-28')).toBe('Ciclo Jun 1-28, 2026');
+    expect(generatePeriodLabel('phase', '2026-06-15', '2026-06-22')).toBe('Semana · Jun 15-22, 2026');
+    expect(generatePeriodLabel('cycle', '2026-06-01', '2026-06-28')).toBe('Mes · Jun 1-28, 2026');
     expect(generatePeriodLabel('quarter', '2026-04-01', '2026-06-30')).toBe('Q2 2026');
     expect(generatePeriodLabel('year', '2026-01-01', '2026-12-31')).toBe('2026');
   });

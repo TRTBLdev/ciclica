@@ -3,6 +3,8 @@ import { Config, AppTask, HistoryRecord, Intention, IntentionScale } from '../ty
 import IntentionForm from './IntentionForm';
 import RoadmapPlanner from './RoadmapPlanner';
 import CyclePlanner from './CyclePlanner';
+import CalendarioSemanalView from './CalendarioSemanalView';
+import { parseLocalDate } from '../domain/periodUtils';
 
 interface Props {
   scale: IntentionScale | 'phase';
@@ -38,6 +40,19 @@ export default function PlanificarView({
   );
 
   if (!config) return null;
+
+  if (scale === 'phase') {
+    return (
+      <div className="w-full">
+        <CalendarioSemanalView
+          config={config}
+          tasks={tasks}
+          onUpdateTask={onUpdateTask}
+          currentWeekStart={parseLocalDate(periodStart)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-16">

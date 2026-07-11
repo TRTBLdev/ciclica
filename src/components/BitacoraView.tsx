@@ -57,8 +57,8 @@ export default function BitacoraView({
   onAddHistory,
 }: Props) {
   const { showToast } = useToast();
-  // Tabs: 'calendario' | 'planificar' | 'balance' | 'historial' | 'archivo'
-  const [activeTab, setActiveTab] = useState<'calendario' | 'planificar' | 'balance' | 'historial' | 'archivo'>('calendario');
+  // Tabs: 'planificar' | 'balance' | 'historial' | 'archivo'
+  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'historial' | 'archivo'>('planificar');
   const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('phase');
   const [cursorDate, setCursorDate] = useState<Date>(new Date());
 
@@ -407,7 +407,7 @@ export default function BitacoraView({
             <div className="flex flex-wrap justify-center gap-2">
               {(['phase', 'cycle', 'quarter', 'year', 'free'] as const).map(s => {
                 if (s === 'free' && activeTab === 'planificar') return null;
-                const labels: Record<string, string> = { phase: 'Fase', cycle: 'Ciclo', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
+                const labels: Record<string, string> = { phase: 'Semana', cycle: 'Mes', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
                 const isActive = activeScale === s;
                 return (
                   <button
@@ -470,15 +470,6 @@ export default function BitacoraView({
 
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">
-        {activeTab === 'calendario' && (
-          <div className="animate-in fade-in duration-200 h-full p-6 md:p-10 w-full flex flex-col">
-            <CalendarioSemanalView
-              config={config}
-              tasks={tasks}
-              onUpdateTask={onUpdateTask}
-            />
-          </div>
-        )}
 
         {activeTab === 'planificar' && activeScale !== 'free' && (
           <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto text-left">

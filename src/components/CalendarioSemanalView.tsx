@@ -7,20 +7,23 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
+  currentWeekStart?: Date;
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 to 23:00
 const PIXELS_PER_HOUR = 80;
 const SNAP_MINUTES = 15;
 
-export default function CalendarioSemanalView({ config, tasks, onUpdateTask }: Props) {
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+export default function CalendarioSemanalView({ config, tasks, onUpdateTask, currentWeekStart: propWeekStart }: Props) {
+  const [internalWeekStart, setInternalWeekStart] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
     return new Date(d.setDate(diff));
   });
+
+  const currentWeekStart = propWeekStart || internalWeekStart;
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
@@ -173,19 +176,21 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask }: P
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in max-w-7xl mx-auto w-full pt-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 px-4 md:px-0">
-        <h2 className="text-sm font-mono uppercase tracking-widest font-bold text-text-main flex items-center gap-4">
-          <button onClick={handlePrevWeek} className="p-1.5 hover:bg-base-dim rounded cursor-pointer transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-          <span>{monthNames[currentWeekStart.getMonth()]} {currentWeekStart.getFullYear()}</span>
-          <button onClick={handleNextWeek} className="p-1.5 hover:bg-base-dim rounded cursor-pointer transition-colors"><ChevronRight className="w-4 h-4" /></button>
-        </h2>
-        <button 
-          onClick={handleToday}
-          className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 outline-none"
-        >
-          Semana Actual
-        </button>
-      </div>
+      {!propWeekStart && (
+        <div className="flex items-center justify-between mb-4 px-4 md:px-0">
+          <h2 className="text-sm font-mono uppercase tracking-widest font-bold text-text-main flex items-center gap-4">
+            <button onClick={handlePrevWeek} className="p-1.5 hover:bg-base-dim rounded cursor-pointer transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+            <span>{monthNames[currentWeekStart.getMonth()]} {currentWeekStart.getFullYear()}</span>
+            <button onClick={handleNextWeek} className="p-1.5 hover:bg-base-dim rounded cursor-pointer transition-colors"><ChevronRight className="w-4 h-4" /></button>
+          </h2>
+          <button 
+            onClick={handleToday}
+            className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 outline-none"
+          >
+            Semana Actual
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden gap-4 flex-col md:flex-row">
         

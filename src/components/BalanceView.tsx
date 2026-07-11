@@ -131,65 +131,67 @@ export default function BalanceView({
   return (
     <div className="w-full max-w-4xl mx-auto p-6 md:p-10 text-left space-y-10 animate-in fade-in duration-200">
       
-      {!existingIntention ? (
-        <div className="bg-base-dim/10 border border-border-line border-dashed p-8 text-center space-y-3">
-          <CircleDashed className="w-8 h-8 mx-auto text-text-dim/50" />
-          <p className="text-xs font-mono uppercase tracking-wider text-text-dim font-bold">Sin Intención Definida</p>
-          <p className="text-xs text-text-dim font-light max-w-md mx-auto">
-            No se ha definido una intención para este período. Ve a la pestaña Planificar para establecerla.
-          </p>
-        </div>
+      {scale === 'phase' ? (
+        <WeeklyGanttChart 
+          tasks={tasks}
+          history={history}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
+          config={config}
+        />
       ) : (
-        <div className="space-y-8">
-          <div className="space-y-1">
-            <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Tema del Período</h3>
-            <p className="text-sm text-text-main italic border-l-2 border-primary/30 pl-3 py-1">
-              {existingIntention.theme || "Sin tema definido"}
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Progreso de Compromisos</h3>
-            {existingIntention.items.length === 0 ? (
-              <p className="text-xs text-text-dim">No hay compromisos asociados a esta intención.</p>
-            ) : (
-              <div className="space-y-6">
-                {Object.keys(itemsByArea).map(area => (
-                  <div key={area} className="space-y-3">
-                    <div className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold border-b border-border-line/20 pb-1">
-                      {area === 'General' ? 'Otros / General' : area}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {itemsByArea[area].map(renderProgressCard)}
-                    </div>
-                  </div>
-                ))}
+        <>
+          {!existingIntention ? (
+            <div className="bg-base-dim/10 border border-border-line border-dashed p-8 text-center space-y-3">
+              <CircleDashed className="w-8 h-8 mx-auto text-text-dim/50" />
+              <p className="text-xs font-mono uppercase tracking-wider text-text-dim font-bold">Sin Intención Definida</p>
+              <p className="text-xs text-text-dim font-light max-w-md mx-auto">
+                No se ha definido una intención para este período. Ve a la pestaña Planificar para establecerla.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <div className="space-y-1">
+                <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Tema del Período</h3>
+                <p className="text-sm text-text-main italic border-l-2 border-primary/30 pl-3 py-1">
+                  {existingIntention.theme || "Sin tema definido"}
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* ANALÍTICAS */}
-      <div className="border-t border-border-line pt-8">
-        {scale === 'phase' ? (
-          <WeeklyGanttChart 
-            tasks={tasks}
-            history={history}
-            periodStart={periodStart}
-            periodEnd={periodEnd}
-            config={config}
-          />
-        ) : (
-          <DedicationChart 
-            tasks={tasks}
-            history={history}
-            periodStart={periodStart}
-            periodEnd={periodEnd}
-            config={config}
-          />
-        )}
-      </div>
+              <div className="space-y-6">
+                <h3 className="text-xs font-mono uppercase tracking-widest text-primary font-bold">Progreso de Compromisos</h3>
+                {existingIntention.items.length === 0 ? (
+                  <p className="text-xs text-text-dim">No hay compromisos asociados a esta intención.</p>
+                ) : (
+                  <div className="space-y-6">
+                    {Object.keys(itemsByArea).map(area => (
+                      <div key={area} className="space-y-3">
+                        <div className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold border-b border-border-line/20 pb-1">
+                          {area === 'General' ? 'Otros / General' : area}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {itemsByArea[area].map(renderProgressCard)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ANALÍTICAS */}
+          <div className="border-t border-border-line pt-8">
+            <DedicationChart 
+              tasks={tasks}
+              history={history}
+              periodStart={periodStart}
+              periodEnd={periodEnd}
+              config={config}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

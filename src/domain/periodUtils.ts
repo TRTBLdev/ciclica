@@ -268,6 +268,27 @@ export function getQuarterRange(configOrDate?: Config | Date | null, todayDate =
   };
 }
 
+export function getCalendarWeekRange(todayDate = new Date()) {
+  const d = new Date(todayDate);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const start = new Date(d.setDate(diff));
+  const end = new Date(start.getTime() + 6 * DAY_MS);
+  return {
+    start: formatLocalDate(start),
+    end: formatLocalDate(end)
+  };
+}
+
+export function getCalendarMonthRange(todayDate = new Date()) {
+  const start = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  const end = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+  return {
+    start: formatLocalDate(start),
+    end: formatLocalDate(end)
+  };
+}
+
 export function getYearRange(todayDate = new Date()) {
   const year = todayDate.getFullYear();
   const startDate = new Date(year, 0, 1);
@@ -280,12 +301,11 @@ export function getYearRange(todayDate = new Date()) {
 }
 
 export function generatePeriodLabel(scale: IntentionScale, start: string, end: string, phaseName?: BiologicalPhase, qKey?: string): string {
-  if (scale === 'phase' && phaseName) {
-    const formattedPhase = phaseName.charAt(0).toUpperCase() + phaseName.slice(1);
-    return `Fase ${formattedPhase} — ${formatRangeText(start, end)}`;
+  if (scale === 'phase') {
+    return `Semana · ${formatRangeText(start, end)}`;
   }
   if (scale === 'cycle') {
-    return `Ciclo ${formatRangeText(start, end)}`;
+    return `Mes · ${formatRangeText(start, end)}`;
   }
   if (scale === 'quarter') {
     if (qKey) {
@@ -311,12 +331,12 @@ export function getCurrentPeriod(scale: IntentionScale | 'free', config: Config 
     return { start: '', end: '', label: 'Todo el tiempo' };
   }
   if (scale === 'phase') {
-    const range = getPhaseRange(config, todayDate);
-    const label = generatePeriodLabel('phase', range.start, range.end, range.phaseName);
+    const range = getCalendarWeekRange(todayDate);
+    const label = generatePeriodLabel('phase', range.start, range.end);
     return { start: range.start, end: range.end, label };
   }
   if (scale === 'cycle') {
-    const range = getCycleRange(config, todayDate);
+    const range = getCalendarMonthRange(todayDate);
     const label = generatePeriodLabel('cycle', range.start, range.end);
     return { start: range.start, end: range.end, label };
   }
