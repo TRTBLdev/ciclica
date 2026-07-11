@@ -3,7 +3,8 @@ import { AppTask, Config, HistoryRecord, TaskType } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
-import ListControls from './ui/ListControls';
+import FilterDropdown from './ui/FilterDropdown';
+import SortDropdown from './ui/SortDropdown';
 import { RotateCw, Plus, ChevronDown, ChevronUp, ChevronRight, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react';
 import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
@@ -61,6 +62,9 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
   const [openMenuPulsoId, setOpenMenuPulsoId] = useState<string | null>(null);
 
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name'>('manual');
+  const [filterArea, setFilterArea] = useState('Todas');
+  const [filterFrequency, setFilterFrequency] = useState('Todas');
+  const [filterType, setFilterType] = useState('Todas');
   const [openMenuRoutineId, setOpenMenuRoutineId] = useState<string | null>(null);
   const [menuRoutineUpwards, setMenuRoutineUpwards] = useState(false);
 
@@ -139,9 +143,42 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
     }
   }, [focusTaskId, tasks]);
 
-  const routines = sortTasks(tasks.filter(t => t.type === 'Rutina' && !t.completed), sortBy);
-  const standaloneHabits = sortTasks(tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId))), sortBy);
-  const pulsos = tasks.filter(t => t.type === 'Pulso');
+  let filteredRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
+  let filteredStandaloneHabits = tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId)));
+  let filteredPulsos = tasks.filter(t => t.type === 'Pulso');
+
+  // Filter Area
+  if (filterArea !== 'Todas') {
+    filteredRoutines = filteredRoutines.filter(t => t.category === filterArea);
+    filteredStandaloneHabits = filteredStandaloneHabits.filter(t => t.category === filterArea);
+    filteredPulsos = filteredPulsos.filter(t => t.category === filterArea);
+  }
+
+  // Filter Frequency
+  if (filterFrequency !== 'Todas') {
+    const matchesFreq = (t: AppTask) => {
+      if (filterFrequency === 'diario') return t.frecuencia === 1 && t.frecuenciaUnidad === 'días';
+      if (filterFrequency === 'semanal') return t.frecuenciaUnidad === 'semanas';
+      if (filterFrequency === 'mensual') return t.frecuenciaUnidad === 'meses';
+      return true;
+    };
+    filteredRoutines = filteredRoutines.filter(matchesFreq);
+    filteredStandaloneHabits = filteredStandaloneHabits.filter(matchesFreq);
+    if (filterFrequency !== 'diario') {
+      filteredPulsos = [];
+    }
+  }
+
+  // Filter Type
+  if (filterType !== 'Todas') {
+    if (filterType !== 'Rutina') filteredRoutines = [];
+    if (filterType !== 'Hábito') filteredStandaloneHabits = [];
+    if (filterType !== 'Pulso') filteredPulsos = [];
+  }
+
+  const routines = sortTasks(filteredRoutines, sortBy);
+  const standaloneHabits = sortTasks(filteredStandaloneHabits, sortBy);
+  const pulsos = filteredPulsos;
 
   const startEdit = (routine: AppTask) => {
     setEditRoutineForm({
@@ -312,16 +349,60 @@ export default function RutinasView({ config, tasks, history, onToggleTask, onDe
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
 
         {/* Left Side: Selectors */}
-        <ListControls
-          currentSort={sortBy}
-          onSortChange={(val) => setSortBy(val as any)}
-          sortOptions={[
-            { label: 'Manual', value: 'manual' },
-            { label: 'Prioridad', value: 'priority' },
-            { label: 'Fecha', value: 'date' },
-            { label: 'Nombre', value: 'name' }
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterDropdown
+            configs={[
+              {
+                key: 'area',
+                label: 'Área',
+                options: [
+                  { label: 'Todas las áreas', value: 'Todas' },
+                  ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
+                ]
+              },
+              {
+                key: 'frequency',
+                label: 'Frecuencia',
+                options: [
+                  { label: 'Todas las frecuencias', value: 'Todas' },
+                  { label: 'Diario 🔁', value: 'diario' },
+                  { label: 'Semanal 🗓️', value: 'semanal' },
+                  { label: 'Mensual 📅', value: 'mensual' }
+                ]
+              },
+              {
+                key: 'type',
+                label: 'Tipo',
+                options: [
+                  { label: 'Todos los tipos', value: 'Todas' },
+                  { label: 'Rutinas 🔁', value: 'Rutina' },
+                  { label: 'Hábitos simples 📝', value: 'Hábito' },
+                  { label: 'Pulsos ⚡', value: 'Pulso' }
+                ]
+              }
+            ]}
+            activeFilters={{
+              area: filterArea,
+              frequency: filterFrequency,
+              type: filterType
+            }}
+            onChange={(key, val) => {
+              if (key === 'area') setFilterArea(val);
+              if (key === 'frequency') setFilterFrequency(val);
+              if (key === 'type') setFilterType(val);
+            }}
+          />
+          <SortDropdown
+            options={[
+              { label: 'Manual', value: 'manual' },
+              { label: 'Prioridad', value: 'priority' },
+              { label: 'Fecha', value: 'date' },
+              { label: 'Nombre', value: 'name' }
+            ]}
+            currentValue={sortBy}
+            onChange={(val) => setSortBy(val as any)}
+          />
+        </div>
 
         {/* Right Side: Actions */}
         <div className="flex flex-wrap items-center justify-end gap-4 font-sans text-[10px] uppercase tracking-widest font-bold">

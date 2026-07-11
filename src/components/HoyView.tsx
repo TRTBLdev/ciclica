@@ -7,7 +7,8 @@ import { getLunarDetailsForDate } from '../domain/lunar';
 import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, getAreaColorClasses } from '../lib/utils';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
-import ListControls from './ui/ListControls';
+import FilterDropdown from './ui/FilterDropdown';
+import SortDropdown from './ui/SortDropdown';
 
 interface Props {
   config: Config | null;
@@ -47,6 +48,8 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const [sortFlexiblesBy, setSortFlexiblesBy] = useState('manual');
   const [sortBacklogBy, setSortBacklogBy] = useState('manual');
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [filterArea, setFilterArea] = useState('Todas');
+  const [filterPriority, setFilterPriority] = useState('Todas');
 
   const getSortedTasks = (taskList: AppTask[], criterion: string) => {
     let sorted = [...taskList];
@@ -90,11 +93,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     setDraggedId(null);
   };
 
-  const pulsos = tasks.filter(t => t.type === 'Pulso');
-  const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed);
-  const activeRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
-
-  const todayTasks = tasks.filter(t => {
+  let filteredTodayTasks = tasks.filter(t => {
     if (t.completed || t.type === 'Proyecto' || t.type === 'Pulso') return false;
     // Hide subtasks of normal tasks from root lists (they render via TaskItem expansion)
     if (t.parentId) {
@@ -115,7 +114,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     return t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada);
   });
 
-  const backlogTasks = tasks.filter(t => {
+  let filteredBacklogTasks = tasks.filter(t => {
     if (t.completed || t.type === 'Proyecto' || t.type === 'Hábito' || t.type === 'Rutina' || t.type === 'Pulso') return false;
     if (t.parentId) {
       const parent = tasks.find(p => p.id === t.parentId);
@@ -126,6 +125,26 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
     const isFutureScheduled = t.view === 'Hoy' && isFutureDate(t.fechaPlanificada);
     return isViewBacklog || isViewEmpty || isFutureScheduled;
   });
+
+  let filteredPulsos = tasks.filter(t => t.type === 'Pulso');
+
+  // Apply filters
+  if (filterArea !== 'Todas') {
+    filteredTodayTasks = filteredTodayTasks.filter(t => t.category === filterArea);
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.category === filterArea);
+    filteredPulsos = filteredPulsos.filter(t => t.category === filterArea);
+  }
+
+  if (filterPriority !== 'Todas') {
+    filteredTodayTasks = filteredTodayTasks.filter(t => t.priority === filterPriority);
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.priority === filterPriority);
+  }
+
+  const todayTasks = filteredTodayTasks;
+  const backlogTasks = filteredBacklogTasks;
+  const pulsos = filteredPulsos;
+  const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed);
+  const activeRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
 
   const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
 
@@ -304,6 +323,39 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               <option value="creativa">Lútea (Creativa)</option>
               <option value="reflexiva">Menstrual (Reflexiva)</option>
             </select>
+
+            <span className="text-text-dim/30 font-mono text-[10px]">|</span>
+
+            <FilterDropdown
+              configs={[
+                {
+                  key: 'area',
+                  label: 'Área',
+                  options: [
+                    { label: 'Todas las áreas', value: 'Todas' },
+                    ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
+                  ]
+                },
+                {
+                  key: 'priority',
+                  label: 'Prioridad',
+                  options: [
+                    { label: 'Todas las prioridades', value: 'Todas' },
+                    { label: 'Alta', value: 'Alta' },
+                    { label: 'Media', value: 'Media' },
+                    { label: 'Baja', value: 'Baja' }
+                  ]
+                }
+              ]}
+              activeFilters={{
+                area: filterArea,
+                priority: filterPriority
+              }}
+              onChange={(key, val) => {
+                if (key === 'area') setFilterArea(val);
+                if (key === 'priority') setFilterPriority(val);
+              }}
+            />
           </div>
           <span className="text-[11px] text-text-dim italic max-w-sm mt-1 leading-snug">{phaseDetails.details}</span>
 
@@ -745,15 +797,15 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                 </span>
               </h3>
               <div className="flex items-center gap-2">
-                <ListControls
-                  sortOptions={[
+                <SortDropdown
+                  options={[
                     { label: 'Orden manual', value: 'manual' },
                     { label: 'Prioridad', value: 'priority' },
                     { label: 'Fecha de creación', value: 'date' },
                     { label: 'Alfabético', value: 'name' }
                   ]}
-                  currentSort={sortFlexiblesBy}
-                  onSortChange={setSortFlexiblesBy}
+                  currentValue={sortFlexiblesBy}
+                  onChange={setSortFlexiblesBy}
                 />
               </div>
             </div>
@@ -807,15 +859,15 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
                 </span>
               </h3>
               <div className="flex items-center gap-2">
-                <ListControls
-                  sortOptions={[
+                <SortDropdown
+                  options={[
                     { label: 'Orden manual', value: 'manual' },
                     { label: 'Prioridad', value: 'priority' },
                     { label: 'Fecha de creación', value: 'date' },
                     { label: 'Alfabético', value: 'name' }
                   ]}
-                  currentSort={sortBacklogBy}
-                  onSortChange={setSortBacklogBy}
+                  currentValue={sortBacklogBy}
+                  onChange={setSortBacklogBy}
                 />
               </div>
             </div>

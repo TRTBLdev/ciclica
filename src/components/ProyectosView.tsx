@@ -5,7 +5,8 @@ import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import GanttChart, { GanttScale } from './GanttChart';
-import ListControls from './ui/ListControls';
+import FilterDropdown from './ui/FilterDropdown';
+import SortDropdown from './ui/SortDropdown';
 import CategoryBadge from './ui/CategoryBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import AllocationBadge from './ui/AllocationBadge';
@@ -39,7 +40,9 @@ interface Props {
 }
 
 export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
-  const [filter, setFilter] = useState('Todas');
+  const [filterArea, setFilterArea] = useState('Todas');
+  const [filterAllocation, setFilterAllocation] = useState('Todas');
+  const [filterPriority, setFilterPriority] = useState('Todas');
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -117,13 +120,31 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
 
   const filteredTasksForGantt = useMemo(() => {
-    if (filter === 'Todas') return tasks;
-    const matchingProjIds = tasks.filter(t => t.type === 'Proyecto' && t.category === filter).map(t => t.id);
-    return tasks.filter(t => 
-      (t.type === 'Proyecto' && t.category === filter) || 
-      (t.type === 'Tarea' && t.parentId && matchingProjIds.includes(t.parentId))
-    );
-  }, [tasks, filter]);
+    let result = tasks;
+    if (filterArea !== 'Todas') {
+      const matchingProjIds = tasks.filter(t => t.type === 'Proyecto' && t.category === filterArea).map(t => t.id);
+      result = result.filter(t => 
+        (t.type === 'Proyecto' && t.category === filterArea) || 
+        (t.type === 'Tarea' && t.parentId && matchingProjIds.includes(t.parentId))
+      );
+    }
+    if (filterAllocation !== 'Todas') {
+      result = result.filter(t => {
+        if (t.type === 'Proyecto') {
+          return t.allocationType === filterAllocation;
+        }
+        if (t.type === 'Tarea' && t.parentId) {
+          const parent = tasks.find(p => p.id === t.parentId);
+          return parent && parent.allocationType === filterAllocation;
+        }
+        return false;
+      });
+    }
+    if (filterPriority !== 'Todas') {
+      result = result.filter(t => t.priority === filterPriority);
+    }
+    return result;
+  }, [tasks, filterArea, filterAllocation, filterPriority]);
 
   React.useEffect(() => {
     if (focusTaskId) {
@@ -163,8 +184,14 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   };
 
   let projects = tasks.filter(t => t.type === 'Proyecto');
-  if (filter !== 'Todas') {
-    projects = projects.filter(p => p.category === filter);
+  if (filterArea !== 'Todas') {
+    projects = projects.filter(p => p.category === filterArea);
+  }
+  if (filterAllocation !== 'Todas') {
+    projects = projects.filter(p => p.allocationType === filterAllocation);
+  }
+  if (filterPriority !== 'Todas') {
+    projects = projects.filter(p => p.priority === filterPriority);
   }
 
   const activeProjs = sortTasks(projects.filter(p => !p.completed), sortBy);
@@ -182,8 +209,14 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     return true;
   });
 
-  if (filter !== 'Todas') {
-    standaloneTasks = standaloneTasks.filter(t => t.category === filter);
+  if (filterArea !== 'Todas') {
+    standaloneTasks = standaloneTasks.filter(t => t.category === filterArea);
+  }
+  if (filterAllocation !== 'Todas') {
+    standaloneTasks = standaloneTasks.filter(t => t.allocationType === filterAllocation);
+  }
+  if (filterPriority !== 'Todas') {
+    standaloneTasks = standaloneTasks.filter(t => t.priority === filterPriority);
   }
 
   const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed), sortBy);
@@ -554,23 +587,61 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
         
         {/* Left Side: Selectors */}
-        <ListControls 
-          currentFilter={filter}
-          onFilterChange={setFilter}
-          filterOptions={[
-            { label: 'Todas las áreas', value: 'Todas' },
-            ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
-          ]}
-          currentSort={sortBy}
-          onSortChange={(val) => setSortBy(val as any)}
-          sortOptions={[
-            { label: 'Manual', value: 'manual' },
-            { label: 'Prioridad', value: 'priority' },
-            { label: 'Fecha', value: 'date' },
-            { label: 'Nombre', value: 'name' },
-            { label: 'Progreso', value: 'progress' }
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterDropdown
+            configs={[
+              {
+                key: 'area',
+                label: 'Área',
+                options: [
+                  { label: 'Todas las áreas', value: 'Todas' },
+                  ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
+                ]
+              },
+              {
+                key: 'allocation',
+                label: 'Inversión',
+                options: [
+                  { label: 'Todas las asignaciones', value: 'Todas' },
+                  { label: 'Soporte Vital 🛡️', value: 'fixed' },
+                  { label: 'Inversión ⚡', value: 'growth' },
+                  { label: 'Mixto ☯️', value: 'mixed' }
+                ]
+              },
+              {
+                key: 'priority',
+                label: 'Prioridad',
+                options: [
+                  { label: 'Todas las prioridades', value: 'Todas' },
+                  { label: 'Alta', value: 'Alta' },
+                  { label: 'Media', value: 'Media' },
+                  { label: 'Baja', value: 'Baja' }
+                ]
+              }
+            ]}
+            activeFilters={{
+              area: filterArea,
+              allocation: filterAllocation,
+              priority: filterPriority
+            }}
+            onChange={(key, val) => {
+              if (key === 'area') setFilterArea(val);
+              if (key === 'allocation') setFilterAllocation(val);
+              if (key === 'priority') setFilterPriority(val);
+            }}
+          />
+          <SortDropdown
+            options={[
+              { label: 'Manual', value: 'manual' },
+              { label: 'Prioridad', value: 'priority' },
+              { label: 'Fecha', value: 'date' },
+              { label: 'Nombre', value: 'name' },
+              { label: 'Progreso', value: 'progress' }
+            ]}
+            currentValue={sortBy}
+            onChange={(val) => setSortBy(val as any)}
+          />
+        </div>
         
         {/* Right Side: Actions */}
         {!isAdding && !isAddingTask && (
@@ -586,7 +657,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 setIsAddingTask(true);
                 setNewTaskForm({
                   text: '',
-                  category: filter !== 'Todas' ? filter : '',
+                  category: filterArea !== 'Todas' ? filterArea : '',
                   subCategory: '',
                   fechaPlanificada: new Date().toISOString().substring(0, 10),
                   duracion: 0
