@@ -449,7 +449,7 @@ export default function Omnibar({
             </div>
 
             {/* Add checklist item */}
-            <div className="flex gap-2 mt-1 w-full">
+            <div className="flex gap-2 mt-1 w-full items-center">
               <input
                 type="text"
                 placeholder="Añadir elemento..."
@@ -463,6 +463,18 @@ export default function Omnibar({
                   }
                 }}
               />
+              <button
+                type="button"
+                onClick={handleAddCheckItem}
+                disabled={!newChecklistItemText.trim()}
+                className={cn(
+                  "p-1 hover:bg-base-dim rounded transition-colors cursor-pointer border-0 bg-transparent text-text-dim hover:text-text-main",
+                  !newChecklistItemText.trim() && "opacity-30 pointer-events-none"
+                )}
+                title="Añadir elemento"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         )}

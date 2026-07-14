@@ -80,11 +80,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       allocationType,
     };
 
-    if (type !== 'Proyecto' && !isActualSubtask) {
+    if ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask) {
       data.hora = hora;
-      if (type === 'Tarea' || type === 'Pulso') {
-        data.view = view;
-      }
+    }
+    if ((type === 'Tarea' || type === 'Pulso') && !isActualSubtask) {
+      data.view = view;
     }
 
     if (type === 'Tarea' || type === 'Rutina' || type === 'Hábito') {
@@ -229,13 +229,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           />
         )}
 
-        {/* Hora (Tarea/Rutina) */}
-        {(type === 'Tarea' || type === 'Rutina') && !isActualSubtask && (
+        {/* Hora (Tarea/Rutina/Hábito simple) */}
+        {(type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && (
           <input 
             type="time" 
             className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono outline-none" 
             value={hora}
             onChange={e => setHora(e.target.value)}
+            title="Hora (Opcional)"
           />
         )}
 
