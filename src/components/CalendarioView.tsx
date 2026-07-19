@@ -3,6 +3,7 @@ import { Calendar, Activity, Wrench, ChevronDown, ChevronRight, RotateCw, Repeat
 import { AppTask, Config, HistoryRecord } from '../types';
 import { timeToMins, extractSafeTime, isSameDay } from '../lib/utils';
 import { cn } from '../lib/utils';
+import { isPulseSafeDayConfirmation } from '../domain/trackingProgress';
 
 interface Props {
   config: Config | null;
@@ -144,7 +145,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                           </div>
                         </td>
                         {days.map((d, i) => {
-                          const execs = history.filter(h => h.taskId === item.id && isSameDay(h.date, d.toISOString()));
+                          const execs = history.filter(h => h.taskId === item.id && !isPulseSafeDayConfirmation(h) && isSameDay(h.date, d.toISOString()));
                           const count = execs.length;
                           let cellContent = null;
 
@@ -265,7 +266,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                         </div>
                       </td>
                       {days.map((d, i) => {
-                        const execs = history.filter(h => h.taskId === item.id && isSameDay(h.date, d.toISOString()));
+                        const execs = history.filter(h => h.taskId === item.id && !isPulseSafeDayConfirmation(h) && isSameDay(h.date, d.toISOString()));
                         const count = execs.length;
                         
                         const target = item.targetCount || item.objetivo || 1;

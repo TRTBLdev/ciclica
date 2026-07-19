@@ -35,6 +35,7 @@ describe('normalizeTask', () => {
       userId: 'local_user',
       text: 'Legacy counter',
       type: 'Contador',
+      polaridad: 'abandonar',
       createdAt: '2026-01-01T00:00:00.000Z',
     });
 
@@ -42,6 +43,7 @@ describe('normalizeTask', () => {
     expect(task.currentCount).toBe(0);
     expect(task.targetCount).toBe(8);
     expect(task.unitLabel).toBe('veces');
+    expect(task.polaridad).toBe('Abandonar');
     expect(task.completed).toBe(false);
   });
 

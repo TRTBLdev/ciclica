@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ProgressSnapshot } from '../types';
+import { isPulseSafeDayConfirmation } from '../domain/trackingProgress';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
@@ -875,7 +876,7 @@ export default function RutinasView({
             ) : (
               <div className="flex flex-wrap gap-y-3 w-full">
                 {pulsos.map(t => {
-                  const count = (history || []).filter(h => h.taskId === t.id && isSameDay(h.date, new Date().toISOString())).length;
+                  const count = (history || []).filter(h => h.taskId === t.id && !isPulseSafeDayConfirmation(h) && isSameDay(h.date, new Date().toISOString())).length;
                   const target = t.targetCount || 1;
                   const unit = t.unitLabel || 'veces';
                   const progress = Math.min((count / target) * 100, 100);

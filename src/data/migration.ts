@@ -1,6 +1,7 @@
 import { AppTask, Config, HistoryRecord } from '../types';
 import { DEFAULT_AREAS, DEFAULT_SEPARATORS } from './defaults';
 import { getFrequencyInDays } from './taskScheduling';
+import { normalizePulsePolarity } from '../domain/trackingProgress';
 
 interface RawDatabase {
   tasks?: unknown;
@@ -60,6 +61,7 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
     task.currentCount = typeof task.currentCount === 'number' ? task.currentCount : 0;
     task.targetCount = typeof task.targetCount === 'number' ? task.targetCount : 8;
     task.unitLabel = typeof task.unitLabel === 'string' ? task.unitLabel : 'veces';
+    task.polaridad = normalizePulsePolarity(task.polaridad);
   }
 
   if (task.type === 'Rutina' && !task.completionMode) {

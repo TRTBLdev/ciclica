@@ -4,6 +4,7 @@ import { ChevronDown, Plus, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Reorder } from 'motion/react';
 import { getCalendarCycleRange, isHabitCompatibleWithRoutine } from '../domain/recurrenceProgress';
+import { normalizePulsePolarity } from '../domain/trackingProgress';
 
 const WEEKDAYS = [
   { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mié' },
@@ -54,7 +55,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   // Specific to Pulso (Contador)
   const [targetCount, setTargetCount] = useState(initialData?.targetCount || 1);
   const [unitLabel, setUnitLabel] = useState(initialData?.unitLabel || 'veces');
-  const [polaridad, setPolaridad] = useState<'reforzar' | 'abandonar'>(initialData?.polaridad || 'reforzar');
+  const [polaridad, setPolaridad] = useState<'Reforzar' | 'Abandonar'>(() => normalizePulsePolarity(initialData?.polaridad));
 
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialData?.checklist || []);
@@ -160,7 +161,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     if (type === 'Pulso') {
       data.targetCount = targetCount;
       data.unitLabel = unitLabel;
-      data.polaridad = polaridad;
+      data.polaridad = normalizePulsePolarity(polaridad);
     }
 
     onSave(data);
@@ -330,8 +331,8 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 value={polaridad} 
                 onChange={e => setPolaridad(e.target.value as any)}
               >
-                 <option value="reforzar">📈 Reforzar</option>
-                 <option value="abandonar">📉 Abandonar</option>
+                 <option value="Reforzar">📈 Reforzar</option>
+                 <option value="Abandonar">📉 Abandonar</option>
               </select>
               <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
             </div>

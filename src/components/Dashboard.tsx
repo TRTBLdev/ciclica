@@ -6,6 +6,7 @@ import Onboarding from './Onboarding';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
+import { isPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress, getNextScheduledDate } from '../domain/recurrenceProgress';
@@ -277,10 +278,13 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     const task = tasks.find(t => t.id === taskId);
     if (task && task.type === 'Pulso' && 'currentCount' in updates) {
       const todayLogs = history.filter(h => h.taskId === task.id && isSameDay(h.date, new Date().toISOString()));
-      const oldCount = todayLogs.length;
+      const occurrenceLogs = todayLogs.filter(record => !isPulseSafeDayConfirmation(record));
+      const safeDayLogs = todayLogs.filter(isPulseSafeDayConfirmation);
+      const oldCount = occurrenceLogs.length;
       const newCount = updates.currentCount || 0;
 
       if (newCount > oldCount) {
+        for (const record of safeDayLogs) await deleteHistory(record.id);
         const diff = newCount - oldCount;
         for (let i = 0; i < diff; i++) {
           await addHistory({
@@ -293,13 +297,27 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         }
       } else if (newCount < oldCount) {
         const diff = oldCount - newCount;
-        const sortedTodayLogs = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        for (let i = 0; i < Math.min(diff, sortedTodayLogs.length); i++) {
-          await deleteHistory(sortedTodayLogs[i].id);
+        const sortedOccurrences = [...occurrenceLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        for (let i = 0; i < Math.min(diff, sortedOccurrences.length); i++) {
+          await deleteHistory(sortedOccurrences[i].id);
         }
       }
     }
     await updateTask(taskId, updates);
+  };
+
+  const handleTogglePulseSafeDay = async (taskId: string) => {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task || task.type !== 'Pulso' || normalizePulsePolarity(task.polaridad) !== 'Abandonar') return;
+    const todayLogs = history.filter(record => record.taskId === taskId && isSameDay(record.date, new Date().toISOString()));
+    const confirmation = todayLogs.find(isPulseSafeDayConfirmation);
+    if (confirmation) {
+      await deleteHistory(confirmation.id);
+      return;
+    }
+    if (todayLogs.some(record => !isPulseSafeDayConfirmation(record))) return;
+    const now = new Date().toISOString();
+    await addHistory({ userId: user.uid, taskId, date: now, duration: 0, createdAt: now, pulseOutcome: 'safe-day' });
   };
 
   const handleAddEvent = (task: AppTask) => {
@@ -467,6 +485,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 onAddEvent={handleAddEvent}
                 onDeleteTask={deleteTask}
                 onUpdateTask={handleUpdateTask}
+                onTogglePulseSafeDay={handleTogglePulseSafeDay}
                 onAddTask={addTask}
                 activeTimer={activeTimer}
                 onStartTimer={handleStartTimer}

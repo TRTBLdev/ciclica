@@ -10,6 +10,7 @@ import CategoryBadge from './ui/CategoryBadge';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import { getIsoWeekday, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
+import { getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
 
 interface Props {
   config: Config | null;
@@ -20,6 +21,7 @@ interface Props {
   onAddEvent: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
+  onTogglePulseSafeDay: (taskId: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   activeTimer?: { taskId: string; isRunning: boolean } | null;
   onStartTimer?: (taskId: string) => void;
@@ -27,7 +29,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
   const ENERGY_LIMIT = phaseDetails.limit;
@@ -543,11 +545,13 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
               {showPulsos && (
                 <div className="flex flex-wrap gap-y-3 w-full animate-in fade-in duration-300">
                   {pulsos.map(t => {
-                    const count = history.filter(h => h.taskId === t.id && isSameDay(h.date, new Date().toISOString())).length;
+                    const count = getPulseOccurrenceCount(history, t.id, new Date());
                     const target = t.targetCount || 1;
                     const unit = t.unitLabel || 'veces';
-                    const progress = Math.min((count / target) * 100, 100);
-                    const isDone = count >= target;
+                    const isAbandoning = normalizePulsePolarity(t.polaridad) === 'Abandonar';
+                    const safeDayConfirmed = isAbandoning && hasPulseSafeDayConfirmation(history, t.id, new Date());
+                    const progress = safeDayConfirmed ? 100 : Math.min((count / target) * 100, 100);
+                    const isDone = isAbandoning ? safeDayConfirmed : count >= target;
 
                     if (editingPulsoId === t.id) {
                       return (
@@ -664,7 +668,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                             )}
                             {t.polaridad && (
                               <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
-                                {t.polaridad === 'Abandonar' ? '📉' : '📈'}
+                                {isAbandoning ? '📉' : '📈'}
                               </span>
                             )}
                           </div>
@@ -678,14 +682,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                             <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => onUpdateTask(t.id, { currentCount: Math.max(0, count - 1), completed: Math.max(0, count - 1) >= target })}
+                                onClick={() => onUpdateTask(t.id, { currentCount: Math.max(0, count - 1), completed: isAbandoning ? false : Math.max(0, count - 1) >= target })}
                                 className="w-[28px] h-[28px] rounded-full border border-border-line flex items-center justify-center text-xs text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
                                 title="Decrementar"
                               >
                                 -
                               </button>
                               <button
-                                onClick={() => onUpdateTask(t.id, { currentCount: Math.min(target * 2, count + 1), completed: (count + 1) >= target })}
+                                onClick={() => onUpdateTask(t.id, { currentCount: Math.min(target * 2, count + 1), completed: isAbandoning ? false : (count + 1) >= target })}
                                 className="w-[28px] h-[28px] rounded-full border border-[#73c2b8]/40 flex items-center justify-center text-xs text-[#73c2b8] hover:bg-[#73c2b8]/10 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
                                 title="Incrementar"
                               >
@@ -696,6 +700,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                             <span className="text-[10px] font-mono text-text-dim leading-none">
                               {count} <span className="opacity-60">/ {target} {unit}</span>
                             </span>
+                            {isAbandoning && count === 0 && (
+                              <button type="button" onClick={() => onTogglePulseSafeDay(t.id)} className={cn('text-[8px] font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 hover:underline', safeDayConfirmed ? 'text-[#81b29a]' : 'text-text-dim')}>
+                                {safeDayConfirmed ? 'Deshacer día libre' : 'Confirmar día libre'}
+                              </button>
+                            )}
                             {isDone && <span className="text-[8px] uppercase tracking-wider font-mono font-bold text-[#81b29a] leading-none">Listo</span>}
                           </div>
                         </div>

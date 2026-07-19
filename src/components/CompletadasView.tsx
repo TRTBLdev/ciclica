@@ -12,7 +12,8 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react';
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
@@ -74,8 +75,7 @@ export default function CompletadasView({
   const [retroEnd, setRetroEnd] = useState('');
   const [retroDuration, setRetroDuration] = useState<number>(0);
   const [retroMarkCompleted, setRetroMarkCompleted] = useState(true);
-  const [taskSearchQuery, setTaskSearchQuery] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [sessionQuery, setSessionQuery] = useState('');
   const [showSimple, setShowSimple] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
   const [showPulses, setShowPulses] = useState(true);
@@ -83,19 +83,16 @@ export default function CompletadasView({
 
   const selectedTask = tasks.find(t => t.id === retroTaskId);
 
-  const filteredTasks = tasks.filter(t => {
-    const textMatches = t.text.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
-      (t.category && t.category.toLowerCase().includes(taskSearchQuery.toLowerCase())) ||
-      t.type.toLowerCase().includes(taskSearchQuery.toLowerCase());
-    return textMatches;
-  });
+  const matchingTasks = useMemo(() => {
+    const query = sessionQuery.trim().toLocaleLowerCase('es-ES');
+    if (!query) return [];
+    return tasks.filter(task => task.text.toLocaleLowerCase('es-ES').includes(query));
+  }, [tasks, sessionQuery]);
 
   const [period, setPeriod] = useState<string>('todas');
 
   const sortedHistory = useMemo(() => {
-    return history
-      .filter(record => record.isCompletion !== false)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history]);
 
   const filteredHistoryByDate = useMemo(() => {
@@ -159,48 +156,59 @@ export default function CompletadasView({
     });
   }, [sortedHistory, period, config?.cycleConfig?.lastCycleStartDate]);
 
+  const filteredHistory = useMemo(() => {
+    const query = sessionQuery.trim().toLocaleLowerCase('es-ES');
+    if (!query) return filteredHistoryByDate;
+    return filteredHistoryByDate.filter(record => {
+      const task = tasks.find(item => item.id === record.taskId);
+      const label = task?.text || record.taskSnapshotText || '';
+      return label.toLocaleLowerCase('es-ES').includes(query);
+    });
+  }, [filteredHistoryByDate, sessionQuery, tasks]);
+
   const simpleExecs = useMemo(() => {
-    return filteredHistoryByDate.filter(h => {
+    return filteredHistory.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return true;
       if (task.type !== 'Tarea' && task.type !== 'Proyecto') return false;
 
       // Ocultar del nivel superior si tiene un padre y ese padre tiene un registro el mismo día
       if (task.parentId) {
-        const parentHasLogSameDay = filteredHistoryByDate.some(ph =>
+        const parentHasLogSameDay = filteredHistory.some(ph =>
           ph.taskId === task.parentId && isSameDay(h.date, ph.date)
         );
         if (parentHasLogSameDay) return false;
       }
       return true;
     });
-  }, [filteredHistoryByDate, tasks]);
+  }, [filteredHistory, tasks]);
 
   const recurringExecs = useMemo(() => {
-    return filteredHistoryByDate.filter(h => {
+    return filteredHistory.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return false;
       if (task.type !== 'Hábito' && task.type !== 'Rutina') return false;
 
       // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
       if (task.parentId) {
-        const parentHasLogSameDay = filteredHistoryByDate.some(ph =>
+        const parentHasLogSameDay = filteredHistory.some(ph =>
           ph.taskId === task.parentId && isSameDay(h.date, ph.date)
         );
         if (parentHasLogSameDay) return false;
       }
       return true;
     });
-  }, [filteredHistoryByDate, tasks]);
+  }, [filteredHistory, tasks]);
 
   const pulseExecs = useMemo(() => {
-    return filteredHistoryByDate.filter(h => {
+    return filteredHistory.filter(h => {
+      if (h.pulseOutcome === 'safe-day') return false;
       const task = tasks.find(t => t.id === h.taskId);
       if (!task) return false;
       if (task.type !== 'Pulso') return false;
       return true;
     });
-  }, [filteredHistoryByDate, tasks]);
+  }, [filteredHistory, tasks]);
 
   const toLocalInputFormat = (isoString?: string) => {
     if (!isoString) return '';
@@ -212,6 +220,19 @@ export default function CompletadasView({
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
+  };
+
+  const openRetrospectiveForm = (task?: AppTask) => {
+    const now = new Date();
+    const duration = task?.duracion || 1;
+    const start = new Date(now.getTime() - duration * 3600000);
+    setRetroStart(toLocalInputFormat(start.toISOString()));
+    setRetroEnd(toLocalInputFormat(now.toISOString()));
+    setRetroDuration(duration);
+    setRetroTaskId(task?.id || '');
+    setRetroMarkCompleted(task?.type !== 'Rutina');
+    if (task) setSessionQuery(task.text);
+    setShowAddForm(true);
   };
 
   const startEdit = (h: HistoryRecord) => {
@@ -843,7 +864,7 @@ export default function CompletadasView({
       <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border-line pb-6">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-text-main stroke-[2]" />
-          <h2 className="text-title">Historial de Completadas</h2>
+          <h2 className="text-title">Historial de sesiones</h2>
         </div>
 
         {/* Date Filter Dropdown */}
@@ -866,137 +887,68 @@ export default function CompletadasView({
       </div>
 
       <p className="text-sm text-text-dim max-w-2xl leading-relaxed -mt-2">
-        El feed histórico detallado de sus sesiones y hábitos completados. Gestione registros de auditoría de tiempo real para análisis retrospectivos limpios y fiables.
+        Consulta sesiones completadas y de progreso, o registra actividad retrospectiva desde el mismo punto de entrada.
       </p>
 
-      <div className="flex flex-col gap-3 bg-transparent py-4 border-b border-border-line/30">
-        <button
-          onClick={() => {
-            const hasDatesReady = retroStart && retroEnd;
-            if (!hasDatesReady) {
-              const now = new Date();
-              const oneHourEarlier = new Date(now.getTime() - 3600000);
-              setRetroEnd(toLocalInputFormat(now.toISOString()));
-              setRetroStart(toLocalInputFormat(oneHourEarlier.toISOString()));
-              setRetroDuration(1.0);
-            }
-            setShowAddForm(!showAddForm);
-          }}
-          className="flex items-center justify-between w-full text-left cursor-pointer bg-transparent border-0 outline-none"
-        >
-          <div className="flex items-center gap-2 text-primary font-mono text-xs uppercase tracking-wider font-bold">
-            <Plus className="w-4 h-4" />
-            <span>Añadir sesión retrospectiva manual</span>
+      <div className="relative flex flex-col gap-3 border-b border-border-line/30 pb-5">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim pointer-events-none" />
+            <input
+              type="search"
+              value={sessionQuery}
+              onChange={event => setSessionQuery(event.target.value)}
+              placeholder="Buscar sesiones o elemento…"
+              className="w-full pl-10 pr-9 py-2.5 text-xs bg-base text-text-main border border-border-line rounded-full outline-none focus:border-[#a2b29f]"
+            />
+            {sessionQuery && (
+              <button type="button" onClick={() => setSessionQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer" title="Limpiar búsqueda">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-          <span className="text-xs font-mono uppercase tracking-wider text-primary font-bold hover:underline">
-            {showAddForm ? 'Cerrar Panel' : 'Abrir Panel ⏱️'}
-          </span>
-        </button>
+          <button type="button" onClick={() => openRetrospectiveForm()} className="px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-text-main hover:bg-base-dim/40 bg-transparent cursor-pointer">
+            <Plus className="inline w-3.5 h-3.5 mr-1.5" /> Registrar sesión
+          </button>
+        </div>
+        {sessionQuery.trim() && (
+          <div className="flex flex-col border border-border-line/60 bg-base">
+            <div className="px-3 py-2 text-[9px] font-mono uppercase tracking-widest text-text-dim border-b border-border-line/40">Registrar para</div>
+            {matchingTasks.length > 0 ? matchingTasks.slice(0, 6).map(task => (
+              <button key={task.id} type="button" onClick={() => openRetrospectiveForm(task)} className="flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-base-dim/40 border-b border-border-line/30 last:border-0 bg-transparent cursor-pointer">
+                <span className="min-w-0 truncate text-xs text-text-main">{task.text}</span>
+                <span className="shrink-0 text-[9px] font-mono uppercase tracking-wider text-primary">Registrar sesión</span>
+              </button>
+            )) : (
+              <p className="px-3 py-2.5 text-xs text-text-dim">No hay elementos coincidentes para registrar.</p>
+            )}
+          </div>
+        )}
+      </div>
 
+      <div className="flex flex-col gap-3 bg-transparent py-4 border-b border-border-line/30">
         {showAddForm && (
           <div className="pt-4 border-t border-border-line/40 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary">Registrar sesión retrospectiva</span>
+              <button type="button" onClick={() => setShowAddForm(false)} className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer">Cancelar</button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-              {/* Task selector */}
-              <div className="flex flex-col gap-1 sm:col-span-1 md:col-span-2 lg:col-span-1 relative">
-                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Buscar Elemento</label>
+              <div className="flex flex-col gap-1 sm:col-span-1 md:col-span-2 lg:col-span-1">
+                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Elemento</label>
                 {selectedTask ? (
-                  <div className="flex items-center justify-between border border-border-line p-2.5 bg-base-dim text-xs min-h-[38px]">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider px-1.5 py-0.5",
-                          selectedTask.type === 'Proyecto' ? 'text-indigo-600' :
-                            selectedTask.type === 'Rutina' ? 'text-orange-600' :
-                              selectedTask.type === 'Hábito' ? 'text-emerald-600' :
-                                'text-text-main'
-                        )}>
-                          [{selectedTask.type}]
-                        </span>
-                        {selectedTask.category && (
-                          <span className="text-[9px] font-mono text-text-dim">
-                            {selectedTask.category}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-semibold text-text-main">{selectedTask.text}</span>
+                  <div className="flex items-center justify-between border border-border-line rounded-full px-4 py-2.5 bg-base-dim text-xs min-h-[38px]">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim">{selectedTask.type}</span>
+                      <span className="font-semibold text-text-main truncate">{selectedTask.text}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRetroTaskId('');
-                        setTaskSearchQuery('');
-                      }}
-                      className="text-text-dim hover:text-text-main p-1 cursor-pointer bg-transparent border-0"
-                    >
+                    <button type="button" onClick={() => setRetroTaskId('')} className="text-text-dim hover:text-text-main p-1 cursor-pointer bg-transparent border-0" title="Cambiar elemento desde la búsqueda superior">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Escriba para buscar..."
-                      className="w-full text-xs px-4 py-2 border border-border-line rounded-full bg-base text-text-main font-medium outline-none"
-                      value={taskSearchQuery}
-                      onFocus={() => setIsDropdownOpen(true)}
-                      onChange={e => {
-                        setTaskSearchQuery(e.target.value);
-                        setIsDropdownOpen(true);
-                      }}
-                    />
-                    {isDropdownOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={() => setIsDropdownOpen(false)}
-                        />
-                        <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-base border border-border-line rounded-none shadow-lg no-scrollbar">
-                          {filteredTasks.length === 0 ? (
-                            <div className="text-xs text-text-dim p-3 italic text-center font-mono">
-                              Sin coincidencias
-                            </div>
-                          ) : (
-                            filteredTasks.map(t => (
-                              <button
-                                key={t.id}
-                                type="button"
-                                className="w-full text-left px-4 py-2 text-xs hover:bg-base-dim border-b border-border-line/20 last:border-0 flex flex-col gap-1 transition-colors cursor-pointer bg-transparent"
-                                onClick={() => {
-                                  setRetroTaskId(t.id);
-                                  setTaskSearchQuery(t.text);
-                                  setIsDropdownOpen(false);
-                                  if (t.duracion) {
-                                    setRetroDuration(t.duracion);
-                                    if (retroStart) {
-                                      const endVal = new Date(new Date(retroStart).getTime() + t.duracion * 3600000);
-                                      setRetroEnd(toLocalInputFormat(endVal.toISOString()));
-                                    }
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  <span className={cn("text-[9px] font-mono font-medium uppercase tracking-wider",
-                                    t.type === 'Proyecto' ? 'text-indigo-500' :
-                                      t.type === 'Rutina' ? 'text-orange-500' :
-                                        t.type === 'Hábito' ? 'text-emerald-500' :
-                                          'text-text-main'
-                                  )}>
-                                    [{t.type}]
-                                  </span>
-                                  {t.category && (
-                                    <span className="text-[9px] font-mono text-text-dim">
-                                      {t.category}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="font-semibold text-text-main">{t.text}</span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  <p className="min-h-[38px] flex items-center px-4 text-xs text-text-dim border border-dashed border-border-line rounded-full">Busca y elige un elemento en la barra superior.</p>
                 )}
               </div>
 
@@ -1049,7 +1001,7 @@ export default function CompletadasView({
                       type="number"
                       min={0}
                       step="0.01"
-                      className="w-20 text-xs px-3 py-1 border border-border-line bg-base text-center font-mono font-bold text-text-main outline-none"
+                      className="w-20 text-xs px-3 py-1 border border-border-line rounded-full bg-base text-center font-mono font-bold text-text-main outline-none"
                       value={retroDuration || 0}
                       onChange={e => setRetroDuration(Number(e.target.value))}
                     />
@@ -1059,12 +1011,13 @@ export default function CompletadasView({
 
                 <div className="hidden sm:block h-8 w-px bg-[var(--color-border-line)]/30" />
 
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <label className={cn("flex items-center gap-2.5 select-none", selectedTask?.type === 'Rutina' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')}>
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
                       className="sr-only"
                       checked={retroMarkCompleted}
+                      disabled={selectedTask?.type === 'Rutina'}
                       onChange={e => setRetroMarkCompleted(e.target.checked)}
                     />
                     <div className={cn(
@@ -1104,7 +1057,8 @@ export default function CompletadasView({
                         duration: Number(retroDuration),
                         createdAt: new Date().toISOString(),
                         startTime: startIso,
-                        endTime: endIso
+                        endTime: endIso,
+                        isCompletion: false
                       });
                     }
 
@@ -1115,8 +1069,7 @@ export default function CompletadasView({
                     setRetroStart('');
                     setRetroEnd('');
                     setRetroDuration(0);
-                    setTaskSearchQuery('');
-                    setIsDropdownOpen(false);
+                    setSessionQuery('');
                     setShowAddForm(false);
                   }
                 }}
@@ -1148,7 +1101,7 @@ export default function CompletadasView({
               {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showSimple && renderHistoryList(simpleExecs, "Sin tareas o proyectos completados.", false)}
+          {showSimple && renderHistoryList(simpleExecs, "Sin sesiones de tareas o proyectos.", false)}
         </div>
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}

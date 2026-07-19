@@ -280,6 +280,11 @@ export default function TaskItem({
   const isHabit = task.type === 'Hábito';
   const isHabitCompleted = isHabit && isFutureDate(task.fechaPlanificada);
   const isCompletedVisual = isHabit ? isHabitCompleted : task.completed;
+  const checklistTotal = task.checklist?.length || 0;
+  const completedChecklistItems = task.checklist?.filter(item => item.done).length || 0;
+  const checklistProgress = checklistTotal > 0
+    ? Math.round((completedChecklistItems / checklistTotal) * 100)
+    : 0;
   
   const getTrackedDuration = () => {
     if (!history) return 0;
@@ -841,6 +846,14 @@ export default function TaskItem({
                 )
               )}
             </div>
+            {task.type !== 'Rutina' && checklistTotal > 0 && !isExpanded && (
+              <div className="mt-3 flex items-center gap-3 w-full max-w-md" aria-label={`Checklist: ${completedChecklistItems} de ${checklistTotal} pasos completados`}>
+                <span className="shrink-0 text-[9px] font-mono uppercase tracking-widest text-text-dim">Checklist {completedChecklistItems}/{checklistTotal}</span>
+                <div className="h-1 flex-1 bg-border-line/40 overflow-hidden rounded-full" aria-hidden="true">
+                  <div className="h-full bg-emerald-600 transition-all duration-200" style={{ width: `${checklistProgress}%` }} />
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -990,14 +1003,14 @@ export default function TaskItem({
           )}
 
            {/* Checklist display */}
-          {task.checklist && task.checklist.length > 0 && (
+          {checklistTotal > 0 && (
             <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main flex flex-col gap-2.5 mb-1">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest font-bold">Guía de Pasos (Checklist)</div>
-                <span className="text-[10px] font-mono text-text-dim">{Math.round((task.checklist.filter(item => item.done).length / task.checklist.length) * 100)}%</span>
+                <span className="text-[10px] font-mono text-text-dim">{checklistProgress}%</span>
               </div>
               <div className="h-1 w-full bg-border-line/40 overflow-hidden rounded-full">
-                <div className="h-full bg-emerald-600 transition-all" style={{ width: `${(task.checklist.filter(item => item.done).length / task.checklist.length) * 100}%` }} />
+                <div className="h-full bg-emerald-600 transition-all" style={{ width: `${checklistProgress}%` }} />
               </div>
               <div className="flex flex-col gap-2">
                 {task.checklist.map(item => (

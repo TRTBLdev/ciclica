@@ -112,6 +112,8 @@ export interface HistoryRecord {
   endTime?: string;
   isCompletion?: boolean;
   taskSnapshotText?: string;
+  /** Explicit confirmation that an abandoning pulse had no occurrences that day. */
+  pulseOutcome?: 'safe-day';
 }
 
 export type ProgressSnapshotKind = 'routine-appearance' | 'routine-cycle' | 'habit-period';
