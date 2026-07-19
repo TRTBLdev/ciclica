@@ -1,5 +1,44 @@
 import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem } from '../types';
 
+export type AreaCommitment = {
+  intention: Intention;
+  item: IntentionItem;
+};
+
+export const INTENTION_SCALE_LABELS = {
+  phase: 'Fase',
+  cycle: 'Ciclo',
+  quarter: 'Trimestre',
+  year: 'Año'
+} as const;
+
+export function getIntentionItemLabel(item: IntentionItem, tasks: AppTask[]): string {
+  if (item.projectId) return tasks.find(task => task.id === item.projectId)?.text || 'Proyecto';
+  if (item.taskId) return tasks.find(task => task.id === item.taskId)?.text || 'Tarea';
+  if (item.subCategory) return item.subCategory;
+  return item.areaName || 'Área';
+}
+
+export function getActiveAreaCommitments(
+  areaName: string,
+  intentions: Intention[],
+  tasks: AppTask[],
+  today = new Date().toISOString().slice(0, 10)
+): AreaCommitment[] {
+  return intentions.flatMap(intention => {
+    if (intention.periodStart > today || intention.periodEnd < today) return [];
+
+    return intention.items
+      .filter(item => {
+        if (item.areaName === areaName) return true;
+        if (item.projectId) return tasks.find(task => task.id === item.projectId)?.category === areaName;
+        if (item.taskId) return tasks.find(task => task.id === item.taskId)?.category === areaName;
+        return false;
+      })
+      .map(item => ({ intention, item }));
+  });
+}
+
 export function getTaskIdsForItem(item: IntentionItem, tasks: AppTask[]): string[] {
   if (item.taskId) {
     return [item.taskId];
@@ -200,5 +239,32 @@ export function calculateItemProgress(
   return {
     type: 'completion',
     completion: calculateCompletionProgress(item, tasks)
+  };
+}
+
+export function summarizeIntentionProgress(progress: ReturnType<typeof calculateItemProgress>) {
+  if (progress.type === 'hours' && progress.hours) {
+    return {
+      typeLabel: 'Horas',
+      value: `${progress.hours.current.toFixed(1)} / ${progress.hours.target} h`,
+      compactValue: `${progress.hours.current}/${progress.hours.target}h`,
+      percent: progress.hours.percent
+    };
+  }
+  if (progress.type === 'consistency' && progress.consistency) {
+    return {
+      typeLabel: 'Constancia',
+      value: `${progress.consistency.current} / ${progress.consistency.target} d`,
+      compactValue: `${progress.consistency.current}/${progress.consistency.target}d`,
+      percent: progress.consistency.percent
+    };
+  }
+
+  const completed = progress.completion?.completed || false;
+  return {
+    typeLabel: 'Cumplimiento',
+    value: completed ? '1 / 1' : '0 / 1',
+    compactValue: completed ? '1/1' : '0/1',
+    percent: completed ? 100 : 0
   };
 }

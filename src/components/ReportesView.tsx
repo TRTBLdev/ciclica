@@ -22,6 +22,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -376,12 +377,10 @@ export default function ReportesView({ config, tasks, history }: Props) {
       activeDaysSet.add(localDateStr);
 
       const originalTask = tasks.find(t => t.id === h.taskId);
-      const alloc = originalTask?.allocationType || (originalTask ? (originalTask.type === 'Rutina' || originalTask.type === 'Hábito' || originalTask.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
-      if (alloc === 'fixed') {
-        fixedHours += duration;
-      } else if (alloc === 'mixed') {
-        fixedHours += duration * 0.5;
-        growthHours += duration * 0.5;
+      if (originalTask) {
+        const energy = getTaskEnergyBreakdown(originalTask, tasks, duration);
+        fixedHours += energy.support;
+        growthHours += energy.investment;
       } else {
         growthHours += duration;
       }
@@ -537,14 +536,12 @@ export default function ReportesView({ config, tasks, history }: Props) {
     filteredHistory.forEach(h => {
       const duration = h.duration || 0;
       const originalTask = tasks.find(t => t.id === h.taskId);
-      const alloc = originalTask?.allocationType || (originalTask ? (originalTask.type === 'Rutina' || originalTask.type === 'Hábito' || originalTask.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
       const phase = calculateBiologicalPhase(config, new Date(h.date));
 
-      if (alloc === 'fixed') {
-        phases[phase].fixed += duration;
-      } else if (alloc === 'mixed') {
-        phases[phase].fixed += duration * 0.5;
-        phases[phase].growth += duration * 0.5;
+      if (originalTask) {
+        const energy = getTaskEnergyBreakdown(originalTask, tasks, duration);
+        phases[phase].fixed += energy.support;
+        phases[phase].growth += energy.investment;
       } else {
         phases[phase].growth += duration;
       }

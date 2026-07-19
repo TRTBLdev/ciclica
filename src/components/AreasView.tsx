@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
-import { Config, AreaConfig, AppTask, HistoryRecord, Intention, IntentionItem } from '../types';
+import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
 import { cn, getAreaColorClasses, getAreaBorderClasses, getAreaTextClasses, APP_COLORS } from '../lib/utils';
-import { calculateItemProgress } from '../domain/intentionProgress';
+import { calculateItemProgress, getActiveAreaCommitments, getIntentionItemLabel, INTENTION_SCALE_LABELS, summarizeIntentionProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 
@@ -195,37 +195,7 @@ function AreasList({
             const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
             const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed);
 
-            // Gather active commitments for this specific area name
-            const todayStr = new Date().toISOString().slice(0, 10);
-            const areaIntentions: Array<{ item: IntentionItem; scale: string; periodStart: string; periodEnd: string }> = [];
-
-            intentions.forEach(intent => {
-              if (intent && intent.periodStart && intent.periodEnd && intent.periodStart <= todayStr && intent.periodEnd >= todayStr) {
-                const items = intent.items || [];
-                items.forEach(item => {
-                  if (!item) return;
-                  let isMatch = false;
-                  if (item.areaName === key) {
-                    isMatch = true;
-                  } else if (item.projectId) {
-                    const p = tasks.find(t => t && t.id === item.projectId);
-                    if (p?.category === key) isMatch = true;
-                  } else if (item.taskId) {
-                    const t = tasks.find(t => t && t.id === item.taskId);
-                    if (t?.category === key) isMatch = true;
-                  }
-
-                  if (isMatch) {
-                    areaIntentions.push({
-                      item,
-                      scale: intent.scale,
-                      periodStart: intent.periodStart,
-                      periodEnd: intent.periodEnd
-                    });
-                  }
-                });
-              }
-            });
+            const areaIntentions = getActiveAreaCommitments(key, intentions, tasks);
 
             return (
               <button
@@ -266,48 +236,28 @@ function AreasList({
                   <div className="mt-2 mb-6 pt-3 border-t border-border-line/20 w-full flex flex-col gap-2 text-left font-mono">
                     <span className="text-[9px] uppercase tracking-wider text-text-dim/80 font-bold">Progreso de Intención Activa:</span>
                     <div className="flex flex-col gap-2">
-                      {areaIntentions.slice(0, 3).map(({ item, scale, periodStart, periodEnd }) => {
-                        const progress = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions);
+                      {areaIntentions.slice(0, 3).map(({ item, intention }) => {
+                        const progress = calculateItemProgress(item, tasks, history, intention.periodStart, intention.periodEnd, intentions);
                         let label = '';
-                        let percent = 0;
-                        let progressText = '';
+                        const displayScaleLabel = INTENTION_SCALE_LABELS[intention.scale];
 
-                        if (item.projectId) {
-                          label = tasks.find(t => t.id === item.projectId)?.text || 'Proyecto';
-                        } else if (item.taskId) {
-                          label = tasks.find(t => t.id === item.taskId)?.text || 'Tarea';
-                        } else if (item.subCategory) {
-                          label = item.subCategory;
-                        } else if (item.areaName) {
-                          label = item.areaName;
-                        }
+                        label = getIntentionItemLabel(item, tasks);
+                        const summary = summarizeIntentionProgress(progress);
 
-                        const scaleLabel = scale === 'phase' ? 'Fase' : scale === 'cycle' ? 'Ciclo' : scale === 'quarter' ? 'Cuarto' : 'Año';
-
-                        if (progress.type === 'hours' && progress.hours) {
-                          percent = progress.hours.percent;
-                          progressText = `${progress.hours.current}/${progress.hours.target}h`;
-                        } else if (progress.type === 'consistency' && progress.consistency) {
-                          percent = progress.consistency.percent;
-                          progressText = `${progress.consistency.current}/${progress.consistency.target}d`;
-                        } else if (progress.type === 'completion' && progress.completion) {
-                          percent = progress.completion.completed ? 100 : 0;
-                          progressText = progress.completion.completed ? '1/1' : '0/1';
-                        }
 
                         return (
                           <div key={item.id} className="flex flex-col gap-1 w-full text-[9px]">
                             <div className="flex justify-between items-center text-text-main/90">
-                              <span className="truncate max-w-[170px]" title={`${scaleLabel}: ${label}`}>{scaleLabel}: {label}</span>
-                              <span className="font-bold text-right ml-2">{progressText} ({Math.round(percent)}%)</span>
+                              <span className="truncate max-w-[170px]" title={`${displayScaleLabel}: ${label}`}>{displayScaleLabel}: {label}</span>
+                              <span className="font-bold text-right ml-2">{summary.compactValue} ({Math.round(summary.percent)}%)</span>
                             </div>
                             <div className="h-1.5 w-full bg-base-dim/40 rounded-full overflow-hidden border border-border-line/10">
                               <div 
                                 className={cn(
                                   "h-full transition-all duration-500 rounded-full",
-                                  percent >= 100 ? "bg-emerald-500" : "bg-primary/80"
+                                  summary.percent >= 100 ? "bg-emerald-500" : "bg-primary/80"
                                 )}
-                                style={{ width: `${percent}%` }}
+                                style={{ width: `${summary.percent}%` }}
                               />
                             </div>
                           </div>
@@ -404,9 +354,27 @@ function AreaDetail({
   const [expandProjects, setExpandProjects] = useState(false);
   const [expandHabits, setExpandHabits] = useState(false);
   const [expandTasks, setExpandTasks] = useState(false);
+  const [expandCommitments, setExpandCommitments] = useState(true);
 
   const routinesInArea = tasks.filter(t => t.type === 'Rutina' && t.category === areaName);
   const projectsInArea = tasks.filter(t => t.type === 'Proyecto' && t.category === areaName);
+  const activeCommitments = getActiveAreaCommitments(areaName, intentions, tasks);
+  const commitmentGroups = (['phase', 'cycle', 'quarter', 'year'] as const)
+    .map(scale => ({
+      scale,
+      commitments: activeCommitments.filter(({ intention }) => intention.scale === scale)
+    }))
+    .filter(group => group.commitments.length > 0);
+
+  const formatPeriodDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short'
+  });
+
+  const getCommitmentSummary = (item: Parameters<typeof calculateItemProgress>[0], periodStart: string, periodEnd: string) => {
+    const progress = calculateItemProgress(item, tasks, history || [], periodStart, periodEnd, intentions);
+    return summarizeIntentionProgress(progress);
+  };
   const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
   const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
 
@@ -565,6 +533,69 @@ function AreaDetail({
 
       {/* RENDER HORIZONTAL COLLAPSIBLE LISTS (Accordion Style) */}
       <div className="flex-1 p-6 md:p-10 flex flex-col gap-6 max-w-4xl w-full mx-auto text-left pb-16 bg-base">
+         <section className="border-b border-border-line/30 pb-6">
+            <h3
+              onClick={() => setExpandCommitments(!expandCommitments)}
+              className="text-subtitle flex items-center justify-between gap-4 cursor-pointer group hover:opacity-85 select-none"
+            >
+              <span className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-primary" /> Compromisos vigentes ({activeCommitments.length})
+              </span>
+              <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
+                {expandCommitments ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {expandCommitments ? 'Ocultar' : 'Mostrar'}
+              </span>
+            </h3>
+
+            {expandCommitments && (commitmentGroups.length === 0 ? (
+              <p className="text-xs text-primary italic">No hay compromisos vigentes en esta area.</p>
+            ) : (
+              <div className="space-y-5 mt-4 animate-in fade-in duration-200">
+                {commitmentGroups.map(({ scale, commitments }) => (
+                  <div key={scale} className="space-y-2.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 font-mono">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-main">
+                        {INTENTION_SCALE_LABELS[scale]}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider text-text-dim">
+                        {formatPeriodDate(commitments[0].intention.periodStart)} - {formatPeriodDate(commitments[0].intention.periodEnd)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {commitments.map(({ intention, item }) => {
+                        const summary = getCommitmentSummary(item, intention.periodStart, intention.periodEnd);
+                        return (
+                          <div key={item.id} className="w-full border border-border-line/30 px-4 py-3 flex flex-col gap-2 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm text-text-main truncate" title={getIntentionItemLabel(item, tasks)}>
+                                  {getIntentionItemLabel(item, tasks)}
+                                </p>
+                                <p className="mt-0.5 text-[9px] font-mono uppercase tracking-wider text-text-dim">
+                                  {summary.typeLabel}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-xs font-mono text-text-main">{Math.round(summary.percent)}%</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-text-dim">
+                              <span>{summary.value}</span>
+                              <span>Meta activa</span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-base-dim/50 border border-border-line/10">
+                              <div
+                                className={cn('h-full rounded-full transition-all duration-500', summary.percent >= 100 ? 'bg-emerald-500' : 'bg-primary/80')}
+                                style={{ width: `${summary.percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+         </section>
          
          {/* 1. PROJECTS SECTION */}
          <div className="border-b border-border-line/30 pb-6">

@@ -3,6 +3,7 @@ import { AppTask, HistoryRecord, Config } from '../types';
 import { cn, getAreaColorClasses, getAreaTextClasses } from '../lib/utils';
 import { Layers, CheckCircle2, Repeat, ChevronRight, ChevronDown } from 'lucide-react';
 import { calculateBiologicalPhase, parseLocalDate } from '../domain/cycle';
+import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
   let current = allTasks.find(t => t.id === taskId);
   while (current) {
@@ -173,15 +174,6 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     'creativa': { vital: 0, inversion: 0 },
   };
 
-  const getEffectiveAllocation = (task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' => {
-    if (task.allocationType) return task.allocationType;
-    if (task.type === 'Hábito' || task.type === 'Pulso') return 'fixed';
-    if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
-    const project = getProjectForTask(task.id, allTasks);
-    if (project) return 'growth';
-    return 'mixed';
-  };
-
   history.filter(h => {
     const d = h.date.slice(0, 10);
     return d >= periodStart && d <= periodEnd;
@@ -190,9 +182,10 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     if (originalTask) {
       const dateObj = parseLocalDate(h.date.slice(0, 10));
       const phase = calculateBiologicalPhase(config, dateObj);
-      const energy = getEffectiveAllocation(originalTask, tasks) === 'fixed' ? 'vital' : 'inversion';
       if (phaseBreakdown[phase]) {
-        phaseBreakdown[phase][energy] += (h.duration || 0);
+        const energy = getTaskEnergyBreakdown(originalTask, tasks, h.duration || 0);
+        phaseBreakdown[phase].vital += energy.support;
+        phaseBreakdown[phase].inversion += energy.investment;
       }
     }
   });

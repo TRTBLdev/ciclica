@@ -11,6 +11,7 @@ import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import { getIsoWeekday, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
 import { getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
+import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 
 interface Props {
   config: Config | null;
@@ -149,24 +150,21 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
 
   let fixedHoursToday = 0;
   let growthHoursToday = 0;
-  let mixedHoursToday = 0;
-
   todayRecords.forEach(h => {
     const task = tasks.find(t => t.id === h.taskId);
     const duration = h.duration || 0;
-    const alloc = task?.allocationType || (task ? (task.type === 'Rutina' || task.type === 'Hábito' || task.type === 'Pulso' ? 'fixed' : 'growth') : 'growth');
-    if (alloc === 'fixed') {
-      fixedHoursToday += duration;
-    } else if (alloc === 'mixed') {
-      mixedHoursToday += duration;
+    if (task) {
+      const energy = getTaskEnergyBreakdown(task, tasks, duration);
+      fixedHoursToday += energy.support;
+      growthHoursToday += energy.investment;
     } else {
       growthHoursToday += duration;
     }
   });
 
-  const totalSoporteReal = fixedHoursToday + (mixedHoursToday * 0.5);
-  const totalInversionReal = growthHoursToday + (mixedHoursToday * 0.5);
-  const hoursWorkedToday = fixedHoursToday + growthHoursToday + mixedHoursToday;
+  const totalSoporteReal = fixedHoursToday;
+  const totalInversionReal = growthHoursToday;
+  const hoursWorkedToday = fixedHoursToday + growthHoursToday;
 
   const getPhaseBudgets = (phaseName: string) => {
     switch (phaseName) {
@@ -192,15 +190,9 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
       taskDur = tasks.filter(sub => sub.parentId === t.id && !sub.completed).reduce((acc, sub) => acc + (sub.duracion || 0), 0);
     }
 
-    const alloc = t.allocationType || (t.type === 'Rutina' || t.type === 'Hábito' || t.type === 'Pulso' ? 'fixed' : 'growth');
-    if (alloc === 'fixed') {
-      plannedSoporte += taskDur;
-    } else if (alloc === 'mixed') {
-      plannedSoporte += taskDur * 0.5;
-      plannedInversion += taskDur * 0.5;
-    } else {
-      plannedInversion += taskDur;
-    }
+    const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
+    plannedSoporte += energy.support;
+    plannedInversion += energy.investment;
 
     const safeTime = extractSafeTime(t.hora);
     if (safeTime) {
@@ -450,13 +442,6 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                 style={{ width: `${(fixedHoursToday / ENERGY_LIMIT) * 100}%` }}
                 className="bg-[#81b29a] h-full transition-all duration-300"
                 title={`Soporte Vital: ${fixedHoursToday.toFixed(1)}h`}
-              />
-            )}
-            {mixedHoursToday > 0 && (
-              <div
-                style={{ width: `${(mixedHoursToday / ENERGY_LIMIT) * 100}%` }}
-                className="bg-[#e07a5f] h-full transition-all duration-300"
-                title={`Híbrido/Mixto: ${mixedHoursToday.toFixed(1)}h`}
               />
             )}
             {growthHoursToday > 0 && (

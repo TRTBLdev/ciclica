@@ -2,6 +2,7 @@ import React from 'react';
 import { AppTask, HistoryRecord, Config } from '../types';
 import { cn } from '../lib/utils';
 import { Clock } from 'lucide-react';
+import { getEffectiveEnergyAllocation } from '../domain/energyAllocation';
 
 interface Props {
   tasks: AppTask[];
@@ -21,15 +22,6 @@ const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null 
   return null;
 };
 
-const getEffectiveAllocation = (task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' => {
-  if (task.allocationType) return task.allocationType;
-  if (task.type === 'Hábito' || task.type === 'Pulso') return 'fixed';
-  if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
-  const project = getProjectForTask(task.id, allTasks);
-  if (project) return 'growth';
-  return 'mixed';
-};
-
 export default function WeeklyGanttChart({ tasks, history, periodStart, periodEnd, config }: Props) {
   // Group tasks executed in this period by Area, then by Energy (Soporte Vital vs Inversión)
   const relevantHistory = history.filter(h => {
@@ -45,7 +37,7 @@ export default function WeeklyGanttChart({ tasks, history, periodStart, periodEn
   activeTasks.forEach(t => {
     const p = getProjectForTask(t.id, tasks);
     const area = t.category || p?.category || 'General';
-    const energy = getEffectiveAllocation(t, tasks) === 'fixed' ? 'Soporte Vital' : 'Inversión';
+    const energy = getEffectiveEnergyAllocation(t, tasks) === 'fixed' ? 'Soporte Vital' : 'Inversión';
 
     if (!itemsByAreaAndEnergy[area]) itemsByAreaAndEnergy[area] = { 'Soporte Vital': [], 'Inversión': [] };
     itemsByAreaAndEnergy[area][energy].push(t);
