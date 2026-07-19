@@ -1,4 +1,5 @@
 import { AppTask } from '../types';
+import { getNextScheduledDate } from '../domain/recurrenceProgress';
 
 export function getFrequencyInDays(freq?: number, unit?: string) {
   const f = freq || 1;
@@ -15,23 +16,30 @@ export function rescheduleOverdueRecurringTasks(tasks: AppTask[], today = new Da
 
   let changed = false;
   const updatedTasks = tasks.map(t => {
+    if (t.type === 'Hábito' && t.lastExecutedAt && t.fechaPlanificada && new Date(t.fechaPlanificada).getTime() <= todayTime) {
+      changed = true;
+      return {
+        ...t,
+        checklist: t.checklist?.map(item => ({ ...item, done: false })),
+        lastExecutedAt: ''
+      };
+    }
     if ((t.type === 'Rutina' || t.type === 'Hábito') && !t.completed && t.fechaPlanificada) {
       if (t.type === 'Rutina') {
         const childHabitsCount = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito').length;
         if (childHabitsCount > 0) return t;
       }
 
-      const freqDays = getFrequencyInDays(t.frecuencia, t.frecuenciaUnidad);
-      const plannedTime = new Date(t.fechaPlanificada).getTime();
-      const cycleMs = freqDays * 24 * 60 * 60 * 1000;
+      let activePlanned = t.fechaPlanificada.slice(0, 10);
+      let nextPlanned = getNextScheduledDate(t, activePlanned);
 
-      if (todayTime > plannedTime + cycleMs) {
+      if (todayTime > new Date(`${nextPlanned}T00:00:00`).getTime()) {
         changed = true;
-        let nextPlanned = new Date(t.fechaPlanificada);
-        while (nextPlanned.getTime() + cycleMs <= todayTime) {
-          nextPlanned.setDate(nextPlanned.getDate() + freqDays);
+        while (new Date(`${nextPlanned}T00:00:00`).getTime() <= todayTime) {
+          activePlanned = nextPlanned;
+          nextPlanned = getNextScheduledDate(t, activePlanned);
         }
-        return { ...t, fechaPlanificada: nextPlanned.toISOString(), completed: false };
+        return { ...t, fechaPlanificada: `${activePlanned}T00:00:00.000Z`, completed: false };
       }
     }
 

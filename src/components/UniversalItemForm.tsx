@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { AppTask, Config, TaskType, ChecklistItem } from '../types';
+import { AppTask, Config, TaskType, ChecklistItem, RecurrenceUnit } from '../types';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Reorder } from 'motion/react';
+import { getCalendarCycleRange, isHabitCompatibleWithRoutine } from '../domain/recurrenceProgress';
+
+const WEEKDAYS = [
+  { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mié' },
+  { value: 4, label: 'Jue' }, { value: 5, label: 'Vie' }, { value: 6, label: 'Sáb' },
+  { value: 7, label: 'Dom' }
+];
 
 const GripIcon = () => (
   <svg className="w-3.5 h-3.5 text-text-dim/40 shrink-0 cursor-grab active:cursor-grabbing mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -32,6 +39,9 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [hora, setHora] = useState(initialData?.hora || '');
   const [frecuencia, setFrecuencia] = useState(initialData?.frecuencia || 1);
   const [frecuenciaUnidad, setFrecuenciaUnidad] = useState(initialData?.frecuenciaUnidad || 'días');
+  const [routineCycleFrequency, setRoutineCycleFrequency] = useState(initialData?.routineCycleFrequency || 1);
+  const [routineCycleUnit, setRoutineCycleUnit] = useState<RecurrenceUnit>(initialData?.routineCycleUnit || 'meses');
+  const [appearanceWeekdays, setAppearanceWeekdays] = useState<number[]>(initialData?.appearanceWeekdays || []);
   const [view, setView] = useState(initialData?.view || 'Backlog');
   const [area, setArea] = useState(initialData?.category || '');
   const [subCategory, setSubCategory] = useState(initialData?.subCategory || '');
@@ -53,6 +63,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
   const [editingChecklistItemId, setEditingChecklistItemId] = useState<string | null>(null);
   const [editingChecklistItemText, setEditingChecklistItemText] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleSaveChecklistItemText = (id: string) => {
     if (editingChecklistItemText.trim()) {
@@ -67,6 +78,33 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
   const handleSave = () => {
     if (!text.trim()) return;
+    setValidationError('');
+
+    const candidateRoutine: AppTask = {
+      ...(initialData || {} as AppTask),
+      id: initialData?.id || 'routine-draft',
+      userId: initialData?.userId || '',
+      text: text.trim(),
+      type,
+      createdAt: initialData?.createdAt || new Date().toISOString(),
+      routineCycleFrequency,
+      routineCycleUnit
+    };
+    if (type === 'Rutina') {
+      const incompatible = allTasks.find(task => task.parentId === initialData?.id && task.type === 'Hábito' && !isHabitCompatibleWithRoutine(candidateRoutine, task));
+      if (incompatible) {
+        setValidationError(`“${incompatible.text}” tiene una recurrencia más larga. Amplía el ciclo de la rutina como mínimo a ${incompatible.frecuencia || 1} ${incompatible.frecuenciaUnidad || 'días'}.`);
+        return;
+      }
+    }
+    if (type === 'Hábito' && parentId) {
+      const parentRoutine = allTasks.find(task => task.id === parentId && task.type === 'Rutina');
+      const candidateHabit = { ...candidateRoutine, type: 'Hábito' as const, frecuencia, frecuenciaUnidad: frecuenciaUnidad as RecurrenceUnit };
+      if (parentRoutine && !isHabitCompatibleWithRoutine(parentRoutine, candidateHabit)) {
+        setValidationError(`La rutina “${parentRoutine.text}” necesita un ciclo de al menos ${frecuencia} ${frecuenciaUnidad} para contener este hábito.`);
+        return;
+      }
+    }
 
     const data: Partial<AppTask> = {
       text: text.trim(),
@@ -94,6 +132,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     if (type === 'Hábito' || type === 'Rutina') {
       data.frecuencia = frecuencia;
       data.frecuenciaUnidad = frecuenciaUnidad as any;
+      data.recurrenceAnchorDate = initialData?.recurrenceAnchorDate || data.fechaPlanificada || new Date().toISOString();
+    }
+
+    if (type === 'Rutina') {
+      data.routineCycleFrequency = routineCycleFrequency;
+      data.routineCycleUnit = routineCycleUnit;
+      data.routineCycleAnchorDate = initialData?.routineCycleAnchorDate || new Date().toISOString();
+      data.appearanceWeekdays = frecuenciaUnidad === 'semanas' && appearanceWeekdays.length > 0 ? appearanceWeekdays : undefined;
     }
 
     if (type === 'Tarea' || type === 'Proyecto' || type === 'Rutina') {
@@ -105,6 +151,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       } else {
         data.fechaPlanificada = undefined;
       }
+    }
+
+    if (type === 'Rutina') {
+      data.recurrenceAnchorDate = data.fechaPlanificada || initialData?.recurrenceAnchorDate || new Date().toISOString();
     }
 
     if (type === 'Pulso') {
@@ -160,7 +210,12 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </div>
         )}
 
-        {/* Frecuencia (Rutina/Hábito) */}
+        {type === 'Rutina' && (
+          <div className="basis-full mt-2 pt-3 border-t border-border-line/50">
+            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-dim">1. Aparece en Hoy</p>
+          </div>
+        )}
+        {/* Frecuencia de aparición (Rutina) o recurrencia (Hábito) */}
         {(type === 'Hábito' || type === 'Rutina') && (
           <div className="flex items-center gap-1 bg-transparent rounded-md pl-2 pr-1 relative">
             <span className="text-xs text-text-dim font-mono">Cada</span>
@@ -182,6 +237,71 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             </select>
             <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
           </div>
+        )}
+
+        {type === 'Rutina' && frecuenciaUnidad === 'semanas' && (
+          <div className="basis-full flex flex-wrap items-center gap-1.5 px-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-text-dim mr-1">Días</span>
+            {WEEKDAYS.map(day => {
+              const selected = appearanceWeekdays.includes(day.value);
+              return (
+                <button
+                  key={day.value}
+                  type="button"
+                  onClick={() => setAppearanceWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())}
+                  className={cn('px-2.5 py-1 rounded-full border text-[10px] cursor-pointer transition-colors', selected ? 'border-text-main bg-text-main text-base' : 'border-border-line bg-transparent text-text-dim')}
+                >
+                  {day.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {type === 'Rutina' && (
+          <label className="flex flex-col gap-1 px-2 text-[10px] font-mono uppercase text-text-dim">
+            Próxima aparición
+            <input
+              type="date"
+              className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[150px] outline-none"
+              value={fechaPlanificada}
+              onChange={event => setFechaPlanificada(event.target.value)}
+            />
+          </label>
+        )}
+
+        {type === 'Rutina' && (
+          <>
+            <div className="basis-full mt-2 pt-3 border-t border-border-line/50">
+              <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-dim">2. Ciclo de progreso</p>
+            </div>
+            <div className="flex items-center gap-1 pl-2 relative">
+              <span className="text-xs text-text-dim font-mono">Cada</span>
+              <input
+                type="number"
+                min={1}
+                className="w-10 py-1 bg-base text-text-main text-xs font-medium focus:outline-none text-center border-b border-border-line"
+                value={routineCycleFrequency}
+                onChange={event => setRoutineCycleFrequency(Math.max(1, Number(event.target.value)))}
+              />
+              <select
+                className="appearance-none bg-base text-text-main text-xs font-medium border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6"
+                value={routineCycleUnit}
+                onChange={event => setRoutineCycleUnit(event.target.value as RecurrenceUnit)}
+              >
+                <option value="días">días</option>
+                <option value="semanas">semanas</option>
+                <option value="meses">meses</option>
+              </select>
+              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+            </div>
+            <p className="basis-full px-2 text-[10px] text-text-dim">
+              Período actual: {(() => {
+                const period = getCalendarCycleRange(routineCycleFrequency, routineCycleUnit, new Date());
+                return `${period.start} — ${period.end}`;
+              })()}
+            </p>
+          </>
         )}
 
         {/* Pulso (Contador) */}
@@ -219,7 +339,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         )}
 
         {/* Fecha Planificada (Tarea/Proyecto/Rutina) */}
-        {(type === 'Tarea' || type === 'Proyecto' || type === 'Rutina') && (
+        {(type === 'Tarea' || type === 'Proyecto') && (
           <input 
             type="date"
             className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[130px] outline-none"
@@ -520,6 +640,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         </div>
       )}
 
+      {validationError && (
+        <p role="alert" className="text-xs text-red-500 border border-red-500/30 bg-red-500/5 rounded-xl px-3 py-2">
+          {validationError}
+        </p>
+      )}
       <div className="flex items-center gap-6 mt-3 pt-2">
         <button onClick={handleSave} className="text-text-main text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity cursor-pointer hover:underline border-0 bg-transparent outline-none">
           + Guardar

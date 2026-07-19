@@ -14,13 +14,15 @@ interface Props {
   activeFilters: { [key: string]: string };
   onChange: (key: string, value: string) => void;
   className?: string;
+  align?: 'left' | 'right';
 }
 
 export default function FilterDropdown({
   configs,
   activeFilters,
   onChange,
-  className
+  className,
+  align = 'left'
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ export default function FilterDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full mt-2 w-56 bg-base border border-border-line rounded-2xl shadow-lg py-2.5 px-3 z-50 animate-in fade-in zoom-in-95 duration-100 glass-matte">
+        <div className={cn("absolute top-full mt-2 w-56 bg-base border border-border-line rounded-2xl shadow-lg py-2.5 px-3 z-50 animate-in fade-in zoom-in-95 duration-100 glass-matte", align === 'right' ? 'right-0' : 'left-0')}>
           <div className="flex flex-col gap-3 text-left">
             <div className="text-[9px] font-mono uppercase tracking-widest text-text-dim/60 pb-1.5 border-b border-border-line/40 font-bold">
               Filtrar por

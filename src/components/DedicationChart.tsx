@@ -175,7 +175,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
 
   const getEffectiveAllocation = (task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' => {
     if (task.allocationType) return task.allocationType;
-    if (task.type === 'Hábito' || task.type === 'Contador') return 'fixed';
+    if (task.type === 'Hábito' || task.type === 'Pulso') return 'fixed';
     if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
     const project = getProjectForTask(task.id, allTasks);
     if (project) return 'growth';
@@ -272,7 +272,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
         </div>
         <div className="flex flex-wrap gap-3 mt-2">
           {/* Legend grouped by area based on top nodes */}
-          {Array.from(new Set(occupancyNodes.map(n => n.area))).map(area => (
+          {Array.from(new Set<string>(occupancyNodes.map(n => String(n.area)))).map(area => (
             <div key={area} className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-text-dim">
               <div className={cn("w-2 h-2 rounded-full", getAreaColor(area))} />
               {area}

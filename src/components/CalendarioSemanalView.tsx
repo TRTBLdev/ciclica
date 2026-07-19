@@ -36,7 +36,7 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
   }, [currentWeekStart]);
 
   const handlePrevWeek = () => {
-    setCurrentWeekStart(prev => {
+    setInternalWeekStart(prev => {
       const d = new Date(prev);
       d.setDate(d.getDate() - 7);
       return d;
@@ -44,7 +44,7 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
   };
 
   const handleNextWeek = () => {
-    setCurrentWeekStart(prev => {
+    setInternalWeekStart(prev => {
       const d = new Date(prev);
       d.setDate(d.getDate() + 7);
       return d;
@@ -56,7 +56,7 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
     d.setHours(0, 0, 0, 0);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    setCurrentWeekStart(new Date(d.setDate(diff)));
+    setInternalWeekStart(new Date(d.setDate(diff)));
   };
 
   const isSameDay = (d1: Date, d2: Date) => {

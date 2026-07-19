@@ -47,9 +47,12 @@ export interface Separator {
   text: string;
   detalle: string;
   color?: string;
+  /** ISO weekdays: 1 = lunes, 7 = domingo. Undefined means every day. */
+  weekdays?: number[];
 }
 
 export type TaskType = 'Hábito' | 'Pulso' | 'Proyecto' | 'Tarea' | 'Rutina';
+export type RecurrenceUnit = 'días' | 'semanas' | 'meses';
 
 export interface ChecklistItem {
   id: string;
@@ -73,7 +76,15 @@ export interface AppTask {
   fechaPlanificada?: string;
   fechaInicio?: string;
   frecuencia?: number; // Ej. 3
-  frecuenciaUnidad?: 'días' | 'semanas' | 'meses';
+  frecuenciaUnidad?: RecurrenceUnit;
+  /** Stable date used to avoid calendar drift in recurring tasks. */
+  recurrenceAnchorDate?: string;
+  /** Routine-only progress cycle. Missing values mean the legacy routine still needs configuration. */
+  routineCycleFrequency?: number;
+  routineCycleUnit?: RecurrenceUnit;
+  routineCycleAnchorDate?: string;
+  /** ISO weekdays used by weekly routine appearances. */
+  appearanceWeekdays?: number[];
   duracion?: number; // Estimación en horas (Energía Ejecutiva)
   objetivo?: number;
   polaridad?: 'Reforzar' | 'Abandonar';
@@ -101,6 +112,22 @@ export interface HistoryRecord {
   endTime?: string;
   isCompletion?: boolean;
   taskSnapshotText?: string;
+}
+
+export type ProgressSnapshotKind = 'routine-appearance' | 'routine-cycle' | 'habit-period';
+
+export interface ProgressSnapshot {
+  id: string;
+  userId: string;
+  kind: ProgressSnapshotKind;
+  taskId: string;
+  taskSnapshotText: string;
+  periodStart: string; // YYYY-MM-DD
+  periodEnd: string;   // YYYY-MM-DD
+  targetPercent?: number;
+  progressPercent: number;
+  wasCompleted?: boolean;
+  createdAt: string;
 }
 
 // --- Intention System (Fase 3) ---

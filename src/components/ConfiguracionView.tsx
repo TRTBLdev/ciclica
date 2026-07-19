@@ -1,23 +1,25 @@
 import React, { useState } from 'react';
 import { Settings, Download, Upload, LogOut, Trash2, Check } from 'lucide-react';
 import { Config } from '../types';
-import { cn, APP_COLORS } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { useToast } from './ToastProvider';
+import SeparatorForm from './SeparatorForm';
 
 interface Props {
   config: Config | null;
   onUpdateConfig: (c: Partial<Config>) => void;
   tasks: any[];
   history: any[];
+  progressSnapshots: any[];
   intentions?: any[];
   onSignOut: () => void;
-  importLocalData: (tasks: any[], history: any[], config: any, intentions?: any[]) => void;
-  mergeLocalData: (tasks: any[], history: any[], config: any, intentions?: any[]) => void;
+  importLocalData: (tasks: any[], history: any[], config: any, intentions?: any[], progressSnapshots?: any[]) => void;
+  mergeLocalData: (tasks: any[], history: any[], config: any, intentions?: any[], progressSnapshots?: any[]) => void;
   clearPartialData: (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => void;
   onNavigate?: (view: any) => void;
 }
 
-export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, intentions, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
+export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, progressSnapshots, intentions, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [editingSepIdx, setEditingSepIdx] = useState<number | null>(null);
 
@@ -26,7 +28,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     let filename = `ciclica_vault_${new Date().toISOString().slice(0, 10)}.json`;
 
     if (type === 'all') {
-      dataToExport = { tasks, history, config, intentions };
+      dataToExport = { tasks, history, progressSnapshots, config, intentions };
     } else if (type === 'ciclos') {
       dataToExport = { config: { cycleConfig: config?.cycleConfig } };
       filename = `ciclica_ciclos_${new Date().toISOString().slice(0, 10)}.json`;
@@ -34,7 +36,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
       const habitTasks = tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
       const habitIds = habitTasks.map(t => t.id);
       const habitHistory = history.filter(h => habitIds.includes(h.taskId));
-      dataToExport = { tasks: habitTasks, history: habitHistory };
+      dataToExport = { tasks: habitTasks, history: habitHistory, progressSnapshots: progressSnapshots.filter(snapshot => habitIds.includes(snapshot.taskId)) };
       filename = `ciclica_habitos_${new Date().toISOString().slice(0, 10)}.json`;
     } else if (type === 'tareas') {
       const projTasks = tasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto' || t.type === 'Pulso');
@@ -67,9 +69,9 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     reader.onload = (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
-        if (imported.tasks || imported.history || imported.config || imported.intentions) {
+        if (imported.tasks || imported.history || imported.config || imported.intentions || imported.progressSnapshots) {
           if (window.confirm("⚠️ Importar Bóveda Completa reemplazará TODOS tus datos actuales. Si deseas combinar datos, usa las opciones parciales. ¿Continuar?")) {
-            importLocalData(imported.tasks || [], imported.history || [], imported.config || {}, imported.intentions || []);
+            importLocalData(imported.tasks || [], imported.history || [], imported.config || {}, imported.intentions || [], imported.progressSnapshots || []);
             setImportStatus('success');
             showToast("¡Cíclica Vault importado con éxito!", "success");
             setTimeout(() => window.location.reload(), 1500);
@@ -94,8 +96,8 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
     reader.onload = (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
-        if (imported.tasks || imported.history || imported.config || imported.intentions) {
-          mergeLocalData(imported.tasks || [], imported.history || [], imported.config || null, imported.intentions || []);
+        if (imported.tasks || imported.history || imported.config || imported.intentions || imported.progressSnapshots) {
+          mergeLocalData(imported.tasks || [], imported.history || [], imported.config || null, imported.intentions || [], imported.progressSnapshots || []);
           setImportStatus('success');
           showToast("Datos parciales combinados con éxito!", "success");
           setTimeout(() => window.location.reload(), 1500);
@@ -427,54 +429,17 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                 {config.separators.map((sep, idx) => (
                   <div key={idx} className="flex flex-col py-1.5 border-b border-border-line/40 last:border-0 text-xs">
                     {editingSepIdx === idx ? (
-                      <form
-                        onSubmit={(e: any) => {
-                          e.preventDefault();
-                          const form = e.target;
-                          const hora = form.elements.sep_hora.value.trim();
-                          const text = form.elements.sep_text.value.trim();
-                          const detalle = form.elements.sep_detalle.value.trim();
-                          const color = form.elements.sep_color.value;
-                          if (!hora || !text) return;
-                          
+                      <SeparatorForm
+                        initialValue={sep}
+                        onSave={updated => {
                           const newSeps = [...config.separators!];
-                          newSeps[idx] = { hora, text, detalle, color: color || undefined };
-                          newSeps.sort((a, b) => {
-                            const timeToMins = (tStr: string) => {
-                              const [h, m] = tStr.split(':').map(Number);
-                              return (h || 0) * 60 + (m || 0);
-                            };
-                            return timeToMins(a.hora) - timeToMins(b.hora);
-                          });
+                          newSeps[idx] = updated;
+                          newSeps.sort((a, b) => a.hora.localeCompare(b.hora));
                           onUpdateConfig({ separators: newSeps });
                           setEditingSepIdx(null);
                         }}
-                        className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end bg-base-dim/5 p-2"
-                      >
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-mono text-text-dim uppercase">Hora</label>
-                          <input required name="sep_hora" type="text" defaultValue={sep.hora} className="px-2 py-1 text-xs bg-base text-text-main border border-border-line" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-mono text-text-dim uppercase">Etiqueta</label>
-                          <input required name="sep_text" type="text" defaultValue={sep.text} className="px-2 py-1 text-xs bg-base text-text-main border border-border-line" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-mono text-text-dim uppercase">Detalle</label>
-                          <input name="sep_detalle" type="text" defaultValue={sep.detalle || ''} className="px-2 py-1 text-xs bg-base text-text-main border border-border-line" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-mono text-text-dim uppercase">Color</label>
-                          <select name="sep_color" defaultValue={sep.color || ''} className="px-2 py-1 text-xs bg-base text-text-main border border-border-line">
-                            <option value="">Sin Color</option>
-                            {APP_COLORS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                          </select>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button type="submit" className="p-1 hover:text-primary cursor-pointer text-text-dim bg-transparent border-0"><Check className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => setEditingSepIdx(null)} className="p-1 hover:text-red-500 cursor-pointer text-text-dim bg-transparent border-0"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </form>
+                        onCancel={() => setEditingSepIdx(null)}
+                      />
                     ) : (
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -484,6 +449,9 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                             {sep.text}
                           </span>
                           {sep.detalle && <span className="text-text-dim text-[11px]">({sep.detalle})</span>}
+                          <span className="text-text-dim text-[10px] font-mono">
+                            {sep.weekdays?.length ? ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].filter((_, dayIndex) => sep.weekdays!.includes(dayIndex + 1)).join(' · ') : 'Todos los días'}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => setEditingSepIdx(idx)} className="p-1 hover:text-primary text-text-dim transition-colors cursor-pointer bg-transparent border-0 outline-none text-xs">Editar</button>
@@ -508,52 +476,14 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
             {/* Form to add a new separator */}
             <div className="border-t border-border-line/40 pt-4 mt-2">
               <span className="text-xs font-bold text-text-main font-sans block mb-2">Añadir Nuevo Bloque</span>
-              <form
-                onSubmit={(e: any) => {
-                  e.preventDefault();
-                  const form = e.target;
-                  const hora = form.elements.sep_hora.value.trim();
-                  const text = form.elements.sep_text.value.trim();
-                  const detalle = form.elements.sep_detalle.value.trim();
-                  const color = form.elements.sep_color.value;
-                  if (!hora || !text) return;
-                  const newSeps = [...(config?.separators || [])];
-                  newSeps.push({ hora, text, detalle, color: color || undefined });
-                  newSeps.sort((a, b) => {
-                    const timeToMins = (tStr: string) => {
-                      const [h, m] = tStr.split(':').map(Number);
-                      return (h || 0) * 60 + (m || 0);
-                    };
-                    return timeToMins(a.hora) - timeToMins(b.hora);
-                  });
+              <div key={(config?.separators || []).length}>
+              <SeparatorForm
+                onSave={separator => {
+                  const newSeps = [...(config?.separators || []), separator].sort((a, b) => a.hora.localeCompare(b.hora));
                   onUpdateConfig({ separators: newSeps });
-                  form.reset();
                 }}
-                className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
-              >
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-text-dim uppercase">Hora</label>
-                  <input required name="sep_hora" type="text" placeholder="08:00" className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-text-dim uppercase">Etiqueta</label>
-                  <input required name="sep_text" type="text" placeholder="Mañana" className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-text-dim uppercase">Detalle (Opcional)</label>
-                  <input name="sep_detalle" type="text" placeholder="Ej. Foco e inicio" className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-text-dim uppercase">Color</label>
-                  <select name="sep_color" className="px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-none">
-                    <option value="">Sin Color</option>
-                    {APP_COLORS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
-                </div>
-                <button type="submit" className="px-4 py-2 text-xs font-mono font-bold uppercase border border-[var(--color-text-main)] text-text-main hover:bg-base-dim/15 bg-transparent cursor-pointer">
-                  + Añadir
-                </button>
-              </form>
+              />
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Separator, TaskType } from '../types';
+import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot } from '../types';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
@@ -9,11 +9,13 @@ import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
+import { getIsoWeekday, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
 
 interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  progressSnapshots: ProgressSnapshot[];
   onToggleTask: (task: AppTask) => void;
   onAddEvent: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
@@ -25,7 +27,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
   const ENERGY_LIMIT = phaseDetails.limit;
@@ -101,11 +103,9 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
       }
     }
     if (t.type === 'Rutina') {
+      if (!isRoutineConfigured(t)) return false;
       const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
-      if (childHabits.length > 0) {
-        return childHabits.some(sub => !sub.completed && isTodayOrBefore(sub.fechaPlanificada));
-      }
-      return isTodayOrBefore(t.fechaPlanificada) || (t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada));
+      return isTaskScheduledOnDate(t, new Date()) && getRoutineCycleProgress(t, childHabits, progressSnapshots) < 100;
     }
     if (t.type === 'Hábito') return isTodayOrBefore(t.fechaPlanificada);
     return t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada);
@@ -242,7 +242,9 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
   const timedItems = [
     ...timedTasks,
     ...mappedRecords,
-    ...(config?.separators || []).map((s, idx) => ({ ...s, isSeparator: true, separatorIndex: idx }))
+    ...(config?.separators || [])
+      .filter(separator => !separator.weekdays?.length || separator.weekdays.includes(getIsoWeekday(new Date())))
+      .map((s, idx) => ({ ...s, isSeparator: true, separatorIndex: idx }))
   ];
   timedItems.sort((a, b) => {
     const minsA = timeToMins(a.hora);
@@ -400,6 +402,7 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
             <FilterDropdown
+              align="right"
               configs={[
                 {
                   key: 'area',
@@ -774,6 +777,13 @@ export default function HoyView({ config, tasks, history, onToggleTask, onAddEve
               <div className="flex items-center gap-4">
                 <button
                   type="button"
+                  onClick={() => onNavigate?.('configuracion')}
+                  className="text-[10px] text-text-dim hover:text-text-main font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 underline underline-offset-4"
+                >
+                  Configurar bloques
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowTimeline(!showTimeline)}
                   className="text-[11px] text-[#a2b29f] hover:text-text-main flex items-center gap-1 font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 outline-none"
                 >
@@ -1063,16 +1073,6 @@ function TimelineRenderer({
               <span className={cn("flex-shrink-0 mx-4 text-xs font-mono font-medium flex items-center gap-2 transition-all cursor-default", colorTextClasses)}>
                 {t.hora} - {t.text} {t.detalle && <span className={t.color ? colorTextClasses + ' font-sans font-light opacity-80' : 'text-text-dim ml-1 font-sans font-light'}>({t.detalle})</span>}
               </span>
-              <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/sep:flex gap-2 bg-base border border-border-line px-2 py-1 z-10">
-                <button onClick={() => { setEditHora(t.hora); setEditText(t.text); setEditDetalle(t.detalle || ''); setEditingId(`sep-${i}`); }} className="p-1 text-text-dim hover:text-primary cursor-pointer bg-transparent border-0 outline-none"><Edit2 className="w-3 h-3" /></button>
-                <button onClick={() => {
-                  if (!config || !config.separators || !onUpdateConfig) return;
-                  if (window.confirm('¿Estás segura de que deseas eliminar este bloque de tiempo?')) {
-                    const newSeps = config.separators.filter((_, sIdx) => sIdx !== idx);
-                    onUpdateConfig({ separators: newSeps });
-                  }
-                }} className="p-1 text-text-dim hover:text-red-500 cursor-pointer bg-transparent border-0 outline-none"><X className="w-3 h-3" /></button>
-              </div>
             </div>
             <div className={cn("flex-grow border-t border-dashed", colorBorderClasses)}></div>
           </div>

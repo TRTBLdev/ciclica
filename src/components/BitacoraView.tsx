@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Calendar, BarChart3, CheckCircle2, BookOpen, X, Download } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Intention, IntentionScale } from '../types';
+import { Config, AppTask, HistoryRecord, Intention, IntentionScale, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
-import CalendarioView from './CalendarioView';
 import CalendarioSemanalView from './CalendarioSemanalView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
 import PlanificarView from './PlanificarView';
 import BalanceView from './BalanceView';
+import SeguimientoView from './SeguimientoView';
 import { useToast } from './ToastProvider';
 import { getCurrentPeriod, formatLocalDate } from '../domain/periodUtils';
 
@@ -23,6 +23,7 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  progressSnapshots: ProgressSnapshot[];
   intentions: Intention[];
   onAddIntention: (intention: Omit<Intention, 'id'>) => void;
   onUpdateIntention: (id: string, updates: Partial<Intention>) => void;
@@ -42,6 +43,7 @@ export default function BitacoraView({
   config,
   tasks,
   history,
+  progressSnapshots,
   intentions,
   onAddIntention,
   onUpdateIntention,
@@ -58,7 +60,7 @@ export default function BitacoraView({
 }: Props) {
   const { showToast } = useToast();
   // Tabs: 'planificar' | 'balance' | 'historial' | 'archivo'
-  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'historial' | 'archivo'>('planificar');
+  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'seguimiento' | 'historial' | 'archivo'>('planificar');
   const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('phase');
   const [cursorDate, setCursorDate] = useState<Date>(new Date());
 
@@ -373,6 +375,7 @@ export default function BitacoraView({
           {[
             { id: 'planificar', label: 'Planificar', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'seguimiento', label: 'Seguimiento', icon: <CheckCircle2 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
           ].map(t => {
             const isActive = activeTab === t.id;
@@ -504,6 +507,12 @@ export default function BitacoraView({
           </div>
         )}
 
+        {activeTab === 'seguimiento' && (
+          <div className="animate-in fade-in duration-200">
+            <SeguimientoView config={config} tasks={tasks} history={history} progressSnapshots={progressSnapshots} />
+          </div>
+        )}
+
         {activeTab === 'historial' && (
           <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto">
             {/* Temporarily rendering CompletadasView inline until HistorialView is done */}
@@ -520,15 +529,6 @@ export default function BitacoraView({
                 onUpdateHistory={onUpdateHistory}
                 onDeleteHistory={onDeleteHistory}
                 onAddHistory={onAddHistory}
-              />
-            </div>
-            
-            <div className="mb-8">
-              <h2 className="text-title mb-4 border-b border-border-line pb-2">Heatmap (Calendario Histórico)</h2>
-              <CalendarioView
-                config={config}
-                tasks={tasks}
-                history={history}
               />
             </div>
           </div>

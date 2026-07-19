@@ -67,6 +67,10 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
     task.completionMode = days <= 7 ? 'auto' : 'manual';
   }
 
+  if ((task.type === 'Rutina' || task.type === 'Hábito') && !task.recurrenceAnchorDate) {
+    task.recurrenceAnchorDate = task.fechaPlanificada || task.createdAt || now.toISOString();
+  }
+
   if (!task.allocationType) {
     if (task.type === 'Rutina' || task.type === 'Hábito' || task.type === 'Pulso') {
       task.allocationType = 'fixed';
@@ -76,6 +80,7 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
   }
 
   task.completed = !!task.completed;
+  if (task.type === 'Rutina') task.completed = false;
   task.createdAt = task.createdAt || now.toISOString();
 
   return task as AppTask;

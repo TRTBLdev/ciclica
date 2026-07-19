@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
-import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
+import { Config, AreaConfig, AppTask, HistoryRecord, Intention, IntentionItem } from '../types';
 import { cn, getAreaColorClasses, getAreaBorderClasses, getAreaTextClasses, APP_COLORS } from '../lib/utils';
 import { calculateItemProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
@@ -325,7 +325,7 @@ function AreasList({
                 <div className="flex items-end justify-between w-full mt-auto">
                   <div className="flex flex-wrap gap-1.5">
                     {categories.slice(0, 3).map(cat => (
-                      <CategoryBadge key={cat} area={key} subCategory={cat} config={config} hideArea />
+                      <React.Fragment key={cat}><CategoryBadge area={key} subCategory={cat} config={config} hideArea /></React.Fragment>
                     ))}
                     {categories.length > 3 && (
                       <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border border-transparent text-text-dim">
@@ -473,7 +473,7 @@ function AreaDetail({
             
             <div className="flex flex-wrap gap-1.5 mt-2">
               {categories.map(cat => (
-                <CategoryBadge key={cat} area={areaName} subCategory={cat} config={config} hideArea />
+                <React.Fragment key={cat}><CategoryBadge area={areaName} subCategory={cat} config={config} hideArea /></React.Fragment>
               ))}
             </div>
          </div>

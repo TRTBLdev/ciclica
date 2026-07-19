@@ -109,7 +109,10 @@ export default function Omnibar({
     if (t.type === 'Proyecto') {
       onNavigate('proyectos', t.id);
     } else if (t.type === 'Rutina' || t.type === 'Hábito') {
-      onNavigate('rutinas', t.id);
+      const routineId = t.type === 'Hábito' && t.parentId && tasks.some(candidate => candidate.id === t.parentId && candidate.type === 'Rutina')
+        ? t.parentId
+        : t.id;
+      onNavigate('rutinas', routineId);
     } else if (t.type === 'Tarea' || t.type === 'Pulso') {
       onNavigate('proyectos', t.id);
     }
@@ -510,7 +513,7 @@ export default function Omnibar({
                       )}
                     </div>
                     <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0 gap-1">
-                      {t.type !== 'Pulso' && (!activeTimer || activeTimer.taskId !== t.id) && (
+                      {t.type !== 'Pulso' && t.type !== 'Rutina' && (!activeTimer || activeTimer.taskId !== t.id) && (
                         <button onClick={(e) => { e.stopPropagation(); onStartTimer(t.id); setSearch(''); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none transition-colors" title="Iniciar Timer">
                           <Play className="w-4 h-4 text-text-dim hover:text-accent" />
                         </button>
@@ -545,6 +548,7 @@ export default function Omnibar({
                      handleItemClick(exactMatch);
                   } else {
                      onAddTask({
+                       userId: 'local_user',
                        text: search.trim(),
                        type: 'Tarea',
                        completed: false,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppTask, Config, HistoryRecord, TaskType } from '../types';
+import { AppTask, Config, HistoryRecord, TaskType, ProgressSnapshot } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
@@ -10,10 +10,12 @@ import { cn, isSameDay, isFutureDate } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
+import { getRoutineAppearanceTarget, getRoutineCycleProgress, isRoutineConfigured } from '../domain/recurrenceProgress';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
   history?: HistoryRecord[];
+  progressSnapshots: ProgressSnapshot[];
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
@@ -33,6 +35,7 @@ export default function RutinasView({
   config, 
   tasks, 
   history, 
+  progressSnapshots,
   onToggleTask, 
   onDeleteTask, 
   onUpdateTask, 
@@ -540,6 +543,9 @@ export default function RutinasView({
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
                 const subtasks = sortTasks(rawSubtasks, sortBy);
                 const routineDuration = subtasks.filter(t => !isFutureDate(t.fechaPlanificada)).reduce((acc, t) => acc + (t.duracion || 0), 0);
+                const configured = isRoutineConfigured(routine);
+                const routineProgress = configured ? getRoutineCycleProgress(routine, subtasks, progressSnapshots) : null;
+                const appearanceTarget = configured ? getRoutineAppearanceTarget(routine) : 0;
 
                 if (editingRoutineId === routine.id) {
                   return (
@@ -579,6 +585,14 @@ export default function RutinasView({
                           </h3>
                           <CategoryBadge area={routine.category} subCategory={routine.subCategory} config={config} />
                           {routine.allocationType && <AllocationBadge allocation={routine.allocationType} />}
+                          {!configured && (
+                            <button type="button" onClick={() => setEditingRoutineId(routine.id)} className="px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/5 text-[9px] font-mono uppercase tracking-wider text-amber-700 cursor-pointer">
+                              Ciclo pendiente de configurar
+                            </button>
+                          )}
+                          {routineProgress === 100 && (
+                            <span className="px-2 py-0.5 rounded-full border border-emerald-600/30 text-[9px] font-mono uppercase tracking-wider text-emerald-600">Ciclo completo</span>
+                          )}
                         </div>
 
                         <div className="flex gap-3 text-[10px] font-mono text-text-dim/80 mt-1.5 flex-wrap items-center lowercase tracking-wider mb-2">
@@ -594,6 +608,9 @@ export default function RutinasView({
                             <span className="text-text-dim font-mono">
                               🔄 cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
                             </span>
+                          )}
+                          {configured && (
+                            <span className="text-text-dim font-mono">ciclo {routine.routineCycleFrequency} {routine.routineCycleUnit}</span>
                           )}
                         </div>
                       </div>
@@ -706,10 +723,14 @@ export default function RutinasView({
                       </div>
                     </div>
 
-                    <div className="w-full bg-[var(--color-border-line)]/30 h-[1px] mb-1">
+                    <div className="flex items-center justify-between text-[9px] font-mono text-text-dim mb-1">
+                      <span>{configured ? `Progreso del ciclo ${routineProgress || 0}%` : 'Configura el ciclo para activar Hoy'}</span>
+                      {configured && <span>Meta de esta aparición {appearanceTarget}%</span>}
+                    </div>
+                    <div className="w-full bg-[var(--color-border-line)]/30 h-1 mb-1 overflow-hidden rounded-full">
                       <div
                         className="h-full bg-[var(--color-primary)] transition-all duration-500"
-                        style={{ width: `${subtasks.length > 0 ? (subtasks.filter(s => isFutureDate(s.fechaPlanificada)).length / subtasks.length) * 100 : 0}%` }}
+                        style={{ width: `${routineProgress || 0}%` }}
                       ></div>
                     </div>
 

@@ -5,9 +5,10 @@ import Omnibar from './Omnibar';
 import Onboarding from './Onboarding';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn, isSameDay, isFutureDate } from '../lib/utils';
-import { AppTask, HistoryRecord } from '../types';
+import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
+import { formatDateOnly, getChecklistProgress, getNextScheduledDate } from '../domain/recurrenceProgress';
 
 const HoyView = lazy(() => import('./HoyView'));
 const SintoniaView = lazy(() => import('./SintoniaView'));
@@ -39,7 +40,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
+  const { config, tasks, history, progressSnapshots, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -78,6 +79,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }, [activeTimer, user.uid]);
 
   const handleStartTimer = (taskId: string) => {
+    if (tasks.find(task => task.id === taskId)?.type === 'Rutina') return;
     const nowStr = new Date().toISOString();
     setActiveTimer({
       taskId,
@@ -135,7 +137,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     if (targetTask) {
       const sessionStart = activeTimer.sessionStart || activeTimer.startTime;
       const endTime = new Date().toISOString();
-      if (completeTask) {
+      if (completeTask && targetTask.type !== 'Rutina') {
         // Complete the task and add a single custom history log
         handleToggleTask(targetTask, finalHours, sessionStart, endTime);
       } else {
@@ -169,27 +171,22 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }
 
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
+    if (task.type === 'Rutina') return;
     const isCompleted = task.type === 'Hábito'
       ? !isFutureDate(task.fechaPlanificada)
       : !task.completed;
     const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
     const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
+    const snapshotsToAdd: Omit<ProgressSnapshot, 'id'>[] = [];
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
-      let nextPlan = new Date(plannedDateStr || new Date().toISOString());
-      let daysToAdd = freq || 1;
-      if (unit === 'semanas') daysToAdd *= 7;
-      if (unit === 'meses') daysToAdd *= 30;
-      
-      nextPlan.setDate(nextPlan.getDate() + daysToAdd);
-      while (nextPlan.getTime() < todayStart.getTime()) {
-        nextPlan.setDate(nextPlan.getDate() + daysToAdd);
+    if (task.type === 'Hábito' && isCompleted && task.checklist?.length) {
+      const percent = getChecklistProgress(task);
+      if (percent < 100) {
+        const routine = tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina');
+        const warning = `El checklist está al ${percent}%.${routine ? ` Esto aportará ese porcentaje a “${routine.text}”` : ''} y el ciclo podría quedar parcial. ¿Cerrar esta aparición?`;
+        if (!window.confirm(warning)) return;
       }
-      return nextPlan.toISOString();
-    };
+    }
 
     const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
       let duration = dur !== undefined ? dur : (t.duracion || 0);
@@ -213,36 +210,25 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         });
       }
 
-      if (t.type === 'Hábito' || t.type === 'Rutina') {
+      if (t.type === 'Hábito') {
         if (isComp) {
-          if (t.type === 'Rutina') {
-            const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
-            if (childHabits.length > 0) {
-              childHabits.forEach(ch => {
-                const isChDue = !isFutureDate(ch.fechaPlanificada);
-                if (isChDue) {
-                  const chNextDate = getNextPlannedDate(ch.fechaPlanificada, ch.frecuencia || 1, ch.frecuenciaUnidad || 'días');
-                  tasksToUpdate.push({
-                    id: ch.id,
-                    updates: { completed: false, fechaPlanificada: chNextDate, lastExecutedAt: new Date().toISOString() }
-                  });
-                  historyToAdd.push({
-                    userId: user.uid,
-                    taskId: ch.id,
-                    date: sessionEnd,
-                    duration: 0,
-                    createdAt: new Date().toISOString(),
-                    isCompletion: true
-                  });
-                }
-              });
-            }
-          }
-
-          const nextPlannedStr = getNextPlannedDate(t.fechaPlanificada, t.frecuencia || 1, t.frecuenciaUnidad || 'días');
+          const nextPlanned = getNextScheduledDate(t, new Date(t.fechaPlanificada || sessionEnd));
+          const periodEnd = new Date(nextPlanned);
+          periodEnd.setDate(periodEnd.getDate() - 1);
+          snapshotsToAdd.push({
+            userId: user.uid,
+            kind: 'habit-period',
+            taskId: t.id,
+            taskSnapshotText: t.text,
+            periodStart: formatDateOnly(new Date(t.fechaPlanificada || sessionEnd)),
+            periodEnd: formatDateOnly(periodEnd),
+            progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
+            wasCompleted: true,
+            createdAt: sessionEnd
+          });
           tasksToUpdate.push({
             id: t.id,
-            updates: { completed: false, fechaPlanificada: nextPlannedStr, lastExecutedAt: new Date().toISOString() }
+            updates: { completed: false, fechaPlanificada: new Date(`${nextPlanned}T00:00:00`).toISOString(), lastExecutedAt: sessionEnd }
           });
         } else {
           tasksToUpdate.push({
@@ -258,10 +244,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
         if (isComp && t.parentId) {
           const parent = tasks.find(p => p.id === t.parentId);
-          if (parent && parent.type !== 'Proyecto') {
-            if (parent.type === 'Rutina' && parent.completionMode === 'manual') {
-              // Si el parent es una Rutina con modo manual, no auto-completar
-            } else {
+          if (parent && parent.type !== 'Proyecto' && parent.type !== 'Rutina') {
               const siblings = tasks.filter(s => s.parentId === parent.id);
               const allSiblingsDone = siblings.every(s => {
                 if (s.id === t.id) return true;
@@ -271,7 +254,6 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
               if (allSiblingsDone && !parent.completed) {
                 processToggle(parent, true);
               }
-            }
           }
         }
       }
@@ -284,6 +266,9 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
     if (historyToAdd.length > 0) {
       await addHistoryRecords(historyToAdd);
+    }
+    if (snapshotsToAdd.length > 0) {
+      await addProgressSnapshots(snapshotsToAdd);
     }
   };
 
@@ -477,6 +462,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 config={config} 
                 tasks={tasks} 
                 history={history} 
+                progressSnapshots={progressSnapshots}
                 onToggleTask={handleToggleTask}
                 onAddEvent={handleAddEvent}
                 onDeleteTask={deleteTask}
@@ -500,6 +486,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 config={config} 
                 tasks={tasks}
                 history={history}
+                progressSnapshots={progressSnapshots}
                 intentions={intentions}
                 onUpdateConfig={updateConfig}
                 onToggleTask={handleToggleTask}
@@ -517,6 +504,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 config={config} 
                 tasks={tasks}
                 history={history}
+                progressSnapshots={progressSnapshots}
                 intentions={intentions}
                 onAddIntention={addIntention}
                 onUpdateIntention={updateIntention}
@@ -538,6 +526,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 onUpdateConfig={updateConfig} 
                 tasks={tasks}
                 history={history}
+                progressSnapshots={progressSnapshots}
                 intentions={intentions}
                 onSignOut={onSignOut}
                 importLocalData={importLocalData}

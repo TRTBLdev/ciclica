@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shapes, Layers, Repeat } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Intention } from '../types';
+import { Config, AppTask, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
 import AreasView from './AreasView';
 import ProyectosView from './ProyectosView';
@@ -10,6 +10,7 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  progressSnapshots: ProgressSnapshot[];
   intentions: Intention[];
   onUpdateConfig: (c: Partial<Config>) => void;
   onToggleTask: (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => void;
@@ -26,6 +27,7 @@ export default function EstrategiaView({
   config,
   tasks,
   history,
+  progressSnapshots,
   intentions,
   onUpdateConfig,
   onToggleTask,
@@ -143,6 +145,7 @@ export default function EstrategiaView({
               config={config}
               tasks={tasks}
               history={history}
+              progressSnapshots={progressSnapshots}
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
               onUpdateTask={onUpdateTask}

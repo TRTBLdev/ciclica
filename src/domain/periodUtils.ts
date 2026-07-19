@@ -148,6 +148,17 @@ export function getPhaseRange(config: Config | null, todayDate = new Date()) {
 
   const biologicalPhase = calculateBiologicalPhase(config, todayDate, true);
 
+  if (config?.cycleConfig?.trackingType === 'menstrual' && biologicalPhase === 'reflexiva') {
+    const start = parseLocalDate(cycle.start);
+    const end = new Date(start);
+    end.setDate(end.getDate() + Math.max(1, config.cycleConfig.periodLengthDays || 5) - 1);
+    return {
+      start: formatLocalDate(start),
+      end: formatLocalDate(end),
+      phaseName: currentPhase
+    };
+  }
+
   let start = new Date(todayDate);
   for (let i = 0; i < 40; i++) {
     const prev = new Date(start.getTime() - DAY_MS);

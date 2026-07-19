@@ -93,7 +93,9 @@ export default function CompletadasView({
   const [period, setPeriod] = useState<string>('todas');
 
   const sortedHistory = useMemo(() => {
-    return [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return history
+      .filter(record => record.isCompletion !== false)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history]);
 
   const filteredHistoryByDate = useMemo(() => {

@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import { createDefaultConfig, createDemoTasks } from '../data/defaults';
 import { getDataKeys, getLocal, setLocal } from '../data/storage';
 import { rescheduleOverdueRecurringTasks } from '../data/taskScheduling';
-import { AppTask, Config, HistoryRecord, Intention } from '../types';
+import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { migrateDatabase } from '../data/migration';
+import { formatDateOnly, getCalendarCycleRange, getRoutineAppearanceTarget, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate, parseDateOnly } from '../domain/recurrenceProgress';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<AppTask[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [progressSnapshots, setProgressSnapshots] = useState<ProgressSnapshot[]>([]);
   const [intentions, setIntentions] = useState<Intention[]>([]);
   const [loading, setLoading] = useState(true);
   const [initChecked, setInitChecked] = useState(false);
+  const [snapshotRollChecked, setSnapshotRollChecked] = useState(false);
 
   // In local-first mode, all users store data in localStorage under 'local_user' namespace or their specific userId.
   const effectiveUserId = userId || 'local_user';
@@ -22,6 +25,7 @@ export function useData(userId: string) {
     let rawTasks = getLocal<any[]>(keys.tasks, []);
     const rawConfig = getLocal<any>(keys.config, null);
     const rawHistory = getLocal<any[]>(keys.history, []);
+    const rawProgressSnapshots = getLocal<ProgressSnapshot[]>(keys.progressSnapshots, []);
     const rawIntentions = getLocal<Intention[]>(keys.intentions, []);
 
     if (rawTasks.length === 0 && !rawConfig) {
@@ -38,12 +42,14 @@ export function useData(userId: string) {
     setConfig(migrated.config);
     setTasks(migrated.tasks);
     setHistory(migrated.history);
+    setProgressSnapshots(rawProgressSnapshots);
     setIntentions(rawIntentions);
 
     // Persist migrated clean state.
     setLocal(keys.config, migrated.config);
     setLocal(keys.tasks, migrated.tasks);
     setLocal(keys.history, migrated.history);
+    setLocal(keys.progressSnapshots, rawProgressSnapshots);
     setLocal(keys.intentions, rawIntentions);
 
     setLoading(false);
@@ -60,6 +66,63 @@ export function useData(userId: string) {
       setLocal(getDataKeys(effectiveUserId).tasks, updatedTasks);
     }
   }, [loading, tasks, initChecked, effectiveUserId]);
+
+  useEffect(() => {
+    if (loading || snapshotRollChecked || tasks.length === 0) return;
+    setSnapshotRollChecked(true);
+    const yesterday = new Date();
+    yesterday.setHours(0, 0, 0, 0);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const additions: ProgressSnapshot[] = [];
+    const existing = new Set(progressSnapshots.map(snapshot => `${snapshot.kind}:${snapshot.taskId}:${snapshot.periodStart}:${snapshot.periodEnd}`));
+
+    tasks.filter(isRoutineConfigured).forEach(routine => {
+      const anchor = parseDateOnly(routine.routineCycleAnchorDate || new Date());
+      const cursor = new Date(anchor);
+      let safety = 0;
+      while (cursor <= yesterday && safety < 7300) {
+        const dateKey = formatDateOnly(cursor);
+        if (isTaskScheduledOnDate(routine, cursor)) {
+          const key = `routine-appearance:${routine.id}:${dateKey}:${dateKey}`;
+          if (!existing.has(key)) {
+            const progress = getRoutineCycleProgress(routine, tasks, progressSnapshots, cursor);
+            additions.push({
+              id: `progress_roll_${routine.id}_${dateKey}_appearance`, userId: effectiveUserId,
+              kind: 'routine-appearance', taskId: routine.id, taskSnapshotText: routine.text,
+              periodStart: dateKey, periodEnd: dateKey,
+              targetPercent: getRoutineAppearanceTarget(routine, cursor), progressPercent: progress,
+              wasCompleted: progress >= getRoutineAppearanceTarget(routine, cursor), createdAt: new Date().toISOString()
+            });
+            existing.add(key);
+          }
+        }
+        const cycle = getCalendarCycleRange(routine.routineCycleFrequency, routine.routineCycleUnit, cursor);
+        if (cycle.end === dateKey) {
+          const key = `routine-cycle:${routine.id}:${cycle.start}:${cycle.end}`;
+          if (!existing.has(key)) {
+            const progress = getRoutineCycleProgress(routine, tasks, progressSnapshots, cursor);
+            additions.push({
+              id: `progress_roll_${routine.id}_${cycle.end}_cycle`, userId: effectiveUserId,
+              kind: 'routine-cycle', taskId: routine.id, taskSnapshotText: routine.text,
+              periodStart: cycle.start, periodEnd: cycle.end, progressPercent: progress,
+              wasCompleted: progress === 100, createdAt: new Date().toISOString()
+            });
+            existing.add(key);
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+        safety += 1;
+      }
+    });
+
+    if (additions.length) {
+      setProgressSnapshots(prev => {
+        const next = [...prev, ...additions];
+        setLocal(getDataKeys(effectiveUserId).progressSnapshots, next);
+        return next;
+      });
+    }
+  }, [loading, snapshotRollChecked, tasks, progressSnapshots, effectiveUserId]);
 
   const updateConfig = async (updates: Partial<Config>) => {
     setConfig(prev => {
@@ -124,6 +187,20 @@ export function useData(userId: string) {
     });
   };
 
+  const addProgressSnapshots = async (snapshotData: Omit<ProgressSnapshot, 'id'>[]) => {
+    const timestamp = Date.now();
+    const snapshots = snapshotData.map((snapshot, index) => ({
+      id: `progress_${timestamp}_${index}_${Math.random().toString(36).substring(2, 9)}`,
+      ...snapshot,
+      userId: effectiveUserId
+    } as ProgressSnapshot));
+    setProgressSnapshots(prev => {
+      const next = [...prev, ...snapshots];
+      setLocal(getDataKeys(effectiveUserId).progressSnapshots, next);
+      return next;
+    });
+  };
+
   const deleteTask = async (taskId: string) => {
 
     // Preserve task text in history records before deleting
@@ -168,20 +245,22 @@ export function useData(userId: string) {
     });
   };
 
-  const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config, importedIntentions?: Intention[]) => {
+  const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config, importedIntentions?: Intention[], importedSnapshots?: ProgressSnapshot[]) => {
     const keys = getDataKeys(effectiveUserId);
     setTasks(importedTasks);
     setHistory(importedHistory);
     setConfig(importedConfig);
     if (importedIntentions) setIntentions(importedIntentions);
+    if (importedSnapshots) setProgressSnapshots(importedSnapshots);
 
     setLocal(keys.tasks, importedTasks);
     setLocal(keys.history, importedHistory);
     setLocal(keys.config, importedConfig);
     if (importedIntentions) setLocal(keys.intentions, importedIntentions);
+    if (importedSnapshots) setLocal(keys.progressSnapshots, importedSnapshots);
   };
 
-  const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null, importedIntentions?: Intention[]) => {
+  const mergeLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Partial<Config> | null, importedIntentions?: Intention[], importedSnapshots?: ProgressSnapshot[]) => {
     const keys = getDataKeys(effectiveUserId);
 
     if (importedTasks && importedTasks.length > 0) {
@@ -246,6 +325,16 @@ export function useData(userId: string) {
         return next;
       });
     }
+
+    if (importedSnapshots && importedSnapshots.length > 0) {
+      setProgressSnapshots(prev => {
+        const byId = new Map(prev.map(snapshot => [snapshot.id, snapshot]));
+        importedSnapshots.forEach(snapshot => byId.set(snapshot.id, snapshot));
+        const next = Array.from(byId.values());
+        setLocal(keys.progressSnapshots, next);
+        return next;
+      });
+    }
   };
 
   const clearPartialData = (type: 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => {
@@ -263,6 +352,9 @@ export function useData(userId: string) {
         return next;
       });
     } else if (type === 'habitos') {
+      const tasksToDeleteIds = tasks
+        .filter(t => t.type === 'Hábito' || t.type === 'Rutina')
+        .map(t => t.id);
       setTasks(prev => {
         const next = prev.filter(t => t.type !== 'Hábito' && t.type !== 'Rutina');
         setLocal(keys.tasks, next);
@@ -277,6 +369,11 @@ export function useData(userId: string) {
         const tasksToDeleteIds = tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina').map(t => t.id);
         const next = prev.filter(h => !tasksToDeleteIds.includes(h.taskId));
         setLocal(keys.history, next);
+        return next;
+      });
+      setProgressSnapshots(prev => {
+        const next = prev.filter(snapshot => !tasksToDeleteIds.includes(snapshot.taskId));
+        setLocal(keys.progressSnapshots, next);
         return next;
       });
     } else if (type === 'tareas') {
@@ -343,5 +440,5 @@ export function useData(userId: string) {
     });
   };
 
-  return { config, tasks, history, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
+  return { config, tasks, history, progressSnapshots, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
 }

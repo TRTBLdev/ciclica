@@ -23,7 +23,7 @@ const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null 
 
 const getEffectiveAllocation = (task: AppTask, allTasks: AppTask[]): 'fixed' | 'growth' | 'mixed' => {
   if (task.allocationType) return task.allocationType;
-  if (task.type === 'Hábito' || task.type === 'Contador') return 'fixed';
+  if (task.type === 'Hábito' || task.type === 'Pulso') return 'fixed';
   if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
   const project = getProjectForTask(task.id, allTasks);
   if (project) return 'growth';
