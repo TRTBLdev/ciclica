@@ -44,7 +44,9 @@ export default function CapturePanel({ isOpen, onClose, config, tasks, onAddTask
       setQcTargetCount(1);
       setQcUnitLabel('veces');
       setQcPolaridad('Reforzar');
-    } else if (val === 'Rutina' || val === 'Proyecto') {
+    } else if (val === 'Rutina') {
+      setQcAllocation('fixed');
+    } else if (val === 'Proyecto') {
       setQcAllocation('growth');
     }
   };
@@ -157,7 +159,7 @@ export default function CapturePanel({ isOpen, onClose, config, tasks, onAddTask
         {/* 2-Column Selectors Grid */}
         <div className="grid grid-cols-2 gap-3">
           {/* Tipo de Elemento */}
-          <div className="flex flex-col gap-1">
+          <div className={cn("flex flex-col gap-1", (qcType !== 'Tarea' && qcType !== 'Proyecto') ? "col-span-2" : "")}>
             <label className="text-[9px] uppercase tracking-wider text-text-dim font-mono">Tipo</label>
             <div className="relative flex items-center">
               <select
@@ -176,21 +178,23 @@ export default function CapturePanel({ isOpen, onClose, config, tasks, onAddTask
           </div>
 
           {/* Asignación Energética */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[9px] uppercase tracking-wider text-text-dim font-mono">Asignación</label>
-            <div className="relative flex items-center">
-              <select
-                className="w-full appearance-none bg-base-dim/20 border border-border-line text-text-main text-xs font-medium rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-[#a2b29f] cursor-pointer font-sans"
-                value={qcAllocation}
-                onChange={e => setQcAllocation(e.target.value as any)}
-              >
-                <option value="growth">⚡ Inversión</option>
-                <option value="fixed">🛡️ Soporte</option>
-                <option value="mixed">☯️ Mixto</option>
-              </select>
-              <ChevronDown className="absolute right-2.5 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+          {(qcType === 'Tarea' || qcType === 'Proyecto') && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-wider text-text-dim font-mono">Asignación</label>
+              <div className="relative flex items-center">
+                <select
+                  className="w-full appearance-none bg-base-dim/20 border border-border-line text-text-main text-xs font-medium rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-[#a2b29f] cursor-pointer font-sans"
+                  value={qcAllocation}
+                  onChange={e => setQcAllocation(e.target.value as any)}
+                >
+                  <option value="growth">⚡ Inversión</option>
+                  <option value="fixed">🛡️ Soporte</option>
+                  <option value="mixed">☯️ Mixto</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* TAREA: Prioridad */}
           {qcType === 'Tarea' && (

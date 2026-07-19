@@ -784,7 +784,7 @@ export default function TaskItem({
               )}
               {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
               {isFutureDate(task.fechaPlanificada) && !isHabit && !isActualSubtask && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
-              {task.allocationType && (
+              {task.allocationType && task.type !== 'Rutina' && task.type !== 'Hábito' && (
                 <AllocationBadge allocation={task.allocationType} />
               )}
               

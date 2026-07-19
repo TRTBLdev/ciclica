@@ -541,6 +541,7 @@ export default function RutinasView({
             ) : (
               routines.map(routine => {
                 const isExpanded = expandedRoutines.includes(routine.id);
+
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
                 const subtasks = sortTasks(rawSubtasks, sortBy);
                 const routineDuration = subtasks.filter(t => !isFutureDate(t.fechaPlanificada)).reduce((acc, t) => acc + (t.duracion || 0), 0);
@@ -585,7 +586,6 @@ export default function RutinasView({
                             {routine.text}
                           </h3>
                           <CategoryBadge area={routine.category} subCategory={routine.subCategory} config={config} />
-                          {routine.allocationType && <AllocationBadge allocation={routine.allocationType} />}
                           {!configured && (
                             <button type="button" onClick={() => setEditingRoutineId(routine.id)} className="px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/5 text-[9px] font-mono uppercase tracking-wider text-amber-700 cursor-pointer">
                               Ciclo pendiente de configurar

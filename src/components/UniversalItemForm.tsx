@@ -116,7 +116,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       dependencyId: dependencyId || undefined,
       notes,
       checklist,
-      allocationType,
+      allocationType: (type === 'Rutina' || type === 'Hábito') ? 'fixed' : allocationType,
     };
 
     if ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask) {

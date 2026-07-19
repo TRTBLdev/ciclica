@@ -22,7 +22,7 @@ describe('energy allocation', () => {
     const project = task({ id: 'project', type: 'Proyecto' });
     expect(getEffectiveEnergyAllocation(task({ allocationType: 'mixed' }), [])).toBe('mixed');
     expect(getEffectiveEnergyAllocation(task({ type: 'Hábito' }), [])).toBe('fixed');
-    expect(getEffectiveEnergyAllocation(task({ type: 'Rutina' }), [])).toBe('growth');
+    expect(getEffectiveEnergyAllocation(task({ type: 'Rutina' }), [])).toBe('fixed');
     expect(getEffectiveEnergyAllocation(task({ parentId: project.id }), [project])).toBe('growth');
   });
 });

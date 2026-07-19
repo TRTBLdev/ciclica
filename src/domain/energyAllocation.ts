@@ -15,9 +15,9 @@ const getProjectForTask = (task: AppTask, tasks: AppTask[]): AppTask | undefined
 };
 
 export function getEffectiveEnergyAllocation(task: AppTask, tasks: AppTask[]): EnergyAllocation {
+  if (task.type === 'Hábito' || task.type === 'Pulso' || task.type === 'Rutina') return 'fixed';
   if (task.allocationType) return task.allocationType;
-  if (task.type === 'Hábito' || task.type === 'Pulso') return 'fixed';
-  if (task.type === 'Proyecto' || task.type === 'Rutina') return 'growth';
+  if (task.type === 'Proyecto') return 'growth';
   if (getProjectForTask(task, tasks)) return 'growth';
   return 'mixed';
 }
