@@ -80,7 +80,12 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }, [activeTimer, user.uid]);
 
   const handleStartTimer = (taskId: string) => {
-    if (tasks.find(task => task.id === taskId)?.type === 'Rutina') return;
+    const task = tasks.find(candidate => candidate.id === taskId);
+    if (!task || task.type === 'Rutina') return;
+
+    setShowOmnibar(true);
+    if (activeTimer) return;
+
     const nowStr = new Date().toISOString();
     setActiveTimer({
       taskId,
@@ -435,6 +440,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 onStop={handleStopTimer}
                 onDiscard={handleDiscardTimer}
                 onStartTimer={handleStartTimer}
+                onToggleTask={handleToggleTask}
                 onUpdateStartTime={handleUpdateTimerStartTime}
                 onAddTask={addTask}
                 onUpdateTask={handleUpdateTask}
@@ -454,6 +460,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 onStop={handleStopTimer}
                 onDiscard={handleDiscardTimer}
                 onStartTimer={handleStartTimer}
+                onToggleTask={handleToggleTask}
                 onUpdateStartTime={handleUpdateTimerStartTime}
                 onAddTask={addTask}
                 onUpdateTask={handleUpdateTask}

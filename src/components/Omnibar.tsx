@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Save, CheckCircle2, Circle, X, ChevronDown, Plus, Edit2, Search, ArrowLeft, Trash2, MoreVertical } from 'lucide-react';
-import { motion } from 'motion/react';
-import { AppTask, Config } from '../types';
-import { cn } from '../lib/utils';
+import { Reorder } from 'motion/react';
+import { AppTask, ChecklistItem, Config, TaskType } from '../types';
+import { cn, isFutureDate } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
@@ -23,6 +23,7 @@ interface OmnibarProps {
   onStop: (saveHistory: boolean) => void;
   onDiscard: () => void;
   onStartTimer: (taskId: string) => void;
+  onToggleTask: (task: AppTask) => void;
   onUpdateStartTime: (newStartTime: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
@@ -35,6 +36,22 @@ interface OmnibarProps {
 
 type OmnibarMode = 'search' | 'editTime' | 'editTask' | 'createTask';
 
+type FamilyContext = {
+  parentId: string;
+  childType: TaskType;
+};
+
+const GripIcon = () => (
+  <svg className="w-3.5 h-3.5 text-text-dim/40 shrink-0 cursor-grab active:cursor-grabbing" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="5" r="1" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="9" cy="19" r="1" />
+    <circle cx="15" cy="5" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <circle cx="15" cy="19" r="1" />
+  </svg>
+);
+
 export default function Omnibar({
   activeTimer,
   tasks,
@@ -44,6 +61,7 @@ export default function Omnibar({
   onStop,
   onDiscard,
   onStartTimer,
+  onToggleTask,
   onUpdateStartTime,
   onAddTask,
   onUpdateTask,
@@ -80,6 +98,7 @@ export default function Omnibar({
   const [editingChecklistItemId, setEditingChecklistItemId] = useState<string | null>(null);
   const [editingChecklistItemText, setEditingChecklistItemText] = useState('');
   const [newChecklistItemText, setNewChecklistItemText] = useState('');
+  const [familyContext, setFamilyContext] = useState<FamilyContext | null>(null);
 
   useEffect(() => {
     setIsEditingTitle(false);
@@ -96,16 +115,102 @@ export default function Omnibar({
     return () => clearInterval(interval);
   }, [activeTimer]);
 
+  useEffect(() => {
+    if (!activeTimer) return;
+
+    const activeTask = tasks.find(task => task.id === activeTimer.taskId);
+    const parent = activeTask?.parentId
+      ? tasks.find(task => task.id === activeTask.parentId)
+      : undefined;
+
+    setFamilyContext(parent && activeTask
+      ? { parentId: parent.id, childType: activeTask.type }
+      : null);
+  }, [activeTimer?.taskId, tasks]);
+
   const filteredTasks = useMemo(() => {
-    const activeTasks = tasks.filter(t => !t.completed);
+    const activeTasks = tasks.filter(task => {
+      const isCompletedHabit = task.type === 'Hábito' && isFutureDate(task.fechaPlanificada);
+      return !task.completed && !isCompletedHabit;
+    });
     if (!search.trim()) {
       return [...activeTasks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
     }
     return activeTasks.filter(t => t.text.toLowerCase().includes(search.toLowerCase())).slice(0, 10);
   }, [tasks, search]);
 
+  const contextParent = familyContext
+    ? tasks.find(task => task.id === familyContext.parentId)
+    : undefined;
+  const contextChildren = contextParent && familyContext
+    ? tasks.filter(task => {
+        const isCompletedHabit = task.type === 'Hábito' && isFutureDate(task.fechaPlanificada);
+        return task.parentId === contextParent.id
+          && task.type === familyContext.childType
+          && (task.id === activeTimer?.taskId || (!task.completed && !isCompletedHabit));
+      })
+    : [];
+
+  const familyContextUI = contextParent && contextChildren.length > 0 ? (
+    <section className="flex flex-col gap-2 py-2 text-left">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[9px] uppercase tracking-widest font-mono text-text-dim shrink-0">En</span>
+        {getTypeIcon(contextParent.type, "w-3 h-3 stroke-[2] fill-none text-text-dim shrink-0")}
+        <span className="truncate text-[11px] text-text-main font-medium">{contextParent.text}</span>
+      </div>
+      <p className="text-[10px] text-text-dim leading-relaxed">
+        {activeTimer ? 'Finaliza o descarta el tracker actual antes de iniciar otro elemento.' : 'Elige otro elemento o usa la búsqueda para continuar.'}
+      </p>
+      <div className="flex flex-col divide-y divide-border-line/50">
+        {contextChildren.map(child => {
+          const isActiveChild = child.id === activeTimer?.taskId;
+          const canTrackChild = child.type !== 'Rutina' && child.type !== 'Pulso';
+
+          return (
+            <div key={child.id} className={cn("flex items-center gap-2 py-2", isActiveChild && "text-accent")}>
+              <div className="min-w-0 flex-1 flex items-center gap-2">
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", isActiveChild ? "bg-accent animate-pulse" : "bg-border-line")} />
+                <span className="truncate text-[11px] text-text-main">{child.text}</span>
+                {isActiveChild && <span className="text-[8px] font-mono uppercase tracking-wide text-accent shrink-0">en seguimiento</span>}
+              </div>
+              {!isActiveChild && (
+                <button
+                  onClick={() => onToggleTask(child)}
+                  className="p-1 bg-transparent border-0 cursor-pointer text-text-dim hover:text-accent transition-colors"
+                  title="Completar"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {canTrackChild && !isActiveChild && (
+                <button
+                  disabled={Boolean(activeTimer)}
+                  onClick={() => onStartTimer(child.id)}
+                  className={cn(
+                    "p-1 bg-transparent border-0 transition-colors",
+                    activeTimer ? "text-text-dim/35 cursor-not-allowed" : "text-text-dim cursor-pointer hover:text-accent"
+                  )}
+                  title={activeTimer ? 'Finaliza o descarta el tracker actual antes de iniciar otro' : 'Iniciar tracker'}
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  ) : null;
+
   const handleItemClick = (t: AppTask) => {
     if (!onNavigate) return;
+    const parentRoutine = t.parentId
+      ? tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina')
+      : undefined;
+    if (parentRoutine) {
+      onNavigate('rutinas', parentRoutine.id);
+      return;
+    }
     if (t.type === 'Proyecto') {
       onNavigate('proyectos', t.id);
     } else if (t.type === 'Rutina' || t.type === 'Hábito') {
@@ -233,6 +338,11 @@ export default function Omnibar({
       setNewChecklistItemText('');
     };
 
+    const handleReorderChecklist = (checklist: ChecklistItem[]) => {
+      if (!task) return;
+      onUpdateTask(task.id, { checklist });
+    };
+
     // Check what metadata badges to show based on task type
     const hasPriority = task && (task.type === 'Tarea' || task.type === 'Hábito' || task.type === 'Proyecto');
     const hasAllocation = task && (task.type === 'Tarea' || task.type === 'Proyecto');
@@ -240,7 +350,7 @@ export default function Omnibar({
     const hasChecklist = task && (task.type === 'Tarea' || task.type === 'Hábito');
 
     activeTimerUI = (
-      <div className="flex flex-col gap-3 pb-4 mb-4 border-b border-border-line/60 overflow-y-auto no-scrollbar max-h-[60vh]">
+      <div className="flex flex-col gap-3 pb-4 mb-4 border-b border-border-line/60 shrink-0">
         <div className="flex justify-between items-center w-full">
           <div className="flex items-center gap-2">
             <Circle className={cn("w-2 h-2 fill-current", activeTimer.isRunning ? "text-accent animate-pulse" : "text-secondary")} />
@@ -347,6 +457,7 @@ export default function Omnibar({
           </div>
         )}
 
+        <div className="flex flex-col gap-3 max-h-[42vh] overflow-y-auto no-scrollbar pr-1">
         {/* Notes (Task/Habit specific) */}
         {hasNotes && task && (
           <div className="text-left flex flex-col gap-1 mt-1">
@@ -385,15 +496,17 @@ export default function Omnibar({
           <div className="text-left flex flex-col gap-1.5 mt-1 border-t border-border-line/40 pt-2.5">
             <span className="text-[9px] text-text-dim font-mono uppercase tracking-widest font-bold">Checklist</span>
             
-            <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-1.5">
               {(task.checklist || []).length === 0 ? (
                 <span className="text-[10px] text-text-dim italic pl-1 font-light">Sin elementos en el checklist</span>
               ) : (
-                (task.checklist || []).map(item => {
+                <Reorder.Group axis="y" values={task.checklist || []} onReorder={handleReorderChecklist} className="flex flex-col gap-1.5">
+                {(task.checklist || []).map(item => {
                   const isItemEditing = editingChecklistItemId === item.id;
                   return (
-                    <div key={item.id} className="flex items-center justify-between gap-2.5 py-0.5 group/chk">
+                    <Reorder.Item key={item.id} value={item} className="flex items-center justify-between gap-2.5 py-0.5 group/chk cursor-grab active:cursor-grabbing">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <GripIcon />
                         <button
                           type="button"
                           onClick={() => handleToggleCheckItem(item.id)}
@@ -445,9 +558,10 @@ export default function Omnibar({
                       >
                         ✕
                       </button>
-                    </div>
+                    </Reorder.Item>
                   );
-                })
+                })}
+                </Reorder.Group>
               )}
             </div>
 
@@ -481,6 +595,8 @@ export default function Omnibar({
             </div>
           </div>
         )}
+        {familyContextUI}
+        </div>
       </div>
     );
   }
@@ -489,6 +605,12 @@ export default function Omnibar({
     <div className="w-full h-full bg-base p-6 md:p-8 flex flex-col overflow-hidden relative">
 
       {activeTimerUI}
+
+      {!activeTimer && familyContextUI && (
+        <div className="max-h-[42vh] overflow-y-auto no-scrollbar pr-1 pb-4 mb-4 border-b border-border-line/60">
+          {familyContextUI}
+        </div>
+      )}
 
       {/* Mode Renderers */}
       {mode === 'search' && (
@@ -513,8 +635,16 @@ export default function Omnibar({
                       )}
                     </div>
                     <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0 gap-1">
-                      {t.type !== 'Pulso' && t.type !== 'Rutina' && (!activeTimer || activeTimer.taskId !== t.id) && (
-                        <button onClick={(e) => { e.stopPropagation(); onStartTimer(t.id); setSearch(''); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none transition-colors" title="Iniciar Timer">
+                      {t.type !== 'Pulso' && t.type !== 'Rutina' && activeTimer?.taskId !== t.id && (
+                        <button
+                          disabled={Boolean(activeTimer)}
+                          onClick={(e) => { e.stopPropagation(); onStartTimer(t.id); setSearch(''); }}
+                          className={cn(
+                            "p-1.5 flex items-center justify-center bg-transparent border-none outline-none transition-colors",
+                            activeTimer ? "cursor-not-allowed opacity-35" : "cursor-pointer"
+                          )}
+                          title={activeTimer ? 'Finaliza o descarta el tracker actual antes de iniciar otro' : 'Iniciar Timer'}
+                        >
                           <Play className="w-4 h-4 text-text-dim hover:text-accent" />
                         </button>
                       )}
