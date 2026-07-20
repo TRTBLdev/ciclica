@@ -60,7 +60,6 @@ export default function CapturePanel({ isOpen, onClose, config, tasks, onAddTask
       text: qcText.trim(),
       type: (qcType === 'Contador' ? 'Pulso' : qcType) as TaskType,
       createdAt: new Date().toISOString(),
-      fechaPlanificada: new Date(qcDate).toISOString(),
       priority: qcPriority,
       completed: false,
       view: qcView,
@@ -69,8 +68,18 @@ export default function CapturePanel({ isOpen, onClose, config, tasks, onAddTask
     };
 
     if (qcType === 'Hábito' || qcType === 'Rutina') {
+      newTask.appearanceMode = 'interval';
+      newTask.fechaAparicion = qcDate;
+      newTask.recurrenceAnchorDate = qcDate;
+      newTask.appearanceFrequency = qcFrecuencia;
+      newTask.appearanceFrequencyUnit = qcFrecuenciaUnidad as any;
       newTask.frecuencia = qcFrecuencia;
       newTask.frecuenciaUnidad = qcFrecuenciaUnidad as any;
+    } else if (qcType === 'Tarea' && qcView === 'Hoy') {
+      newTask.appearanceMode = 'persistent';
+      newTask.fechaAparicion = qcDate;
+    } else if (qcType === 'Proyecto') {
+      newTask.fechaLimite = qcDate;
     }
 
     if (qcType === 'Contador') {

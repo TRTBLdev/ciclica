@@ -536,6 +536,9 @@ function AreaDetail({
          <section className="border-b border-border-line/30 pb-6">
             <h3
               onClick={() => setExpandCommitments(!expandCommitments)}
+              aria-label={expandCommitments ? 'Contraer compromisos vigentes' : 'Expandir compromisos vigentes'}
+              aria-expanded={expandCommitments}
+              title={expandCommitments ? 'Contraer compromisos vigentes' : 'Expandir compromisos vigentes'}
               className="text-subtitle flex items-center justify-between gap-4 cursor-pointer group hover:opacity-85 select-none"
             >
               <span className="flex items-center gap-2">
@@ -543,7 +546,6 @@ function AreaDetail({
               </span>
               <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
                 {expandCommitments ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandCommitments ? 'Ocultar' : 'Mostrar'}
               </span>
             </h3>
 
@@ -601,6 +603,9 @@ function AreaDetail({
          <div className="border-b border-border-line/30 pb-6">
             <h3 
               onClick={() => setExpandProjects(!expandProjects)}
+              aria-label={expandProjects ? 'Contraer proyectos' : 'Expandir proyectos'}
+              aria-expanded={expandProjects}
+              title={expandProjects ? 'Contraer proyectos' : 'Expandir proyectos'}
               className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
             >
               <span className="flex items-center gap-2">
@@ -608,7 +613,6 @@ function AreaDetail({
               </span>
               <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
                 {expandProjects ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandProjects ? 'Ocultar' : 'Mostrar'}
               </span>
             </h3>
 
@@ -650,6 +654,9 @@ function AreaDetail({
          <div className="border-b border-border-line/30 pb-6">
             <h3 
               onClick={() => setExpandRoutines(!expandRoutines)}
+              aria-label={expandRoutines ? 'Contraer rutinas' : 'Expandir rutinas'}
+              aria-expanded={expandRoutines}
+              title={expandRoutines ? 'Contraer rutinas' : 'Expandir rutinas'}
               className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
             >
               <span className="flex items-center gap-2">
@@ -657,7 +664,6 @@ function AreaDetail({
               </span>
               <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
                 {expandRoutines ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandRoutines ? 'Ocultar' : 'Mostrar'}
               </span>
             </h3>
 
@@ -714,6 +720,9 @@ function AreaDetail({
          <div className="border-b border-border-line/30 pb-6">
             <h3 
               onClick={() => setExpandHabits(!expandHabits)}
+              aria-label={expandHabits ? 'Contraer hábitos' : 'Expandir hábitos'}
+              aria-expanded={expandHabits}
+              title={expandHabits ? 'Contraer hábitos' : 'Expandir hábitos'}
               className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
             >
               <span className="flex items-center gap-2">
@@ -721,7 +730,6 @@ function AreaDetail({
               </span>
               <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
                 {expandHabits ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandHabits ? 'Ocultar' : 'Mostrar'}
               </span>
             </h3>
 
@@ -754,6 +762,9 @@ function AreaDetail({
          <div>
             <h3 
               onClick={() => setExpandTasks(!expandTasks)}
+              aria-label={expandTasks ? 'Contraer tareas' : 'Expandir tareas'}
+              aria-expanded={expandTasks}
+              title={expandTasks ? 'Contraer tareas' : 'Expandir tareas'}
               className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
             >
               <span className="flex items-center gap-2">
@@ -761,7 +772,6 @@ function AreaDetail({
               </span>
               <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
                 {expandTasks ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expandTasks ? 'Ocultar' : 'Mostrar'}
               </span>
             </h3>
 

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createDefaultConfig, createDemoTasks } from '../data/defaults';
 import { getDataKeys, getLocal, setLocal } from '../data/storage';
-import { rescheduleOverdueRecurringTasks } from '../data/taskScheduling';
 import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { migrateDatabase } from '../data/migration';
-import { formatDateOnly, getCalendarCycleRange, getRoutineAppearanceTarget, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate, parseDateOnly } from '../domain/recurrenceProgress';
+import { formatDateOnly, getCalendarCycleRange, getRoutineAppearanceTarget, isRoutineConfigured, isTaskScheduledOnDate, parseDateOnly } from '../domain/recurrenceProgress';
+import { getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask } from '../domain/appearance';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
@@ -13,8 +13,13 @@ export function useData(userId: string) {
   const [progressSnapshots, setProgressSnapshots] = useState<ProgressSnapshot[]>([]);
   const [intentions, setIntentions] = useState<Intention[]>([]);
   const [loading, setLoading] = useState(true);
-  const [initChecked, setInitChecked] = useState(false);
-  const [snapshotRollChecked, setSnapshotRollChecked] = useState(false);
+  const [snapshotRollDay, setSnapshotRollDay] = useState('');
+  const [calendarDay, setCalendarDay] = useState(() => formatDateOnly(new Date()));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCalendarDay(formatDateOnly(new Date())), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // In local-first mode, all users store data in localStorage under 'local_user' namespace or their specific userId.
   const effectiveUserId = userId || 'local_user';
@@ -56,20 +61,8 @@ export function useData(userId: string) {
   }, [effectiveUserId]);
 
   useEffect(() => {
-    if (loading || initChecked || tasks.length === 0) return;
-    setInitChecked(true);
-
-    const { tasks: updatedTasks, changed } = rescheduleOverdueRecurringTasks(tasks);
-
-    if (changed) {
-      setTasks(updatedTasks);
-      setLocal(getDataKeys(effectiveUserId).tasks, updatedTasks);
-    }
-  }, [loading, tasks, initChecked, effectiveUserId]);
-
-  useEffect(() => {
-    if (loading || snapshotRollChecked || tasks.length === 0) return;
-    setSnapshotRollChecked(true);
+    if (loading || snapshotRollDay === calendarDay || tasks.length === 0) return;
+    setSnapshotRollDay(calendarDay);
     const yesterday = new Date();
     yesterday.setHours(0, 0, 0, 0);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -85,7 +78,7 @@ export function useData(userId: string) {
         if (isTaskScheduledOnDate(routine, cursor)) {
           const key = `routine-appearance:${routine.id}:${dateKey}:${dateKey}`;
           if (!existing.has(key)) {
-            const progress = getRoutineCycleProgress(routine, tasks, progressSnapshots, cursor);
+            const progress = getRoutineCycleProgressFromHistory(routine, tasks, history, cursor);
             additions.push({
               id: `progress_roll_${routine.id}_${dateKey}_appearance`, userId: effectiveUserId,
               kind: 'routine-appearance', taskId: routine.id, taskSnapshotText: routine.text,
@@ -100,7 +93,7 @@ export function useData(userId: string) {
         if (cycle.end === dateKey) {
           const key = `routine-cycle:${routine.id}:${cycle.start}:${cycle.end}`;
           if (!existing.has(key)) {
-            const progress = getRoutineCycleProgress(routine, tasks, progressSnapshots, cursor);
+            const progress = getRoutineCycleProgressFromHistory(routine, tasks, history, cursor);
             additions.push({
               id: `progress_roll_${routine.id}_${cycle.end}_cycle`, userId: effectiveUserId,
               kind: 'routine-cycle', taskId: routine.id, taskSnapshotText: routine.text,
@@ -122,7 +115,34 @@ export function useData(userId: string) {
         return next;
       });
     }
-  }, [loading, snapshotRollChecked, tasks, progressSnapshots, effectiveUserId]);
+  }, [calendarDay, loading, snapshotRollDay, tasks, history, progressSnapshots, effectiveUserId]);
+
+  useEffect(() => {
+    if (loading || !tasks.length) return;
+    const changes: { id: string; updates: Partial<AppTask> }[] = [];
+    tasks.filter(task => task.type === 'Hábito' && !!task.parentId).forEach(habit => {
+      const routine = tasks.find(task => task.id === habit.parentId && task.type === 'Rutina');
+      if (!routine) return;
+      const cycleStart = getRoutineCycleRangeForTask(routine, calendarDay).start;
+      if (!habit.checklistCycleStart && habit.checklist?.some(item => item.done)) {
+        changes.push({ id: habit.id, updates: { checklistCycleStart: cycleStart } });
+      } else if (habit.checklistCycleStart && habit.checklistCycleStart !== cycleStart) {
+        changes.push({
+          id: habit.id,
+          updates: { checklistCycleStart: cycleStart, checklist: habit.checklist?.map(item => ({ ...item, done: false })) },
+        });
+      }
+    });
+    if (!changes.length) return;
+    setTasks(previous => {
+      const next = previous.map(task => {
+        const change = changes.find(candidate => candidate.id === task.id);
+        return change ? { ...task, ...change.updates, updatedAt: new Date().toISOString() } : task;
+      });
+      setLocal(getDataKeys(effectiveUserId).tasks, next);
+      return next;
+    });
+  }, [calendarDay, effectiveUserId, loading, tasks]);
 
   const updateConfig = async (updates: Partial<Config>) => {
     setConfig(prev => {

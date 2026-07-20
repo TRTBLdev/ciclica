@@ -1,15 +1,16 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { useData } from '../hooks/useData';
 import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings, Plus, Zap } from 'lucide-react';
 import Omnibar from './Omnibar';
 import Onboarding from './Onboarding';
 import { calculateBiologicalPhase } from '../domain/cycle';
-import { cn, isSameDay, isFutureDate } from '../lib/utils';
+import { cn, isSameDay } from '../lib/utils';
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
 import { isPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
-import { formatDateOnly, getChecklistProgress, getNextScheduledDate } from '../domain/recurrenceProgress';
+import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
+import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, isAppearanceScheduledOnDate, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
 
 const HoyView = lazy(() => import('./HoyView'));
 const SintoniaView = lazy(() => import('./SintoniaView'));
@@ -24,6 +25,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [showIntentionForm, setShowIntentionForm] = useState(false);
   const [showOmnibar, setShowOmnibar] = useState(false);
+  const completionLocksRef = useRef(new Set<string>());
 
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
@@ -81,7 +83,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
   const handleStartTimer = (taskId: string) => {
     const task = tasks.find(candidate => candidate.id === taskId);
-    if (!task || task.type === 'Rutina') return;
+    if (!task || !canTrackTask(task, tasks, history)) return;
 
     setShowOmnibar(true);
     if (activeTimer) return;
@@ -177,10 +179,45 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }
 
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
-    if (task.type === 'Rutina') return;
-    const isCompleted = task.type === 'Hábito'
-      ? !isFutureDate(task.fechaPlanificada)
-      : !task.completed;
+    const now = new Date();
+    const todayKey = formatDateOnly(now);
+    const parentRoutine = task.type === 'Hábito' && task.parentId
+      ? tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina')
+      : undefined;
+
+    if (task.type === 'Rutina') {
+      if (getRoutineCycleProgressFromHistory(task, tasks, history, now) < 100 || isRoutineCycleClosed(task, progressSnapshots, now)) return;
+      const cycle = getRoutineCycleRangeForTask(task, now);
+      const lockKey = `routine:${task.id}:${cycle.start}`;
+      if (completionLocksRef.current.has(lockKey)) return;
+      completionLocksRef.current.add(lockKey);
+      try {
+        await addHistory({
+          userId: user.uid, taskId: task.id, date: now.toISOString(), duration: 0,
+          createdAt: now.toISOString(), isCompletion: true,
+          routineId: task.id, routineCycleStart: cycle.start, routineAppearanceDate: todayKey,
+        });
+        await addProgressSnapshots([{
+          userId: user.uid, kind: 'routine-cycle', taskId: task.id, taskSnapshotText: task.text,
+          periodStart: cycle.start, periodEnd: cycle.end, progressPercent: 100,
+          wasCompleted: true, createdAt: now.toISOString(),
+        }]);
+      } finally {
+        completionLocksRef.current.delete(lockKey);
+      }
+      return;
+    }
+
+    if (parentRoutine && (
+      !isAppearanceScheduledOnDate(parentRoutine, todayKey)
+      || wasChildHabitCompletedInAppearance(parentRoutine, task, history, todayKey)
+      || getChildHabitCycleCount(parentRoutine, task, history, todayKey) >= Math.max(1, task.objetivoPorCiclo || 1)
+    )) return;
+    const habitLockKey = task.type === 'Hábito' ? `habit:${task.id}:${todayKey}` : undefined;
+    if (habitLockKey && completionLocksRef.current.has(habitLockKey)) return;
+    if (habitLockKey) completionLocksRef.current.add(habitLockKey);
+    try {
+    const isCompleted = task.type === 'Hábito' ? true : !task.completed;
     const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
     const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
     const snapshotsToAdd: Omit<ProgressSnapshot, 'id'>[] = [];
@@ -188,10 +225,23 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     if (task.type === 'Hábito' && isCompleted && task.checklist?.length) {
       const percent = getChecklistProgress(task);
       if (percent < 100) {
-        const routine = tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina');
-        const warning = `El checklist está al ${percent}%.${routine ? ` Esto aportará ese porcentaje a “${routine.text}”` : ''} y el ciclo podría quedar parcial. ¿Cerrar esta aparición?`;
-        if (!window.confirm(warning)) return;
+        window.alert(`Completa el checklist antes de cerrar esta aparición. Ahora está al ${percent}%.`);
+        return;
       }
+    }
+
+    let effectiveDuration = overrideDuration;
+    let effectiveStartTime = overrideStartTime;
+    let effectiveEndTime = overrideEndTime;
+    const closesActiveTimer = isCompleted && activeTimer?.taskId === task.id && overrideDuration === undefined;
+    if (closesActiveTimer && activeTimer) {
+      let totalSecs = activeTimer.elapsedSeconds;
+      if (activeTimer.isRunning) {
+        totalSecs += Math.floor((now.getTime() - new Date(activeTimer.startTime).getTime()) / 1000);
+      }
+      effectiveDuration = Math.max(0.01, parseFloat((totalSecs / 3600).toFixed(2)));
+      effectiveStartTime = activeTimer.sessionStart || activeTimer.startTime;
+      effectiveEndTime = now.toISOString();
     }
 
     const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
@@ -204,7 +254,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       const sessionEnd = endT || new Date().toISOString();
 
       if (isComp) {
-        historyToAdd.push({
+        const historyRecord: Omit<HistoryRecord, 'id'> = {
           userId: user.uid,
           taskId: t.id,
           date: sessionEnd,
@@ -212,35 +262,39 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           createdAt: new Date().toISOString(),
           startTime: sessionStart,
           endTime: sessionEnd,
-          isCompletion: true
-        });
+          isCompletion: true,
+          completionPercent: t.type === 'Hábito' && t.checklist?.length ? getChecklistProgress(t) : 100,
+        };
+        if (t.type === 'Hábito' && t.parentId) {
+          const routine = tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina');
+          if (routine) {
+            const cycle = getRoutineCycleRangeForTask(routine, sessionEnd);
+            historyRecord.routineId = routine.id;
+            historyRecord.routineCycleStart = cycle.start;
+            historyRecord.routineAppearanceDate = formatDateOnly(new Date(sessionEnd));
+          }
+        }
+        historyToAdd.push(historyRecord);
       }
 
       if (t.type === 'Hábito') {
         if (isComp) {
-          const referenceDateStr = t.fechaPlanificada || formatDateOnly(new Date());
-          const nextPlanned = getNextScheduledDate(t, referenceDateStr);
-          const periodEnd = new Date(`${nextPlanned}T00:00:00`);
-          periodEnd.setDate(periodEnd.getDate() - 1);
-          snapshotsToAdd.push({
-            userId: user.uid,
-            kind: 'habit-period',
-            taskId: t.id,
-            taskSnapshotText: t.text,
-            periodStart: referenceDateStr.slice(0, 10),
-            periodEnd: formatDateOnly(periodEnd),
-            progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
-            wasCompleted: true,
-            createdAt: sessionEnd
-          });
+          if (!t.parentId && getAppearanceMode(t) !== 'quota') {
+            snapshotsToAdd.push({
+              userId: user.uid, kind: 'habit-period', taskId: t.id, taskSnapshotText: t.text,
+              periodStart: todayKey, periodEnd: todayKey,
+              progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
+              wasCompleted: true, createdAt: sessionEnd,
+            });
+          }
           tasksToUpdate.push({
             id: t.id,
-            updates: { completed: false, fechaPlanificada: new Date(`${nextPlanned}T00:00:00`).toISOString(), lastExecutedAt: sessionEnd }
-          });
-        } else {
-          tasksToUpdate.push({
-            id: t.id,
-            updates: { completed: false, fechaPlanificada: new Date(`${formatDateOnly(new Date())}T00:00:00`).toISOString(), lastExecutedAt: '' }
+            updates: {
+              completed: false,
+              checklist: t.checklist?.map(item => ({ ...item, done: false })),
+              checklistCycleStart: t.parentId ? parentRoutine ? getRoutineCycleRangeForTask(parentRoutine, sessionEnd).start : undefined : undefined,
+              lastExecutedAt: sessionEnd,
+            }
           });
         }
       } else if (t.type !== 'Pulso') {
@@ -266,7 +320,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       }
     };
 
-    processToggle(task, isCompleted, overrideDuration, overrideStartTime, overrideEndTime);
+    processToggle(task, isCompleted, effectiveDuration, effectiveStartTime, effectiveEndTime);
 
     if (tasksToUpdate.length > 0) {
       await updateTasks(tasksToUpdate);
@@ -276,6 +330,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
     if (snapshotsToAdd.length > 0) {
       await addProgressSnapshots(snapshotsToAdd);
+    }
+    if (closesActiveTimer) setActiveTimer(null);
+    } finally {
+      if (habitLockKey) completionLocksRef.current.delete(habitLockKey);
     }
   };
 
@@ -435,6 +493,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 <Omnibar
                   activeTimer={activeTimer}
                   tasks={tasks}
+                  history={history}
                   config={config}
                   onPause={handlePauseTimer}
                   onResume={handleResumeTimer}
@@ -455,6 +514,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                 <Omnibar
                   activeTimer={activeTimer}
                   tasks={tasks}
+                  history={history}
                   config={config}
                   onPause={handlePauseTimer}
                   onResume={handleResumeTimer}

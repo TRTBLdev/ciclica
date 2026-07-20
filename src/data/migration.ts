@@ -2,6 +2,7 @@ import { AppTask, Config, HistoryRecord } from '../types';
 import { DEFAULT_AREAS, DEFAULT_SEPARATORS } from './defaults';
 import { getFrequencyInDays } from './taskScheduling';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
+import { getCalendarCycleRange } from '../domain/recurrenceProgress';
 
 interface RawDatabase {
   tasks?: unknown;
@@ -40,6 +41,7 @@ export function normalizeConfig(rawConfig: any): Config {
 
 export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
   const task = { ...rawTask };
+  const dateOnly = (value: unknown) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : undefined;
 
   if (task.type === 'Meta') {
     return null;
@@ -71,6 +73,25 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
 
   if ((task.type === 'Rutina' || task.type === 'Hábito') && !task.recurrenceAnchorDate) {
     task.recurrenceAnchorDate = task.fechaPlanificada || task.createdAt || now.toISOString();
+  }
+
+  if (task.type === 'Proyecto') {
+    task.fechaLimite = dateOnly(task.fechaLimite || task.fechaPlanificada);
+  } else if (task.type !== 'Pulso') {
+    task.fechaAparicion = dateOnly(task.fechaAparicion || task.fechaPlanificada);
+    if (task.type === 'Hábito' || task.type === 'Rutina') {
+      task.fechaAparicion ||= dateOnly(task.recurrenceAnchorDate || task.createdAt || now.toISOString());
+    }
+    task.fechaLimite = dateOnly(task.fechaLimite);
+    task.recurrenceAnchorDate = dateOnly(task.recurrenceAnchorDate || task.fechaAparicion);
+    task.appearanceFrequency = Math.max(1, task.appearanceFrequency || task.frecuencia || 1);
+    task.appearanceFrequencyUnit = task.appearanceFrequencyUnit || task.frecuenciaUnidad || 'días';
+    if (!task.appearanceMode && task.fechaAparicion) {
+      task.appearanceMode = task.appearanceWeekdays?.length
+        ? 'weekdays'
+        : (task.type === 'Tarea' && !task.frecuencia ? 'persistent' : 'interval');
+    }
+    if (task.type === 'Tarea' && task.appearanceMode === 'once') task.appearanceMode = 'persistent';
   }
 
   if (!task.allocationType) {
@@ -168,7 +189,35 @@ export function migrateDatabase(rawData: RawDatabase): { tasks: AppTask[]; histo
   
   tasks = migratedTasks;
 
-  const history = rawHistory.map(h => normalizeHistoryRecord(h));
+  tasks = tasks.map(task => {
+    if (task.type !== 'Hábito' || !task.parentId || task.objetivoPorCiclo) return task;
+    const routine = tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina');
+    if (!routine) return task;
+    const cycleDays = getFrequencyInDays(routine.routineCycleFrequency, routine.routineCycleUnit);
+    const habitDays = getFrequencyInDays(task.frecuencia, task.frecuenciaUnidad);
+    return {
+      ...task,
+      objetivoPorCiclo: Math.max(1, Math.floor(cycleDays / Math.max(1, habitDays))),
+      appearanceMode: undefined,
+      fechaAparicion: undefined,
+    };
+  });
+
+  const history = rawHistory.map(h => {
+    const record = normalizeHistoryRecord(h);
+    if (record.routineId && record.routineCycleStart && record.routineAppearanceDate) return record;
+    const habit = tasks.find(task => task.id === record.taskId && task.type === 'Hábito' && !!task.parentId);
+    const routine = habit ? tasks.find(task => task.id === habit.parentId && task.type === 'Rutina') : undefined;
+    if (!routine) return record;
+    const appearanceDate = record.date.slice(0, 10);
+    const cycle = getCalendarCycleRange(routine.routineCycleFrequency || 1, routine.routineCycleUnit || 'semanas', appearanceDate);
+    return {
+      ...record,
+      routineId: record.routineId || routine.id,
+      routineCycleStart: record.routineCycleStart || cycle.start,
+      routineAppearanceDate: record.routineAppearanceDate || appearanceDate,
+    };
+  });
   const config = normalizeConfig(rawData.config);
 
   console.log("CÍCLICA Migration Engine: Verificación exitosa. Registros migrados:", {

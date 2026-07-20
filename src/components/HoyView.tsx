@@ -4,14 +4,16 @@ import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot }
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
-import { extractSafeTime, timeToMins, minsToTime, isSameDay, isTodayOrBefore, isFutureDate, cn, getAreaColorClasses } from '../lib/utils';
+import { extractSafeTime, timeToMins, minsToTime, isSameDay, cn, getAreaColorClasses } from '../lib/utils';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
-import { getIsoWeekday, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
-import { getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
+import TemporalIndicator from './ui/TemporalIndicator';
+import { formatDateOnly, getIsoWeekday, isRoutineConfigured } from '../domain/recurrenceProgress';
+import { getPulseLogValue, getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
+import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
 
 interface Props {
   config: Config | null;
@@ -31,6 +33,7 @@ interface Props {
 }
 
 export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+  const [currentDay, setCurrentDay] = useState(() => formatDateOnly(new Date()));
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
   const ENERGY_LIMIT = phaseDetails.limit;
@@ -55,6 +58,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = formatDateOnly(new Date());
+      setCurrentDay(previous => previous === next ? previous : next);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const getSortedTasks = (taskList: AppTask[], criterion: string) => {
     let sorted = [...taskList];
@@ -96,35 +107,12 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   };
 
   let filteredTodayTasks = tasks.filter(t => {
-    if (t.completed || t.type === 'Proyecto' || t.type === 'Pulso') return false;
-    // Hide subtasks of normal tasks from root lists (they render via TaskItem expansion)
-    if (t.parentId) {
-      const parent = tasks.find(p => p.id === t.parentId);
-      if (parent && parent.type !== 'Proyecto') {
-        // Enforce: subtasks of Rutinas, Tareas, etc. are hidden from root, and render internally.
-        return false;
-      }
-    }
-    if (t.type === 'Rutina') {
-      if (!isRoutineConfigured(t)) return false;
-      const childHabits = tasks.filter(sub => sub.parentId === t.id && sub.type === 'Hábito');
-      return isTaskScheduledOnDate(t, new Date()) && getRoutineCycleProgress(t, childHabits, progressSnapshots) < 100;
-    }
-    if (t.type === 'Hábito') return isTodayOrBefore(t.fechaPlanificada);
-    return t.view === 'Hoy' && isTodayOrBefore(t.fechaPlanificada);
+    if (t.type === 'Rutina' && !isRoutineConfigured(t)) return false;
+    const placement = getTodayPlacement(t, tasks, history, progressSnapshots, currentDay);
+    return placement === 'timeline' || placement === 'flexible';
   });
 
-  let filteredBacklogTasks = tasks.filter(t => {
-    if (t.completed || t.type === 'Proyecto' || t.type === 'Hábito' || t.type === 'Rutina' || t.type === 'Pulso') return false;
-    if (t.parentId) {
-      const parent = tasks.find(p => p.id === t.parentId);
-      if (parent && parent.type !== 'Proyecto') return false;
-    }
-    const isViewBacklog = t.view === 'Backlog';
-    const isViewEmpty = !t.view || t.view.trim() === '';
-    const isFutureScheduled = t.view === 'Hoy' && isFutureDate(t.fechaPlanificada);
-    return isViewBacklog || isViewEmpty || isFutureScheduled;
-  });
+  let filteredBacklogTasks = tasks.filter(t => getTodayPlacement(t, tasks, history, progressSnapshots, currentDay) === 'backlog');
 
   let filteredPulsos = tasks.filter(t => t.type === 'Pulso');
 
@@ -229,6 +217,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
       category: task ? task.category : '',
       subCategory: task ? task.subCategory : '',
       type: task ? task.type : 'Tarea',
+      unitLabel: task?.unitLabel,
+      pulseLogValue: task?.type === 'Pulso' ? getPulseLogValue(task, rec) : undefined,
       originalRecord: rec
     };
   });
@@ -304,9 +294,13 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
               <button
                 type="button"
                 onClick={() => setShowFlowLogger(!showFlowLogger)}
+                aria-expanded={showFlowLogger}
+                aria-label={showFlowLogger ? 'Contraer registro de ciclo' : 'Expandir registro de ciclo'}
+                title={showFlowLogger ? 'Contraer registro de ciclo' : 'Expandir registro de ciclo'}
                 className="text-[10px] font-mono uppercase tracking-wider text-primary hover:text-text-main hover:underline flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none"
               >
-                <span>🩸 {showFlowLogger ? 'ocultar' : 'registrar ciclo'}</span>
+                <span>Registrar ciclo</span>
+                {showFlowLogger ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
             )}
 
@@ -516,6 +510,9 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             <div className="flex flex-col gap-4 animate-in fade-in duration-300">
               <h3
                 onClick={() => setShowPulsos(!showPulsos)}
+                aria-label={showPulsos ? 'Contraer pulsos diarios' : 'Expandir pulsos diarios'}
+                aria-expanded={showPulsos}
+                title={showPulsos ? 'Contraer pulsos diarios' : 'Expandir pulsos diarios'}
                 className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
               >
                 <span className="flex items-center gap-2">
@@ -523,7 +520,6 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                 </span>
                 <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal">
                   {showPulsos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {showPulsos ? 'Ocultar' : 'Mostrar'}
                 </span>
               </h3>
 
@@ -537,6 +533,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                     const safeDayConfirmed = isAbandoning && hasPulseSafeDayConfirmation(history, t.id, new Date());
                     const progress = safeDayConfirmed ? 100 : Math.min((count / target) * 100, 100);
                     const isDone = isAbandoning ? safeDayConfirmed : count >= target;
+                    const unstartedIndicator = getItemTemporalIndicators(t, tasks, history).find(indicator => indicator.kind === 'unstarted');
 
                     if (editingPulsoId === t.id) {
                       return (
@@ -656,6 +653,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                                 {isAbandoning ? '📉' : '📈'}
                               </span>
                             )}
+                            {unstartedIndicator && <TemporalIndicator indicator={unstartedIndicator} />}
                           </div>
 
                           {/* Progress bar */}
@@ -779,10 +777,12 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                 <button
                   type="button"
                   onClick={() => setShowTimeline(!showTimeline)}
+                  aria-label={showTimeline ? 'Contraer línea de tiempo' : 'Expandir línea de tiempo'}
+                  aria-expanded={showTimeline}
+                  title={showTimeline ? 'Contraer línea de tiempo' : 'Expandir línea de tiempo'}
                   className="text-[11px] text-[#a2b29f] hover:text-text-main flex items-center gap-1 font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 outline-none"
                 >
                   {showTimeline ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {showTimeline ? 'Ocultar' : 'Mostrar'}
                 </button>
               </div>
             </div>
@@ -821,12 +821,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             <div className="flex items-center justify-between">
               <h3
                 onClick={() => setShowFlexible(!showFlexible)}
+                aria-label={showFlexible ? 'Contraer tareas flexibles' : 'Expandir tareas flexibles'}
+                aria-expanded={showFlexible}
+                title={showFlexible ? 'Contraer tareas flexibles' : 'Expandir tareas flexibles'}
                 className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
               >
                 <Inbox className="w-4 h-4 text-text-main silhouette-icon" /> Tareas Flexibles
                 <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
                   {showFlexible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {showFlexible ? 'Ocultar' : 'Mostrar'}
                 </span>
               </h3>
               <div className="flex items-center gap-2">
@@ -870,6 +872,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                         activeTimer={activeTimer}
                         onStartTimer={onStartTimer}
                         onNavigate={onNavigate}
+                        context="today"
                       />
                     </div>
                   ))
@@ -883,12 +886,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             <div className="flex items-center justify-between">
               <h3
                 onClick={() => setShowBacklog(!showBacklog)}
+                aria-label={showBacklog ? 'Contraer backlog' : 'Expandir backlog'}
+                aria-expanded={showBacklog}
+                title={showBacklog ? 'Contraer backlog' : 'Expandir backlog'}
                 className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
               >
                 <Database className="w-4 h-4 text-text-main silhouette-icon" /> Backlog
                 <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
                   {showBacklog ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {showBacklog ? 'Ocultar' : 'Mostrar'}
                 </span>
               </h3>
               <div className="flex items-center gap-2">
@@ -932,6 +937,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                         activeTimer={activeTimer}
                         onStartTimer={onStartTimer}
                         onNavigate={onNavigate}
+                        context="backlog"
                       />
                     </div>
                   ))
@@ -1075,7 +1081,9 @@ function TimelineRenderer({
     } else if (t.isRecord) {
       const areaConfig = config?.areas?.[t.category || ''];
       const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-      const canStartTimer = t.originalRecord?.taskId && onStartTimer && activeTimer?.taskId !== t.originalRecord.taskId;
+      const recordTask = t.originalRecord?.taskId ? allTasks.find(task => task.id === t.originalRecord.taskId) : undefined;
+      const isPulseRecord = recordTask?.type === 'Pulso';
+      const canStartTimer = !isPulseRecord && recordTask && onStartTimer && activeTimer?.taskId !== recordTask.id && canTrackTask(recordTask, allTasks, history);
 
       renderedItems.push(
         <div
@@ -1090,13 +1098,15 @@ function TimelineRenderer({
             canStartTimer && "cursor-pointer"
           )}
           title={canStartTimer ? "Hacer clic para iniciar tracker de nuevo ⏱️" : undefined}
+          aria-label={isPulseRecord ? `${t.text}: ${t.pulseLogValue}` : undefined}
         >
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-xs font-mono font-bold text-text-dim shrink-0">{t.hora}</span>
             <span className="text-[9px] uppercase font-mono tracking-widest text-[#73c2b8] border border-[#73c2b8]/30 px-2 py-0.5 rounded-full leading-none flex items-center gap-1 shrink-0 bg-transparent">
-              <Clock className="w-2.5 h-2.5 text-[#73c2b8]" /> log
+              {isPulseRecord ? <Activity className="w-2.5 h-2.5 text-[#73c2b8]" /> : <Clock className="w-2.5 h-2.5 text-[#73c2b8]" />}
+              {isPulseRecord ? 'Pulso' : 'log'}
             </span>
-            <span className={cn("text-xs font-light text-text-main line-through opacity-65 truncate", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
+            <span className={cn("text-xs font-light text-text-main truncate", !isPulseRecord && "line-through opacity-65", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
               {t.text}
             </span>
             {t.category && (
@@ -1104,7 +1114,11 @@ function TimelineRenderer({
             )}
           </div>
 
-          {t.type !== 'Pulso' && (
+          {isPulseRecord ? (
+            <div className="shrink-0 font-mono text-xs font-medium text-[#73c2b8]">
+              {t.pulseLogValue}
+            </div>
+          ) : (
             <div className="flex items-center gap-4 text-xs font-mono font-bold text-[#73c2b8] shrink-0">
               +{t.duration.toFixed(2)}h
             </div>
@@ -1131,12 +1145,6 @@ function TimelineRenderer({
       const areaConfig = config?.areas?.[displayCategory || ''];
       const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
 
-      // Planned vs Executed comparison
-      const todayExecRecords = history.filter(h => h.taskId === t.id && isSameDay(h.date, new Date().toISOString()));
-      const totalExecutedHours = todayExecRecords.reduce((acc, h) => acc + (h.duration || 0), 0);
-      const plannedHours = t.duracion || 0;
-      const hasComparison = plannedHours > 0 || totalExecutedHours > 0;
-
       const validColors = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
       const brumaClass = validColors.includes(activeSeparatorColor || '') 
         ? `bg-gradient-to-r from-${activeSeparatorColor}-500/5 to-transparent` 
@@ -1160,29 +1168,10 @@ function TimelineRenderer({
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
                 onNavigate={onNavigate}
+                context="today"
               />
             </div>
           </div>
-
-          {hasComparison && (
-            <div className="mt-1 ml-8 pb-3 flex items-center gap-3 text-[11px] text-[#5d5d5d] font-mono">
-              <span className="opacity-80">⏱️ AUDITORÍA:</span>
-              <span className="font-bold text-text-main">{totalExecutedHours.toFixed(2)}h real</span>
-              <span className="opacity-60">/ {plannedHours}h plan</span>
-              <span className={cn(
-                "px-2 py-0.5 rounded-full border text-[9px] font-sans tracking-wide",
-                totalExecutedHours === 0 ? "border-border-line text-text-dim/60 bg-transparent" :
-                  Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "border-[#73c2b8] text-[#73c2b8] bg-[#73c2b8]/10" :
-                    totalExecutedHours > plannedHours ? "border-[#e69138]/60 text-[#b45f06] bg-[#e69138]/5" :
-                      "border-[#a2b29f]/60 text-text-dim"
-              )}>
-                {totalExecutedHours === 0 ? "Sin iniciar" :
-                  Math.abs(totalExecutedHours - plannedHours) < 0.05 ? "¡Clavado!" :
-                    totalExecutedHours > plannedHours ? `Exceso +${(totalExecutedHours - plannedHours).toFixed(2)}h` :
-                      `Resta -${(plannedHours - totalExecutedHours).toFixed(2)}h`}
-              </span>
-            </div>
-          )}
         </div>
       );
 

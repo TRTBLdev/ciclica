@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
-import { getPulseOccurrenceCount, getPulseState, getRecentDates, hasPulseSafeDayConfirmation, getTaskTrackingSummary } from './trackingProgress';
+import { getPulseLogValue, getPulseOccurrenceCount, getPulseState, getRecentDates, hasPulseSafeDayConfirmation, getTaskTrackingSummary } from './trackingProgress';
 
 const task = (overrides: Partial<AppTask>): AppTask => ({
   id: 'task_1',
@@ -55,6 +55,13 @@ describe('tracking progress', () => {
 
     expect(getPulseOccurrenceCount(history, 'pulse_1', '2026-07-19')).toBe(1);
     expect(hasPulseSafeDayConfirmation(history, 'pulse_1', '2026-07-19')).toBe(true);
+  });
+
+  it('describes pulse occurrences and safe days as distinct timeline events', () => {
+    const pulse = task({ id: 'pulse_1', type: 'Pulso', unitLabel: 'vasos' });
+    const occurrence: HistoryRecord = { id: 'one', userId: 'local_user', taskId: pulse.id, date: '2026-07-19T10:00:00.000Z', createdAt: '2026-07-19T10:00:00.000Z' };
+    expect(getPulseLogValue(pulse, occurrence)).toBe('+1 vasos');
+    expect(getPulseLogValue(pulse, { ...occurrence, pulseOutcome: 'safe-day' })).toBe('Día seguro');
   });
 
   it('reports annual habit compliance and the latest pending occurrence', () => {

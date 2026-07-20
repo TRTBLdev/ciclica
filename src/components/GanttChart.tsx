@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { AppTask, Config } from '../types';
+import { AppTask, Config, HistoryRecord } from '../types';
 import { cn } from '../lib/utils';
 import { Calendar, ChevronDown, ChevronRight } from 'lucide-react';
+import { getAppearanceDate, getDeadlineDate, getProjectDateSummary, getTaskDateSummary } from '../domain/appearance';
 
 interface GanttChartProps {
   config: Config | null;
   tasks: AppTask[];
+  history?: HistoryRecord[];
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   scale: 'phase' | 'cycle' | 'quarter' | 'year';
   periodStart: string;
@@ -14,7 +16,7 @@ interface GanttChartProps {
 
 export type GanttScale = 'ciclo' | 'cuarto' | 'año';
 
-export default function GanttChart({ config, tasks, onUpdateTask, scale, periodStart, periodEnd }: GanttChartProps) {
+export default function GanttChart({ config, tasks, history = [], onUpdateTask, scale, periodStart, periodEnd }: GanttChartProps) {
   const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgLines, setSvgLines] = useState<{ d: string; id: string }[]>([]);
@@ -120,8 +122,12 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
 
   // Map dates to percentage widths and positions
   const getTaskDates = (t: AppTask) => {
-    let end = t.fechaPlanificada ? new Date(t.fechaPlanificada) : new Date();
-    let start = t.fechaInicio ? new Date(t.fechaInicio) : new Date(end.getTime() - 5 * 24 * 60 * 60 * 1000); // 5 days fallback
+    const taskEndDate = getDeadlineDate(t) || getAppearanceDate(t);
+    let end = taskEndDate ? new Date(`${taskEndDate.slice(0, 10)}T12:00:00`) : new Date();
+    const derivedStart = t.type === 'Proyecto'
+      ? getProjectDateSummary(t, tasks, history).startDate
+      : getTaskDateSummary(t, history).startDate;
+    let start = derivedStart ? new Date(`${derivedStart}T12:00:00`) : new Date(end.getTime() - 5 * 24 * 60 * 60 * 1000);
 
     if (start.getTime() > end.getTime()) {
       start = new Date(end.getTime() - 5 * 24 * 60 * 60 * 1000);
@@ -136,10 +142,12 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
         let hasSubDates = false;
 
         sub.forEach(st => {
-          if (st.fechaPlanificada) {
+          const childEndDate = getDeadlineDate(st) || getAppearanceDate(st);
+          if (childEndDate) {
             hasSubDates = true;
-            const stEnd = new Date(st.fechaPlanificada);
-            const stStart = st.fechaInicio ? new Date(st.fechaInicio) : new Date(stEnd.getTime() - 5 * 24 * 60 * 60 * 1000);
+            const stEnd = new Date(`${childEndDate.slice(0, 10)}T12:00:00`);
+            const childStartDate = getTaskDateSummary(st, history).startDate;
+            const stStart = childStartDate ? new Date(`${childStartDate}T12:00:00`) : new Date(stEnd.getTime() - 5 * 24 * 60 * 60 * 1000);
             
             if (stStart.getTime() < minStart.getTime()) {
               minStart = stStart;
@@ -423,7 +431,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
                           'bg-slate-500/20 border-slate-500/50'
                         )}
                         style={{ left: parentPos.left, width: parentPos.width }}
-                        title={`${parentItem.text} (Planificado a ${parentItem.fechaPlanificada?.substring(0, 10)})`}
+                        title={`${parentItem.text} (Límite ${getDeadlineDate(parentItem) || 'sin fecha'})`}
                       />
                     </div>
 
@@ -444,7 +452,7 @@ export default function GanttChart({ config, tasks, onUpdateTask, scale, periodS
                               'bg-slate-500/10 border-slate-500/30'
                             )}
                             style={{ left: taskPos.left, width: taskPos.width }}
-                            title={`${task.text} (Límite: ${task.fechaPlanificada?.substring(0, 10)})`}
+                            title={`${task.text} (${getDeadlineDate(task) ? `Límite: ${getDeadlineDate(task)}` : `Aparición: ${getAppearanceDate(task) || 'sin fecha'}`})`}
                           />
                         </div>
                       );

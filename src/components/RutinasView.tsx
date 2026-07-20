@@ -7,11 +7,13 @@ import ViewHeader from './ui/ViewHeader';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import { RotateCw, Plus, ChevronDown, ChevronUp, ChevronRight, Edit2, Trash2, Save, Repeat, Activity, Sliders, X, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react';
-import { cn, isSameDay, isFutureDate } from '../lib/utils';
+import { cn, isSameDay } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { getRoutineAppearanceTarget, getRoutineCycleProgress, isRoutineConfigured } from '../domain/recurrenceProgress';
+import { isRoutineConfigured } from '../domain/recurrenceProgress';
+import { getAppearanceDate, getItemTemporalIndicators, getRoutineCycleProgressFromHistory, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
+import TemporalIndicator from './ui/TemporalIndicator';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -91,7 +93,7 @@ export default function RutinasView({
   const [menuRoutineUpwards, setMenuRoutineUpwards] = useState(false);
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
-    const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
+    const isCompletedVisual = (t: AppTask) => t.completed;
 
     const pending = taskList.filter(t => !isCompletedVisual(t));
     const completed = taskList.filter(t => isCompletedVisual(t));
@@ -108,8 +110,10 @@ export default function RutinasView({
       sortedPending.sort((a, b) => a.text.localeCompare(b.text));
     } else if (criterion === 'date') {
       sortedPending.sort((a, b) => {
-        const aTime = a.fechaPlanificada ? new Date(a.fechaPlanificada).getTime() : new Date(a.createdAt).getTime();
-        const bTime = b.fechaPlanificada ? new Date(b.fechaPlanificada).getTime() : new Date(b.createdAt).getTime();
+        const aDate = getAppearanceDate(a);
+        const bDate = getAppearanceDate(b);
+        const aTime = aDate ? new Date(`${aDate}T00:00:00`).getTime() : new Date(a.createdAt).getTime();
+        const bTime = bDate ? new Date(`${bDate}T00:00:00`).getTime() : new Date(b.createdAt).getTime();
         return aTime - bTime;
       });
     }
@@ -318,7 +322,11 @@ export default function RutinasView({
       type: 'Hábito',
       completed: false,
       createdAt: new Date().toISOString(),
-      fechaPlanificada: new Date().toISOString(),
+      appearanceMode: 'interval',
+      fechaAparicion: new Date().toISOString().slice(0, 10),
+      recurrenceAnchorDate: new Date().toISOString().slice(0, 10),
+      appearanceFrequency: habitFreq,
+      appearanceFrequencyUnit: habitFreqUnit,
       frecuencia: habitFreq,
       frecuenciaUnidad: habitFreqUnit,
       category: habitArea || undefined,
@@ -544,10 +552,19 @@ export default function RutinasView({
 
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
                 const subtasks = sortTasks(rawSubtasks, sortBy);
-                const routineDuration = subtasks.filter(t => !isFutureDate(t.fechaPlanificada)).reduce((acc, t) => acc + (t.duracion || 0), 0);
                 const configured = isRoutineConfigured(routine);
-                const routineProgress = configured ? getRoutineCycleProgress(routine, subtasks, progressSnapshots) : null;
-                const appearanceTarget = configured ? getRoutineAppearanceTarget(routine) : 0;
+                const routineProgress = configured ? getRoutineCycleProgressFromHistory(routine, tasks, history || []) : null;
+                const opportunityCount = configured ? getRoutineOpportunityDates(routine).length : 0;
+                const cycleClosed = configured ? isRoutineCycleClosed(routine, progressSnapshots) : false;
+                const cycleFrequency = routine.routineCycleFrequency || 1;
+                const cycleUnit = cycleFrequency === 1
+                  ? routine.routineCycleUnit === 'días' ? 'día' : routine.routineCycleUnit === 'semanas' ? 'semana' : 'mes'
+                  : routine.routineCycleUnit;
+                const routineTemporalIndicators = getItemTemporalIndicators(routine, tasks, history || []);
+                const routineMetadata = limitCardMetadata<React.ReactNode>([
+                  ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
+                  <span>{routineProgress || 0}% · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}</span>,
+                ]);
 
                 if (editingRoutineId === routine.id) {
                   return (
@@ -582,7 +599,7 @@ export default function RutinasView({
                       {/* Middle Content */}
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex gap-2 items-center flex-wrap mb-1">
-                          <h3 className="text-subtitle font-normal leading-tight group-hover:text-accent transition-colors truncate">
+                          <h3 className="text-subtitle font-normal leading-tight group-hover:text-accent transition-colors overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                             {routine.text}
                           </h3>
                           <CategoryBadge area={routine.category} subCategory={routine.subCategory} config={config} />
@@ -591,28 +608,18 @@ export default function RutinasView({
                               Ciclo pendiente de configurar
                             </button>
                           )}
-                          {routineProgress === 100 && (
-                            <span className="px-2 py-0.5 rounded-full border border-emerald-600/30 text-[9px] font-mono uppercase tracking-wider text-emerald-600">Ciclo completo</span>
+                          {cycleClosed && (
+                            <span className="px-2 py-0.5 rounded-full border border-emerald-600/30 text-[9px] font-mono uppercase tracking-wider text-emerald-600">Ciclo cerrado</span>
                           )}
                         </div>
 
-                        <div className="flex gap-3 text-[10px] font-mono text-text-dim/80 mt-1.5 flex-wrap items-center lowercase tracking-wider mb-2">
-                          <span>{subtasks.length} hábitos</span>
-                          {routineDuration > 0 && <span className="text-text-dim font-mono">⏱ {routineDuration}h</span>}
-                          {routine.fechaPlanificada && (
-                            <span className="text-text-dim font-mono">
-                              📅 {routine.fechaPlanificada.substring(0, 10)}
-                            </span>
-                          )}
-                          {routine.hora && <span className="text-text-dim font-mono">🕒 {routine.hora}</span>}
-                          {routine.frecuencia && (
-                            <span className="text-text-dim font-mono">
-                              🔄 cada {routine.frecuencia} {routine.frecuenciaUnidad || 'días'}
-                            </span>
-                          )}
-                          {configured && (
-                            <span className="text-text-dim font-mono">ciclo {routine.routineCycleFrequency} {routine.routineCycleUnit}</span>
-                          )}
+                        <div className="mt-2 flex min-w-0 items-center gap-2 overflow-hidden text-[10px] font-mono text-text-dim">
+                          {routineMetadata.map((item, index) => (
+                            <React.Fragment key={index}>
+                              {index > 0 && <span className="text-text-dim/40">·</span>}
+                              {item}
+                            </React.Fragment>
+                          ))}
                         </div>
                       </div>
 
@@ -620,7 +627,9 @@ export default function RutinasView({
                       <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
                         {/* Chevron */}
                         <button
-                          title={isExpanded ? "Ocultar Hábitos" : "Ver Hábitos"}
+                          title={isExpanded ? "Contraer hábitos" : "Expandir hábitos"}
+                          aria-label={isExpanded ? "Contraer hábitos" : "Expandir hábitos"}
+                          aria-expanded={isExpanded}
                           onClick={() => toggleExpand(routine.id)}
                           className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
                         >
@@ -724,11 +733,16 @@ export default function RutinasView({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[9px] font-mono text-text-dim mb-1">
-                      <span>{configured ? `Progreso del ciclo ${routineProgress || 0}%` : 'Configura el ciclo para activar Hoy'}</span>
-                      {configured && <span>Meta de esta aparición {appearanceTarget}%</span>}
-                    </div>
-                    <div className="w-full bg-[var(--color-border-line)]/30 h-1 mb-1 overflow-hidden rounded-full">
+                    {configured && routineProgress === 100 && !cycleClosed && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleTask(routine)}
+                        className="self-start mt-2 px-3 py-1.5 rounded-full border border-emerald-600/40 text-[10px] font-mono uppercase tracking-wider text-emerald-700 hover:bg-emerald-500/10 cursor-pointer bg-transparent"
+                      >
+                        Completar rutina
+                      </button>
+                    )}
+                    <div className="mt-2 h-0.5 w-full overflow-hidden bg-[var(--color-border-line)]/30">
                       <div
                         className="h-full bg-[var(--color-primary)] transition-all duration-500"
                         style={{ width: `${routineProgress || 0}%` }}
@@ -737,6 +751,11 @@ export default function RutinasView({
 
                     {isExpanded && (
                       <div className="relative pl-4 flex flex-col gap-2 mt-4 pt-4 border-t border-border-line/30 animate-in fade-in duration-200">
+                        {routineTemporalIndicators.length > 0 && (
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
+                            {routineTemporalIndicators.map(indicator => <span key={indicator.kind}>{indicator.title}</span>)}
+                          </div>
+                        )}
                         <div className="flex flex-col gap-1 mt-1 mb-2 z-10 w-full pr-2">
                           <form
                             onSubmit={(e: any) => {
@@ -752,8 +771,7 @@ export default function RutinasView({
                                 subCategory: routine.subCategory,
                                 completed: false,
                                 createdAt: new Date().toISOString(),
-                                fechaPlanificada: new Date().toISOString(),
-                                frecuencia: 1
+                                objetivoPorCiclo: 1
                               });
                               e.target.reset();
                             }}
@@ -786,6 +804,7 @@ export default function RutinasView({
                             showMoveArrows={sortBy === 'manual'}
                             activeTimer={activeTimer}
                             onStartTimer={onStartTimer}
+                            context="routine"
                           />
                         ))}
                       </div>
@@ -841,6 +860,7 @@ export default function RutinasView({
                     showMoveArrows={sortBy === 'manual'}
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
+                    context="routine"
                   />
                 ))}
               </div>
@@ -881,6 +901,7 @@ export default function RutinasView({
                   const unit = t.unitLabel || 'veces';
                   const progress = Math.min((count / target) * 100, 100);
                   const isDone = count >= target;
+                  const unstartedIndicator = getItemTemporalIndicators(t, tasks, history || []).find(indicator => indicator.kind === 'unstarted');
 
                   if (editingPulsoId === t.id) {
                     return (
@@ -911,6 +932,7 @@ export default function RutinasView({
                               {t.polaridad === 'Abandonar' ? '📉' : '📈'}
                             </span>
                           )}
+                          {unstartedIndicator && <TemporalIndicator indicator={unstartedIndicator} />}
                         </div>
 
                         {/* Progress bar */}

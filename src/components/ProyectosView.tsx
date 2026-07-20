@@ -4,15 +4,15 @@ import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
-import GanttChart, { GanttScale } from './GanttChart';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import CategoryBadge from './ui/CategoryBadge';
-import DecayIndicator from './ui/DecayIndicator';
-import { getDecayIndicator } from '../lib/decayUtils';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses, isFutureDate } from '../lib/utils';
+import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses } from '../lib/utils';
+import { formatRelativeCalendarDate, getAppearanceDate, getDeadlineDate, getItemTemporalIndicators, getProjectDateSummary } from '../domain/appearance';
+import TemporalIndicator from './ui/TemporalIndicator';
+import { formatDateOnly } from '../domain/recurrenceProgress';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -60,13 +60,11 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [menuProjUpwards, setMenuProjUpwards] = useState(false);
 
   // Collapsible states
-  const [isGanttOpen, setIsGanttOpen] = useState(false);
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isTasksOpen, setIsTasksOpen] = useState(true);
-  const [ganttScaleView, setGanttScaleView] = useState<GanttScale>('ciclo');
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
-    const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
+    const isCompletedVisual = (t: AppTask) => t.completed;
 
     const pending = taskList.filter(t => !isCompletedVisual(t));
     const completed = taskList.filter(t => isCompletedVisual(t));
@@ -83,8 +81,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       sortedPending.sort((a, b) => a.text.localeCompare(b.text));
     } else if (criterion === 'date') {
       sortedPending.sort((a, b) => {
-        const aTime = a.fechaPlanificada ? new Date(a.fechaPlanificada).getTime() : new Date(a.createdAt).getTime();
-        const bTime = b.fechaPlanificada ? new Date(b.fechaPlanificada).getTime() : new Date(b.createdAt).getTime();
+        const aDate = getDeadlineDate(a) || getAppearanceDate(a);
+        const bDate = getDeadlineDate(b) || getAppearanceDate(b);
+        const aTime = aDate ? new Date(`${aDate}T00:00:00`).getTime() : new Date(a.createdAt).getTime();
+        const bTime = bDate ? new Date(`${bDate}T00:00:00`).getTime() : new Date(b.createdAt).getTime();
         return aTime - bTime;
       });
     } else if (criterion === 'progress') {
@@ -111,30 +111,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
 
 
-
-  const filteredTasksForGantt = useMemo(() => {
-    let result = tasks;
-    if (filterArea !== 'Todas') {
-      const matchingProjIds = tasks.filter(t => t.type === 'Proyecto' && t.category === filterArea).map(t => t.id);
-      result = result.filter(t => 
-        (t.type === 'Proyecto' && t.category === filterArea) || 
-        (t.type === 'Tarea' && t.parentId && matchingProjIds.includes(t.parentId))
-      );
-    }
-    if (filterAllocation !== 'Todas') {
-      result = result.filter(t => {
-        if (t.type === 'Proyecto') {
-          return t.allocationType === filterAllocation;
-        }
-        if (t.type === 'Tarea' && t.parentId) {
-          const parent = tasks.find(p => p.id === t.parentId);
-          return parent && parent.allocationType === filterAllocation;
-        }
-        return false;
-      });
-    }
-    return result;
-  }, [tasks, filterArea, filterAllocation]);
 
   React.useEffect(() => {
     if (focusTaskId) {
@@ -299,6 +275,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       type: 'Tarea',
       parentId: proj.id,
       completed: false,
+      appearanceMode: 'persistent',
+      fechaAparicion: formatDateOnly(new Date()),
       createdAt: new Date().toISOString()
     });
 
@@ -309,8 +287,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const renderProjBlock = (projList: AppTask[]) => projList.map(proj => {
     const rawSubtasks = tasks.filter(t => t.parentId === proj.id);
     const subtasks = sortTasks(rawSubtasks, sortBy);
-    const progress = subtasks.length 
-      ? Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100) 
+    const finiteSubtasks = subtasks.filter(subtask => subtask.type !== 'Tarea' || !['interval', 'weekdays'].includes(subtask.appearanceMode || ''));
+    const completedFiniteSubtasks = finiteSubtasks.filter(subtask => subtask.completed).length;
+    const progress = finiteSubtasks.length
+      ? Math.round((finiteSubtasks.filter(s => s.completed).length / finiteSubtasks.length) * 100)
       : (proj.completed ? 100 : 0);
     
     const projDuration = subtasks.filter(s => !s.completed).reduce((acc, s) => acc + (s.duracion || 0), 0);
@@ -339,7 +319,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     const idx = projList.findIndex(p => p.id === proj.id);
     const isFirstItem = idx <= 0;
     const isLastItem = idx === -1 || idx === projList.length - 1;
-    const decay = getDecayIndicator(proj, tasks, history || []);
+    const dateSummary = getProjectDateSummary(proj, tasks, history || []);
+    const projectTemporalIndicators = getItemTemporalIndicators(proj, tasks, history || []);
+    const projectStart = projectTemporalIndicators.find(indicator => indicator.kind === 'unstarted' || indicator.kind === 'start');
+    const projectDeadline = projectTemporalIndicators.find(indicator => indicator.kind === 'deadline');
 
     return (
       <div key={proj.id} id={`task-item-${proj.id}`} className={cn("relative p-4 transition-all group border-b last:border-b-0 border-border-line/40", proj.completed && "grayscale")}>
@@ -359,21 +342,22 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           {/* Middle content: text, badges, progress bar */}
           <div className="flex-1 min-w-0 text-left">
             <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h3 className={cn("text-base font-medium text-text-main", proj.completed ? "line-through opacity-60 font-light" : "")}>
+              <h3 className={cn("text-base font-medium text-text-main overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]", proj.completed ? "line-through opacity-60 font-light" : "")}>
                 {proj.text}
               </h3>
               <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} />
-              {decay && <DecayIndicator decay={decay} />}
               {proj.allocationType && <AllocationBadge allocation={proj.allocationType} />}
             </div>
             
-            <p className="text-[10px] text-text-dim font-mono uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <span>{subtasks.length} Tareas</span>
-              {projDuration > 0 && <span className="font-bold">• ⏱ {projDuration.toFixed(1)}h</span>}
-            </p>
+            <div className="mb-2 flex min-w-0 items-center gap-2 overflow-hidden text-[10px] font-mono text-text-dim">
+              {projectStart && <TemporalIndicator indicator={projectStart} />}
+              <span className="text-text-dim/40">·</span>
+              <span className="shrink-0">{completedFiniteSubtasks}/{finiteSubtasks.length} · {progress}%</span>
+              {projectDeadline && <span className="text-text-dim/40">·</span>}
+              {projectDeadline && <TemporalIndicator indicator={projectDeadline} />}
+            </div>
 
             <div className="flex items-center gap-3 w-full max-w-xs">
-              <span className="text-[10px] font-mono font-bold text-text-dim leading-none">{progress}%</span>
               <div className="flex-1 h-[2px] bg-[var(--color-border-line)]/50 rounded-full overflow-hidden">
                 <div className={cn("h-full transition-all", getAreaProgressClasses(pColor))} style={{ width: `${progress}%` }}></div>
               </div>
@@ -384,7 +368,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
           <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
             {/* Chevron */}
             <button 
-              title={isExpanded ? "Ocultar Tareas" : "Ver Tareas"} 
+              title={isExpanded ? "Contraer tareas" : "Expandir tareas"}
+              aria-label={isExpanded ? "Contraer tareas" : "Expandir tareas"}
+              aria-expanded={isExpanded}
               onClick={() => toggleProject(proj.id)} 
               className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
             >
@@ -490,6 +476,11 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
         {isExpanded && (
           <div className="relative pl-2 flex flex-col gap-2 mt-4 animate-in fade-in duration-200">
+            <div className="ml-8 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
+              {(dateSummary.startDate || !proj.completed) && <span>Inicio: {dateSummary.startDate ? formatRelativeCalendarDate(dateSummary.startDate) : 'Sin iniciar'}</span>}
+              {dateSummary.lastActivityDate && <span>Última actividad: {formatRelativeCalendarDate(dateSummary.lastActivityDate)}</span>}
+              {projDuration > 0 && <span>Estimación abierta: {projDuration.toFixed(1)}h</span>}
+            </div>
             {addingTaskId === proj.id ? (
               <form onSubmit={e => handleInlineAddTask(e, proj)} className="flex items-center gap-4 mt-1 mb-2 ml-8 text-left w-full pr-2">
                 <input 
@@ -536,6 +527,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
                 showMoveArrows={sortBy === 'manual'}
+                context="project"
               />
             ))}
           </div>
@@ -657,7 +649,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               subCategory: newTaskForm.subCategory || undefined,
               type: 'Tarea',
               completed: false,
-              fechaPlanificada: new Date(newTaskForm.fechaPlanificada).toISOString(),
+              appearanceMode: 'persistent',
+              fechaAparicion: newTaskForm.fechaPlanificada,
               duracion: Number(newTaskForm.duracion || 0),
               createdAt: new Date().toISOString()
             });
@@ -753,44 +746,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </div>
       )}
 
-      {/* Gantt Chart Section */}
-      <div className="mb-6">
-        <div 
-          onClick={() => setIsGanttOpen(!isGanttOpen)}
-          className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
-        >
-          <div className="flex items-center gap-2">
-            {isGanttOpen ? (
-              <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
-            )}
-            <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
-              Línea de Tiempo (Gantt)
-            </span>
-          </div>
-        </div>
-
-        {isGanttOpen && (
-          <div className="mt-4 animate-in fade-in duration-200">
-            <GanttChart 
-              config={config}
-              tasks={tasks}
-              onUpdateTask={onUpdateTask}
-              scale={ganttScaleView === 'ciclo' ? 'cycle' : ganttScaleView === 'cuarto' ? 'quarter' : 'year'}
-              periodStart={new Date().toISOString().substring(0, 10)}
-              periodEnd={(() => {
-                const end = new Date();
-                if (ganttScaleView === 'ciclo') end.setDate(end.getDate() + 28);
-                else if (ganttScaleView === 'cuarto') end.setDate(end.getDate() + 90);
-                else end.setDate(end.getDate() + 365);
-                return end.toISOString().substring(0, 10);
-              })()}
-            />
-          </div>
-        )}
-      </div>
-
       {/* Activos list */}
       <div className="mb-6">
         <div 
@@ -863,6 +818,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     showMoveArrows={sortBy === 'manual'}
+                    context="project"
                   />
                 ))}
               </div>
@@ -916,6 +872,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
                       showMoveArrows={sortBy === 'manual'}
+                      context="project"
                     />
                   ))}
                 </div>

@@ -35,6 +35,11 @@ export function isPulseSafeDayConfirmation(record: HistoryRecord): boolean {
   return record.pulseOutcome === 'safe-day';
 }
 
+export function getPulseLogValue(task: AppTask, record: HistoryRecord): string {
+  if (isPulseSafeDayConfirmation(record)) return 'Día seguro';
+  return `+1 ${task.unitLabel || 'vez'}`;
+}
+
 export function getPulseOccurrenceCount(history: HistoryRecord[], taskId: string, date: string | Date): number {
   const key = formatDateOnly(startOfDay(date));
   return history.filter(record => record.taskId === taskId

@@ -4,6 +4,8 @@ import { AppTask, Config, HistoryRecord } from '../types';
 import { timeToMins, extractSafeTime, isSameDay } from '../lib/utils';
 import { cn } from '../lib/utils';
 import { isPulseSafeDayConfirmation } from '../domain/trackingProgress';
+import { getAppearanceFrequency, getAppearanceUnit, getItemTemporalIndicators, getNextAppearanceDate } from '../domain/appearance';
+import TemporalIndicator from './ui/TemporalIndicator';
 
 interface Props {
   config: Config | null;
@@ -54,8 +56,8 @@ export default function CalendarioView({ config, tasks, history }: Props) {
     return f;
   };
 
-  const dailyHabitsRaw = allHabits.filter(h => getFrecuenciaInDays(h.frecuencia, h.frecuenciaUnidad) <= 7 || h.type === 'Pulso');
-  const maintHabitsRaw = allHabits.filter(h => getFrecuenciaInDays(h.frecuencia, h.frecuenciaUnidad) > 7 && h.type !== 'Pulso');
+  const dailyHabitsRaw = allHabits.filter(h => getFrecuenciaInDays(getAppearanceFrequency(h), getAppearanceUnit(h)) <= 7 || h.type === 'Pulso');
+  const maintHabitsRaw = allHabits.filter(h => getFrecuenciaInDays(getAppearanceFrequency(h), getAppearanceUnit(h)) > 7 && h.type !== 'Pulso');
   
   const topLevelDaily = dailyHabitsRaw.filter(h => h.type !== 'Hábito' || !dailyHabitsRaw.some(r => r.type === 'Rutina' && r.id === h.parentId));
   const topLevelHabits = topLevelDaily.filter(h => h.type !== 'Pulso');
@@ -255,6 +257,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
               </thead>
               <tbody>
                 {topLevelPulses.map(item => {
+                  const unstartedIndicator = getItemTemporalIndicators(item, tasks, history).find(indicator => indicator.kind === 'unstarted');
                   return (
                     <tr key={item.id} className="hover:bg-base-dim/30 transition-colors">
                       <td className="py-2.5 px-3 border-b border-border-line/20 text-text-main font-normal truncate max-w-[12rem] sticky left-0 bg-base z-10">
@@ -263,6 +266,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                           <span className="text-xs text-primary font-mono min-w-8">{extractSafeTime(item.hora) || '-'}</span>
                           <Activity className="inline w-3.5 h-3.5 text-primary/80 mr-1" />
                           <span className="truncate font-light">{item.text}</span>
+                          {unstartedIndicator && <TemporalIndicator indicator={unstartedIndicator} />}
                         </div>
                       </td>
                       {days.map((d, i) => {
@@ -343,7 +347,8 @@ export default function CalendarioView({ config, tasks, history }: Props) {
 
                   const today = new Date();
                   today.setHours(0,0,0,0);
-                  const planDate = habit.fechaPlanificada ? new Date(habit.fechaPlanificada) : new Date();
+                  const nextAppearance = getNextAppearanceDate(habit, today);
+                  const planDate = nextAppearance ? new Date(`${nextAppearance}T00:00:00`) : new Date();
                   planDate.setHours(0,0,0,0);
                   
                   const diffDays = Math.ceil((planDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -373,10 +378,10 @@ export default function CalendarioView({ config, tasks, history }: Props) {
                             <span className="text-xs text-primary font-mono min-w-8">{extractSafeTime(habit.hora) || '-'}</span>
                             <span className="truncate font-light text-text-main" title={habit.text}>{habit.text}</span>
                           </div>
-                          <p className="text-[10px] text-text-dim/70 font-mono mt-1 ml-6">Última: {lastDateStr} <span className="mx-1 text-[var(--color-border-line)]/50">•</span> Ciclo: {habit.frecuencia}d</p>
+                          <p className="text-[10px] text-text-dim/70 font-mono mt-1 ml-6">Última: {lastDateStr} <span className="mx-1 text-[var(--color-border-line)]/50">•</span> Aparición: cada {getAppearanceFrequency(habit)} {getAppearanceUnit(habit)}</p>
                         </td>
                         <td className="py-2 px-3 border-b border-border-line/20 text-center">
-                          <span className="inline-block text-[10px] font-mono px-2 py-0.5 border border-border-line text-text-main rounded-none" title={`Planificado: ${habit.fechaPlanificada ? habit.fechaPlanificada.substring(0, 10) : 'N/A'}`}>
+                          <span className="inline-block text-[10px] font-mono px-2 py-0.5 border border-border-line text-text-main rounded-none" title={`Próxima aparición: ${nextAppearance || 'N/A'}`}>
                             {hText}
                           </span>
                         </td>

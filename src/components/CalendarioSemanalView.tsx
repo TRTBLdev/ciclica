@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { AppTask, Config } from '../types';
 import { cn, timeToMins, minsToTime, getAreaColorClasses } from '../lib/utils';
+import { getAppearanceDate, isAppearanceScheduledOnDate } from '../domain/appearance';
 
 interface Props {
   config: Config | null;
@@ -66,19 +67,18 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina' || t.type === 'Pulso');
+    return tasks.filter(t => !t.completed && t.type !== 'Proyecto' && t.type !== 'Pulso' && !(t.type === 'Hábito' && t.parentId));
   }, [tasks]);
 
   const getScheduledTasksForDate = (date: Date) => {
     return filteredTasks.filter(t => {
-      if (!t.fechaPlanificada || !t.hora) return false;
-      const tDate = new Date(t.fechaPlanificada);
-      return isSameDay(tDate, date);
+      if (!t.hora) return false;
+      return isAppearanceScheduledOnDate(t, date);
     });
   };
 
   const unscheduledTasks = useMemo(() => {
-    return filteredTasks.filter(t => !t.hora || !t.fechaPlanificada);
+    return filteredTasks.filter(t => !t.hora || !getAppearanceDate(t));
   }, [filteredTasks]);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -120,7 +120,8 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
 
     onUpdateTask(draggedTaskId, { 
       hora: newTime,
-      fechaPlanificada: newIso.toISOString()
+      fechaAparicion: newIso.toISOString().slice(0, 10),
+      appearanceMode: tasks.find(task => task.id === draggedTaskId)?.appearanceMode || 'persistent',
     });
     setDraggedTaskId(null);
   };

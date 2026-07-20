@@ -53,6 +53,8 @@ export interface Separator {
 
 export type TaskType = 'Hábito' | 'Pulso' | 'Proyecto' | 'Tarea' | 'Rutina';
 export type RecurrenceUnit = 'días' | 'semanas' | 'meses';
+export type AppearanceMode = 'persistent' | 'interval' | 'weekdays' | 'quota' | 'once';
+export type QuotaPeriodUnit = 'semanas' | 'meses';
 
 export interface ChecklistItem {
   id: string;
@@ -70,11 +72,20 @@ export interface AppTask {
   view?: string;
   hora?: string;
   type: TaskType;
-  priority?: string; // @deprecated - Kept for compatibility with existing data, decay indicator is used instead
+  priority?: string; // @deprecated - Kept for compatibility with existing data; temporal indicators are derived from history.
   parentId?: string;
   dependencyId?: string;
+  /** @deprecated Legacy scheduling field. Migrated to fechaAparicion/fechaLimite. */
   fechaPlanificada?: string;
+  /** Calendar date (YYYY-MM-DD) on which this item starts/next appears in Hoy. */
+  fechaAparicion?: string;
+  /** Optional completion deadline (YYYY-MM-DD); it never controls placement in Hoy. */
+  fechaLimite?: string;
+  /** @deprecated Operational start is derived from the first history record. */
   fechaInicio?: string;
+  appearanceMode?: AppearanceMode;
+  appearanceFrequency?: number;
+  appearanceFrequencyUnit?: RecurrenceUnit;
   frecuencia?: number; // Ej. 3
   frecuenciaUnidad?: RecurrenceUnit;
   /** Stable date used to avoid calendar drift in recurring tasks. */
@@ -85,6 +96,11 @@ export interface AppTask {
   routineCycleAnchorDate?: string;
   /** ISO weekdays used by weekly routine appearances. */
   appearanceWeekdays?: number[];
+  /** Flexible target for a standalone habit inside quotaPeriodUnit. */
+  quotaTarget?: number;
+  quotaPeriodUnit?: QuotaPeriodUnit;
+  /** Direct execution target inherited from the parent routine progress cycle. */
+  objetivoPorCiclo?: number;
   duracion?: number; // Estimación en horas (Energía Ejecutiva)
   objetivo?: number;
   polaridad?: 'Reforzar' | 'Abandonar';
@@ -97,6 +113,8 @@ export interface AppTask {
   completionMode?: 'auto' | 'manual';
   notes?: string;
   checklist?: ChecklistItem[];
+  /** Routine-cycle key owning the current child-habit checklist state. */
+  checklistCycleStart?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -111,7 +129,13 @@ export interface HistoryRecord {
   startTime?: string;
   endTime?: string;
   isCompletion?: boolean;
+  /** Checklist completion captured when an occurrence was explicitly closed. */
+  completionPercent?: number;
   taskSnapshotText?: string;
+  /** Context for a child-habit completion inside a routine appearance/cycle. */
+  routineId?: string;
+  routineCycleStart?: string;
+  routineAppearanceDate?: string;
   /** Explicit confirmation that an abandoning pulse had no occurrences that day. */
   pulseOutcome?: 'safe-day';
 }

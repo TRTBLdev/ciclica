@@ -54,7 +54,7 @@ export default function FloatingTimer({
 
   // Filter tasks matching the search text
   const filteredTasks = useMemo(() => {
-    const activeTasks = tasks.filter(t => !t.completed);
+    const activeTasks = tasks.filter(t => !t.completed && t.type !== 'Pulso' && t.type !== 'Rutina');
     if (!search.trim()) return activeTasks.slice(0, 5); // show first 5 active tasks by default
     return activeTasks.filter(t => t.text.toLowerCase().includes(search.toLowerCase())).slice(0, 10);
   }, [tasks, search]);

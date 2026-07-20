@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Save, CheckCircle2, Circle, X, ChevronDown, Plus, Edit2, Search, ArrowLeft, Trash2, MoreVertical } from 'lucide-react';
 import { Reorder } from 'motion/react';
-import { AppTask, ChecklistItem, Config, TaskType } from '../types';
-import { cn, isFutureDate } from '../lib/utils';
+import { AppTask, ChecklistItem, Config, HistoryRecord, TaskType } from '../types';
+import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { getTypeIcon } from './TaskItem';
+import { canTrackTask } from '../domain/appearance';
+import LinkedText from './ui/LinkedText';
 
 interface OmnibarProps {
   activeTimer: {
@@ -17,6 +19,7 @@ interface OmnibarProps {
     isRunning: boolean;
   } | null;
   tasks: AppTask[];
+  history: HistoryRecord[];
   config: Config | null;
   onPause: () => void;
   onResume: () => void;
@@ -55,6 +58,7 @@ const GripIcon = () => (
 export default function Omnibar({
   activeTimer,
   tasks,
+  history,
   config,
   onPause,
   onResume,
@@ -130,24 +134,24 @@ export default function Omnibar({
 
   const filteredTasks = useMemo(() => {
     const activeTasks = tasks.filter(task => {
-      const isCompletedHabit = task.type === 'Hábito' && isFutureDate(task.fechaPlanificada);
-      return !task.completed && !isCompletedHabit;
+      return canTrackTask(task, tasks, history);
     });
     if (!search.trim()) {
       return [...activeTasks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
     }
     return activeTasks.filter(t => t.text.toLowerCase().includes(search.toLowerCase())).slice(0, 10);
-  }, [tasks, search]);
+  }, [history, tasks, search]);
 
   const contextParent = familyContext
     ? tasks.find(task => task.id === familyContext.parentId)
     : undefined;
   const contextChildren = contextParent && familyContext
-    ? tasks.filter(task => {
-        const isCompletedHabit = task.type === 'Hábito' && isFutureDate(task.fechaPlanificada);
+      ? tasks.filter(task => {
         return task.parentId === contextParent.id
           && task.type === familyContext.childType
-          && (task.id === activeTimer?.taskId || (!task.completed && !isCompletedHabit));
+          && task.type !== 'Pulso'
+          && task.type !== 'Rutina'
+          && (task.id === activeTimer?.taskId || canTrackTask(task, tasks, history));
       })
     : [];
 
@@ -164,7 +168,7 @@ export default function Omnibar({
       <div className="flex flex-col divide-y divide-border-line/50">
         {contextChildren.map(child => {
           const isActiveChild = child.id === activeTimer?.taskId;
-          const canTrackChild = child.type !== 'Rutina' && child.type !== 'Pulso';
+          const canTrackChild = canTrackTask(child, tasks, history);
 
           return (
             <div key={child.id} className={cn("flex items-center gap-2 py-2", isActiveChild && "text-accent")}>
@@ -173,7 +177,7 @@ export default function Omnibar({
                 <span className="truncate text-[11px] text-text-main">{child.text}</span>
                 {isActiveChild && <span className="text-[8px] font-mono uppercase tracking-wide text-accent shrink-0">en seguimiento</span>}
               </div>
-              {!isActiveChild && (
+              {!isActiveChild && canTrackChild && (
                 <button
                   onClick={() => onToggleTask(child)}
                   className="p-1 bg-transparent border-0 cursor-pointer text-text-dim hover:text-accent transition-colors"
@@ -485,7 +489,7 @@ export default function Omnibar({
                 )}
                 title="Haz clic para añadir o editar notas"
               >
-                {task.notes || 'Añadir notas o anotaciones rápidas para esta tarea...'}
+                {task.notes ? <LinkedText text={task.notes} /> : 'Añadir notas o anotaciones rápidas para esta tarea...'}
               </p>
             )}
           </div>
@@ -544,7 +548,7 @@ export default function Omnibar({
                               )}
                               title="Haz clic para editar"
                             >
-                              {item.text}
+                              <LinkedText text={item.text} />
                             </span>
                           )}
                         </div>
@@ -634,7 +638,7 @@ export default function Omnibar({
                          </div>
                       )}
                     </div>
-                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0 gap-1">
+                    <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity shrink-0 gap-0.5 md:gap-1">
                       {t.type !== 'Pulso' && t.type !== 'Rutina' && activeTimer?.taskId !== t.id && (
                         <button
                           disabled={Boolean(activeTimer)}

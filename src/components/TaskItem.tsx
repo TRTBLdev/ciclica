@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
-import { isFutureDate } from '../lib/utils';
 import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
-import DecayIndicator from './ui/DecayIndicator';
-import { getDecayIndicator } from '../lib/decayUtils';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
+import { formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isAppearanceScheduledOnDate, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { formatDateOnly } from '../domain/recurrenceProgress';
+import CompactDate from './ui/CompactDate';
+import TemporalIndicator, { temporalToneClassName } from './ui/TemporalIndicator';
+import LinkedText from './ui/LinkedText';
 
 
 const GripIcon = () => (
@@ -85,6 +87,7 @@ interface Props {
   onNavigateToLocation?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
   showMoveArrows?: boolean;
+  context?: 'today' | 'backlog' | 'routine' | 'project' | 'default';
 }
 
 export default function TaskItem({ 
@@ -103,7 +106,8 @@ export default function TaskItem({
   history,
   onNavigateToLocation,
   onNavigate,
-  showMoveArrows = false
+  showMoveArrows = false,
+  context = 'default'
 }: Props) {  const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [editHora, setEditHora] = useState('');
@@ -137,7 +141,11 @@ export default function TaskItem({
     const newChecklist = (task.checklist || []).map(item =>
       item.id === itemId ? { ...item, done: !item.done } : item
     );
-    onUpdate(task.id, { checklist: newChecklist });
+    const parentRoutine = task.parentId ? allTasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina') : undefined;
+    onUpdate(task.id, {
+      checklist: newChecklist,
+      checklistCycleStart: parentRoutine ? getRoutineCycleRangeForTask(parentRoutine).start : task.checklistCycleStart,
+    });
   };
 
   // Helper to find visual sibling items (same parent, same type)
@@ -145,8 +153,8 @@ export default function TaskItem({
     const parentId = task.parentId || '';
     const siblingsList = allTasks.filter(t => (t.parentId || '') === parentId && t.type === task.type);
 
-    const pending = siblingsList.filter(t => !(t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed));
-    const completed = siblingsList.filter(t => (t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed));
+    const pending = siblingsList.filter(t => !t.completed);
+    const completed = siblingsList.filter(t => t.completed);
 
     const baseline = [...pending].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const withOrders = baseline.map((t, idx) => ({
@@ -235,7 +243,7 @@ export default function TaskItem({
 
   const subtasks = allTasks.filter(t => t.parentId === task.id);
   const getSubtasksWithOrders = () => {
-    const isCompletedVisual = (t: AppTask) => t.type === 'Hábito' ? isFutureDate(t.fechaPlanificada) : t.completed;
+    const isCompletedVisual = (t: AppTask) => t.completed;
 
     const pending = subtasks.filter(t => !isCompletedVisual(t));
     const completed = subtasks.filter(t => isCompletedVisual(t));
@@ -278,13 +286,44 @@ export default function TaskItem({
   const areaConfig = config?.areas?.[displayCategory || ''];
   const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
   const isHabit = task.type === 'Hábito';
-  const isHabitCompleted = isHabit && isFutureDate(task.fechaPlanificada);
-  const isCompletedVisual = isHabit ? isHabitCompleted : task.completed;
+  const parentRoutine = parentTask?.type === 'Rutina' ? parentTask : undefined;
+  const todayKey = formatDateOnly(new Date());
+  const childCycleCount = parentRoutine ? getChildHabitCycleCount(parentRoutine, task, history || []) : 0;
+  const childCycleTarget = Math.max(1, task.objetivoPorCiclo || 1);
+  const childCompletedThisAppearance = parentRoutine ? wasChildHabitCompletedInAppearance(parentRoutine, task, history || [], todayKey) : false;
+  const childTargetReached = !!parentRoutine && childCycleCount >= childCycleTarget;
+  const parentRoutineAppearsToday = parentRoutine ? isAppearanceScheduledOnDate(parentRoutine, todayKey) : true;
+  const routineProgress = task.type === 'Rutina' ? getRoutineCycleProgressFromHistory(task, allTasks, history || []) : 0;
+  const canToggleRoutine = task.type === 'Rutina' && routineProgress === 100;
+  const isCompletedVisual = parentRoutine ? childCompletedThisAppearance : task.completed;
+  const isActionComplete = isCompletedVisual || childTargetReached;
+  const lastCompletionDate = (history || [])
+    .filter(record => task.type === 'Hábito' ? isVerifiedHabitCompletion(task, record) : record.taskId === task.id && record.isCompletion === true)
+    .map(record => record.date.slice(0, 10))
+    .sort()
+    .at(-1) || task.lastExecutedAt?.slice(0, 10);
+  const nextSearchDate = lastCompletionDate === todayKey
+    ? formatDateOnly(new Date(new Date().setDate(new Date().getDate() + 1)))
+    : todayKey;
+  const quotaReached = getAppearanceMode(task) === 'quota' && getStandaloneQuotaCount(task, history || []) >= Math.max(1, task.quotaTarget || 1);
+  const quotaRange = quotaReached ? getQuotaRange(task) : undefined;
+  const dayAfterQuota = quotaRange ? (() => {
+    const value = new Date(`${quotaRange.end}T12:00:00`);
+    value.setDate(value.getDate() + 1);
+    return formatDateOnly(value);
+  })() : undefined;
+  const nextAppearanceDate = !parentRoutine && !task.completed
+    ? (dayAfterQuota || getNextAppearanceDate(task, nextSearchDate))
+    : undefined;
   const checklistTotal = task.checklist?.length || 0;
   const completedChecklistItems = task.checklist?.filter(item => item.done).length || 0;
   const checklistProgress = checklistTotal > 0
     ? Math.round((completedChecklistItems / checklistTotal) * 100)
     : 0;
+  const taskDateSummary = getTaskDateSummary(task, history || []);
+  const trackedHoursToday = (history || [])
+    .filter(record => record.taskId === task.id && formatDateOnly(new Date(record.date)) === todayKey)
+    .reduce((sum, record) => sum + (record.duration || 0), 0);
   
   const getTrackedDuration = () => {
     if (!history) return 0;
@@ -332,6 +371,42 @@ export default function TaskItem({
     ? allTasks.filter(t => t.parentId === task.id).reduce((acc, t) => acc + (t.duracion || 0), 0)
     : (task.duracion || 0);
 
+  const childQuotaStatus = parentRoutine ? getChildHabitQuotaStatus(parentRoutine, task, history || []) : undefined;
+  const childQuotaMetadata = parentRoutine ? (
+    <span
+      className={cn(
+        'h-5 whitespace-nowrap font-mono text-[10px] leading-5',
+        childTargetReached ? 'text-emerald-700' : temporalToneClassName(childQuotaStatus!.tone),
+      )}
+      title={childQuotaStatus?.title}
+      aria-label={childQuotaStatus?.title}
+    >
+      {childCycleCount}/{childCycleTarget}{childTargetReached ? ' · Logrado' : ''}
+    </span>
+  ) : null;
+
+  const contextualMetadata: Array<React.ReactNode | null> = context === 'today' ? [
+    task.hora || null,
+    childQuotaMetadata,
+    (trackedHoursToday > 0 || plannedHours > 0) ? `${trackedHoursToday.toFixed(2)}h/${plannedHours.toFixed(1)}h` : null,
+  ] : context === 'backlog' ? [
+    nextAppearanceDate ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
+    task.dependencyId ? `Dep. #${task.dependencyId.slice(-4)}` : null,
+  ] : context === 'routine' ? [
+    childQuotaMetadata || `Ciclo ${routineProgress}%`,
+    checklistTotal > 0 ? `pasos ${completedChecklistItems}/${checklistTotal}` : null,
+    trackedHours > 0 ? `${trackedHours.toFixed(2)}h` : null,
+  ] : [
+    nextAppearanceDate ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
+    (trackedHours > 0 || plannedHours > 0) ? `${trackedHours.toFixed(2)}h/${plannedHours.toFixed(1)}h` : null,
+  ];
+  const itemTemporalIndicators = getItemTemporalIndicators(task, allTasks, history || []);
+  const temporalMetadata = itemTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />);
+  const compactMetadata = limitCardMetadata<React.ReactNode>([
+    ...temporalMetadata,
+    ...contextualMetadata,
+  ]);
+
   const getHabitCompletionPercentage = () => {
     if (task.type !== 'Hábito' || !history) return null;
     
@@ -362,8 +437,6 @@ export default function TaskItem({
     return Math.min(100, Math.round((checksInPeriod / finalExpected) * 100));
   };
 
-  const decay = getDecayIndicator(task, allTasks, history || []);
-
   return (
     <div 
       id={`task-item-${task.id}`}
@@ -377,16 +450,16 @@ export default function TaskItem({
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
         <button 
-          onClick={() => { if (!locked && task.type !== 'Rutina') onToggle(task); }}
-          disabled={locked || task.type === 'Rutina'}
-          onMouseEnter={() => { if (!locked && task.type !== 'Rutina') setIsCheckboxHovered(true); }}
+          onClick={() => { if (!locked && parentRoutineAppearsToday && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) onToggle(task); }}
+          disabled={locked || !parentRoutineAppearsToday || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine)}
+          onMouseEnter={() => { if (!locked && parentRoutineAppearsToday && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) setIsCheckboxHovered(true); }}
           onMouseLeave={() => setIsCheckboxHovered(false)}
           className={cn(
             "mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent transition-all duration-200 flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40",
-            locked || task.type === 'Rutina' ? "cursor-default opacity-70" : "cursor-pointer"
+            locked || !parentRoutineAppearsToday || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine) ? "cursor-default opacity-70" : "cursor-pointer"
           )}
         >
-          {isCompletedVisual ? (
+          {isActionComplete ? (
             (task.type === 'Rutina' || task.type === 'Hábito') ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
             ) : (
@@ -669,7 +742,7 @@ export default function TaskItem({
                 ) : (
                   editChecklist.map(item => (
                     <div key={item.id} className="flex items-center justify-between bg-base-dim/20 px-3 py-1.5 rounded-lg border border-border-line/40">
-                      <span className={cn("text-xs text-text-main", item.done && "line-through opacity-60")}>{item.text}</span>
+                      <span className={cn("text-xs text-text-main", item.done && "line-through opacity-60")}><LinkedText text={item.text} /></span>
                       <button
                         type="button"
                         onClick={() => setEditChecklist(editChecklist.filter(i => i.id !== item.id))}
@@ -737,16 +810,16 @@ export default function TaskItem({
             <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
               <p 
                 onClick={() => {
-                  if (task.type !== 'Rutina' && !locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
+                  if (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
                     onStartTimer(task.id);
                   }
                 }}
                 className={cn(
-                  "text-base flex-1 min-w-0 break-words flex items-center gap-2", 
+                  "text-base flex-1 min-w-0 break-words flex items-center gap-2 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
                   isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
-                  (task.type !== 'Rutina' && !locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
+                  (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
                 )}
-                title={(task.type !== 'Rutina' && !locked && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
+                title={(task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
                 <span>{task.text}</span>
               </p>
@@ -767,28 +840,19 @@ export default function TaskItem({
                   } : undefined}
                 />
               )}
-              {decay && <DecayIndicator decay={decay} className="h-5" />}
-              {task.hora && <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none">{task.hora}</span>}
-              {(task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks) ? (
-                (plannedHours > 0 || trackedHours > 0) && (
-                  <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Acumulado real vs planeado">
-                    {task.type === 'Rutina' ? `${trackedHours.toFixed(2)}h prom` : `${trackedHours.toFixed(2)}h real`} / {plannedHours.toFixed(1)}h plan
-                  </span>
-                )
-              ) : (
-                (plannedHours > 0 || trackedHours > 0) && (
-                  <span className="flex items-center h-5 text-[10px] text-text-dim font-mono font-normal leading-none" title="Progreso real vs estimado">
-                    {trackedHours > 0 ? (task.type === 'Hábito' ? `${trackedHours.toFixed(2)}h prom ` : `${trackedHours.toFixed(2)}h real `) : ''}{plannedHours > 0 ? `(Est: ${plannedHours}h)` : ''}
-                  </span>
-                )
-              )}
-              {task.dependencyId && <span className="flex items-center h-5 text-[10px] text-[#b45f06] leading-none">Espera a #{task.dependencyId.slice(-4)}</span>}
-              {isFutureDate(task.fechaPlanificada) && !isHabit && !isActualSubtask && <span className="flex items-center h-5 text-[10px] text-text-dim leading-none">📅 Futuro</span>}
-              {task.allocationType && task.type !== 'Rutina' && task.type !== 'Hábito' && (
+              {compactMetadata.map((item, index) => (
+                <React.Fragment key={index}>
+                  {index > 0 && <span className="text-[9px] text-text-dim/40">·</span>}
+                  {typeof item === 'string'
+                    ? <span className={cn("h-5 truncate font-mono text-[10px] leading-5 text-text-dim", childTargetReached && item.includes('Logrado') && "text-emerald-700")}>{item}</span>
+                    : item}
+                </React.Fragment>
+              ))}
+              {context === 'default' && task.allocationType && task.type !== 'Rutina' && task.type !== 'Hábito' && (
                 <AllocationBadge allocation={task.allocationType} />
               )}
               
-              {!isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
+              {context === 'default' && !isSubtask && !isActualSubtask && parentTask && parentTask.type === 'Proyecto' && (
                 <span 
                   onClick={(e) => {
                     if (onNavigate) {
@@ -806,7 +870,7 @@ export default function TaskItem({
                 </span>
               )}
               
-              {!isSubtask && isActualSubtask && parentTask && parentTask.type !== 'Proyecto' && (
+              {context === 'default' && !isSubtask && isActualSubtask && parentTask && parentTask.type !== 'Proyecto' && (
                  <span 
                    onClick={(e) => {
                      if (onNavigate) {
@@ -830,7 +894,7 @@ export default function TaskItem({
                   🔴 Trackeando
                 </span>
               ) : (
-                task.type !== 'Rutina' && !task.completed && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && !locked && (
+                task.type !== 'Rutina' && task.type !== 'Pulso' && !task.completed && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && !locked && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
                     className="p-1 hover:bg-base-dim/40 rounded-full transition-all cursor-pointer bg-transparent border-0 outline-none flex items-center justify-center"
@@ -848,8 +912,8 @@ export default function TaskItem({
             </div>
             {task.type !== 'Rutina' && checklistTotal > 0 && !isExpanded && (
               <div className="mt-3 flex items-center gap-3 w-full max-w-md" aria-label={`Checklist: ${completedChecklistItems} de ${checklistTotal} pasos completados`}>
-                <span className="shrink-0 text-[9px] font-mono uppercase tracking-widest text-text-dim">Checklist {completedChecklistItems}/{checklistTotal}</span>
-                <div className="h-1 flex-1 bg-border-line/40 overflow-hidden rounded-full" aria-hidden="true">
+                <span className="shrink-0 text-[9px] font-mono text-text-dim">{context === 'routine' ? 'pasos ' : ''}{completedChecklistItems}/{checklistTotal}</span>
+                <div className="h-0.5 flex-1 bg-border-line/40 overflow-hidden" aria-hidden="true">
                   <div className="h-full bg-emerald-600 transition-all duration-200" style={{ width: `${checklistProgress}%` }} />
                 </div>
               </div>
@@ -864,7 +928,9 @@ export default function TaskItem({
             <button 
               onClick={() => setIsExpanded(!isExpanded)} 
               className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors" 
-              title={isExpanded ? "Ocultar detalles" : "Ver detalles"}
+              title={isExpanded ? "Contraer detalles" : "Expandir detalles"}
+              aria-label={isExpanded ? "Contraer detalles" : "Expandir detalles"}
+              aria-expanded={isExpanded}
             >
               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
@@ -993,12 +1059,36 @@ export default function TaskItem({
 
       {isExpanded && (
         <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-3 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100 pr-2">
+          {task.type !== 'Pulso' && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
+              {task.type === 'Tarea' ? (
+                <>
+                  {(itemTemporalIndicators.find(indicator => indicator.kind === 'start') || !task.completed) && (
+                    <span>{itemTemporalIndicators.find(indicator => indicator.kind === 'start')?.title || 'Inicio: Sin iniciar'}</span>
+                  )}
+                  {itemTemporalIndicators.find(indicator => indicator.kind === 'activity') && <span>{itemTemporalIndicators.find(indicator => indicator.kind === 'activity')?.title}</span>}
+                  {itemTemporalIndicators.find(indicator => indicator.kind === 'deadline') && <span>{itemTemporalIndicators.find(indicator => indicator.kind === 'deadline')?.title}</span>}
+                </>
+              ) : task.type === 'Hábito' || task.type === 'Rutina' ? (
+                <>
+                  {itemTemporalIndicators.find(indicator => indicator.kind === 'activity') && <span>{itemTemporalIndicators.find(indicator => indicator.kind === 'activity')?.title}</span>}
+                </>
+              ) : (
+                <>
+                  <span>Inicio: {taskDateSummary.startDate ? formatRelativeCalendarDate(taskDateSummary.startDate) : 'Sin iniciar'}</span>
+                  {taskDateSummary.lastActivityDate && <span>Última actividad: {formatRelativeCalendarDate(taskDateSummary.lastActivityDate)}</span>}
+                </>
+              )}
+              {nextAppearanceDate && <span>Próxima aparición: {formatRelativeCalendarDate(nextAppearanceDate)}</span>}
+              {task.type !== 'Tarea' && task.fechaLimite && <span>Fecha límite: {formatRelativeCalendarDate(task.fechaLimite)}</span>}
+            </div>
+          )}
           
           {/* Notes display */}
           {task.notes && (
             <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main whitespace-pre-wrap font-sans font-light leading-relaxed mb-1">
               <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest mb-1.5 font-bold">Notas</div>
-              {task.notes}
+              <LinkedText text={task.notes} />
             </div>
           )}
 
@@ -1014,7 +1104,7 @@ export default function TaskItem({
               </div>
               <div className="flex flex-col gap-2">
                 {task.checklist.map(item => (
-                  <label key={item.id} className="flex items-center gap-2.5 cursor-pointer select-none py-0.5">
+                  <div key={item.id} className="flex items-center gap-2.5 select-none py-0.5">
                     <button
                       type="button"
                       onClick={() => handleToggleChecklistItem(item.id)}
@@ -1027,9 +1117,9 @@ export default function TaskItem({
                       )}
                     </button>
                     <span className={cn("text-xs text-text-main font-light", item.done && "line-through opacity-50")}>
-                      {item.text}
+                      <LinkedText text={item.text} />
                     </span>
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1056,6 +1146,7 @@ export default function TaskItem({
                   activeTimer={activeTimer}
                   onStartTimer={onStartTimer}
                   showMoveArrows={showMoveArrows}
+                  context={context}
                 />
               ))}
             </div>

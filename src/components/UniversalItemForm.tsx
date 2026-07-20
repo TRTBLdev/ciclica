@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { AppTask, Config, TaskType, ChecklistItem, RecurrenceUnit } from '../types';
+import { AppTask, AppearanceMode, Config, TaskType, ChecklistItem, QuotaPeriodUnit, RecurrenceUnit } from '../types';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Reorder } from 'motion/react';
-import { getCalendarCycleRange, isHabitCompatibleWithRoutine } from '../domain/recurrenceProgress';
+import LinkedText from './ui/LinkedText';
+import { formatDateOnly, getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
+import { getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
 
 const WEEKDAYS = [
   { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mié' },
@@ -38,16 +40,20 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [type, setType] = useState<TaskType>(initialData?.type || defaultType);
   const [priority, setPriority] = useState(initialData?.priority || 'Baja');
   const [hora, setHora] = useState(initialData?.hora || '');
-  const [frecuencia, setFrecuencia] = useState(initialData?.frecuencia || 1);
-  const [frecuenciaUnidad, setFrecuenciaUnidad] = useState(initialData?.frecuenciaUnidad || 'días');
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode | ''>(() => getAppearanceMode(initialData || ({ type: defaultType } as AppTask)) || (defaultType === 'Hábito' || defaultType === 'Rutina' ? 'interval' : ''));
+  const [frecuencia, setFrecuencia] = useState(initialData?.appearanceFrequency || initialData?.frecuencia || 1);
+  const [frecuenciaUnidad, setFrecuenciaUnidad] = useState(initialData?.appearanceFrequencyUnit || initialData?.frecuenciaUnidad || 'días');
   const [routineCycleFrequency, setRoutineCycleFrequency] = useState(initialData?.routineCycleFrequency || 1);
   const [routineCycleUnit, setRoutineCycleUnit] = useState<RecurrenceUnit>(initialData?.routineCycleUnit || 'meses');
   const [appearanceWeekdays, setAppearanceWeekdays] = useState<number[]>(initialData?.appearanceWeekdays || []);
-  const [view, setView] = useState(initialData?.view || 'Backlog');
   const [area, setArea] = useState(initialData?.category || '');
   const [subCategory, setSubCategory] = useState(initialData?.subCategory || '');
   const [parentId, setParentId] = useState(initialData?.parentId || '');
-  const [fechaPlanificada, setFechaPlanificada] = useState(initialData?.fechaPlanificada ? new Date(initialData.fechaPlanificada).toISOString().substring(0, 10) : '');
+  const [fechaAparicion, setFechaAparicion] = useState(getAppearanceDate(initialData || ({} as AppTask)) || ((defaultType === 'Hábito' || defaultType === 'Rutina') ? formatDateOnly(new Date()) : ''));
+  const [fechaLimite, setFechaLimite] = useState(getDeadlineDate(initialData || ({} as AppTask)) || '');
+  const [quotaTarget, setQuotaTarget] = useState(initialData?.quotaTarget || 3);
+  const [quotaPeriodUnit, setQuotaPeriodUnit] = useState<QuotaPeriodUnit>(initialData?.quotaPeriodUnit || 'semanas');
+  const [objetivoPorCiclo, setObjetivoPorCiclo] = useState(initialData?.objetivoPorCiclo || 1);
   const [duracion, setDuracion] = useState<number>(initialData?.duracion || 0);
   const [dependencyId, setDependencyId] = useState(initialData?.dependencyId || '');
   const [allocationType, setAllocationType] = useState<'fixed' | 'growth' | 'mixed'>(initialData?.allocationType || 'growth');
@@ -76,33 +82,26 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const parentTaskHere = parentId ? allTasks.find(t => t.id === parentId) : null;
   const isRutinaParent = parentTaskHere && parentTaskHere.type === 'Rutina';
   const isActualSubtask = !!(parentTaskHere && parentTaskHere.type !== 'Proyecto');
+  const parentRoutineCapacity = isRutinaParent ? getMinimumRoutineOpportunityCount(parentTaskHere) : undefined;
 
   const handleSave = () => {
     if (!text.trim()) return;
     setValidationError('');
 
-    const candidateRoutine: AppTask = {
-      ...(initialData || {} as AppTask),
-      id: initialData?.id || 'routine-draft',
-      userId: initialData?.userId || '',
-      text: text.trim(),
-      type,
-      createdAt: initialData?.createdAt || new Date().toISOString(),
-      routineCycleFrequency,
-      routineCycleUnit
-    };
-    if (type === 'Rutina') {
-      const incompatible = allTasks.find(task => task.parentId === initialData?.id && task.type === 'Hábito' && !isHabitCompatibleWithRoutine(candidateRoutine, task));
-      if (incompatible) {
-        setValidationError(`“${incompatible.text}” tiene una recurrencia más larga. Amplía el ciclo de la rutina como mínimo a ${incompatible.frecuencia || 1} ${incompatible.frecuenciaUnidad || 'días'}.`);
-        return;
-      }
+    if (appearanceMode && !fechaAparicion) {
+      setValidationError('Indica la fecha inicial de la aparición.');
+      return;
     }
+    if (appearanceMode === 'weekdays' && appearanceWeekdays.length === 0) {
+      setValidationError('Selecciona al menos un día específico.');
+      return;
+    }
+
     if (type === 'Hábito' && parentId) {
       const parentRoutine = allTasks.find(task => task.id === parentId && task.type === 'Rutina');
-      const candidateHabit = { ...candidateRoutine, type: 'Hábito' as const, frecuencia, frecuenciaUnidad: frecuenciaUnidad as RecurrenceUnit };
-      if (parentRoutine && !isHabitCompatibleWithRoutine(parentRoutine, candidateHabit)) {
-        setValidationError(`La rutina “${parentRoutine.text}” necesita un ciclo de al menos ${frecuencia} ${frecuenciaUnidad} para contener este hábito.`);
+      const capacity = parentRoutine ? getMinimumRoutineOpportunityCount(parentRoutine) : 0;
+      if (parentRoutine && objetivoPorCiclo > capacity) {
+        setValidationError(`La rutina “${parentRoutine.text}” ofrece como mínimo ${capacity} apariciones por ciclo próximo. Reduce la cuota o aumenta sus apariciones.`);
         return;
       }
     }
@@ -122,40 +121,44 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     if ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask) {
       data.hora = hora;
     }
-    if ((type === 'Tarea' || type === 'Pulso') && !isActualSubtask) {
-      data.view = view;
-    }
-
     if (type === 'Tarea' || type === 'Rutina' || type === 'Hábito') {
       data.duracion = duracion;
-    }
-
-    if (type === 'Hábito' || type === 'Rutina') {
-      data.frecuencia = frecuencia;
-      data.frecuenciaUnidad = frecuenciaUnidad as any;
-      data.recurrenceAnchorDate = initialData?.recurrenceAnchorDate || data.fechaPlanificada || new Date().toISOString();
     }
 
     if (type === 'Rutina') {
       data.routineCycleFrequency = routineCycleFrequency;
       data.routineCycleUnit = routineCycleUnit;
-      data.routineCycleAnchorDate = initialData?.routineCycleAnchorDate || new Date().toISOString();
-      data.appearanceWeekdays = frecuenciaUnidad === 'semanas' && appearanceWeekdays.length > 0 ? appearanceWeekdays : undefined;
+      data.routineCycleAnchorDate = (initialData?.routineCycleAnchorDate || formatDateOnly(new Date())).slice(0, 10);
     }
 
-    if (type === 'Tarea' || type === 'Proyecto' || type === 'Rutina') {
-      if (fechaPlanificada) {
-        const planDate = new Date(fechaPlanificada);
-        if (!isNaN(planDate.getTime())) {
-          data.fechaPlanificada = planDate.toISOString();
+    if (type === 'Proyecto') {
+      data.fechaLimite = fechaLimite || undefined;
+    } else if (type !== 'Pulso') {
+      const childHabit = type === 'Hábito' && !!parentId;
+      if (childHabit) {
+        data.objetivoPorCiclo = Math.max(1, objetivoPorCiclo);
+        data.appearanceMode = undefined;
+        data.fechaAparicion = undefined;
+      } else if (appearanceMode) {
+        const start = fechaAparicion || formatDateOnly(new Date());
+        data.appearanceMode = appearanceMode;
+        data.fechaAparicion = start;
+        data.recurrenceAnchorDate = initialData?.recurrenceAnchorDate?.slice(0, 10) || start;
+        data.appearanceFrequency = appearanceMode === 'weekdays' ? 1 : Math.max(1, frecuencia);
+        data.appearanceFrequencyUnit = appearanceMode === 'weekdays' ? 'semanas' : frecuenciaUnidad as RecurrenceUnit;
+        data.appearanceWeekdays = appearanceMode === 'weekdays' ? appearanceWeekdays : undefined;
+        if (appearanceMode === 'quota') {
+          data.quotaTarget = Math.max(1, quotaTarget);
+          data.quotaPeriodUnit = quotaPeriodUnit;
+        } else {
+          data.quotaTarget = undefined;
+          data.quotaPeriodUnit = undefined;
         }
       } else {
-        data.fechaPlanificada = undefined;
+        data.appearanceMode = undefined;
+        data.fechaAparicion = undefined;
       }
-    }
-
-    if (type === 'Rutina') {
-      data.recurrenceAnchorDate = data.fechaPlanificada || initialData?.recurrenceAnchorDate || new Date().toISOString();
+      data.fechaLimite = type === 'Tarea' ? fechaLimite || undefined : undefined;
     }
 
     if (type === 'Pulso') {
@@ -167,13 +170,17 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     onSave(data);
   };
 
+  const fieldClass = 'h-10 w-full border-0 border-b border-border-line bg-transparent px-0 text-xs text-text-main outline-none transition-colors placeholder:text-text-dim/50 focus:border-text-main';
+  const selectClass = `${fieldClass} appearance-none pr-7`;
+  const numberClass = `${fieldClass} text-center`;
+
   return (
-    <div className="flex flex-col gap-2 mb-1.5 mt-0.5 animate-in fade-in">
+    <div className="flex flex-col gap-5 my-1 animate-in fade-in max-w-4xl">
       <input 
         autoFocus
         type="text" 
         placeholder="Nombre del elemento..."
-        className="w-full px-2.5 md:px-4 py-1 md:py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+        className="h-11 w-full border-0 border-b-2 border-border-line bg-transparent px-0 text-base text-text-main outline-none transition-colors placeholder:text-text-dim/60 focus:border-text-main"
         value={text}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
@@ -181,17 +188,24 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           if (e.key === 'Escape') onCancel();
         }}
       />
-      <div className="flex flex-wrap gap-2 text-left">
+      <div className="grid grid-cols-1 gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
         {/* Selector de Tipo (Solo visible al crear, no al editar) */}
         {!initialData && (
-          <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-2 pr-1 relative" title="Tipo de Elemento">
-            <span className="text-xs text-text-dim uppercase font-mono">Tipo:</span>
+          <label className="flex flex-col gap-1.5" title="Tipo de elemento">
+            <span className="text-[10px] text-text-dim uppercase font-mono tracking-[0.14em]">Tipo</span>
+            <div className="relative">
             <select
-              className="appearance-none py-1 bg-base text-text-main text-xs font-bold border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6"
+              className={cn(selectClass, 'font-medium')}
               value={type}
               onChange={e => {
                 const newType = e.target.value as TaskType;
                 setType(newType);
+                if (newType === 'Hábito' || newType === 'Rutina') {
+                  setAppearanceMode('interval');
+                  setFechaAparicion(value => value || formatDateOnly(new Date()));
+                } else if (newType === 'Proyecto' || newType === 'Pulso') {
+                  setAppearanceMode('');
+                }
                 if (newType === 'Proyecto' || newType === 'Rutina') {
                   setParentId('');
                 } else if (newType === 'Hábito' && type === 'Tarea') {
@@ -201,92 +215,107 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 }
               }}
             >
-              <option value="Tarea">📝 Tarea</option>
-              <option value="Proyecto">📁 Proyecto</option>
-              <option value="Rutina">🔁 Rutina</option>
-              <option value="Hábito">🌱 Hábito</option>
-              <option value="Pulso">💓 Pulso (Contador)</option>
+              <option value="Tarea">Tarea</option>
+              <option value="Proyecto">Proyecto</option>
+              <option value="Rutina">Rutina</option>
+              <option value="Hábito">Hábito</option>
+              <option value="Pulso">Pulso (contador)</option>
             </select>
-            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-          </div>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
+            </div>
+          </label>
         )}
 
-        {type === 'Rutina' && (
-          <div className="basis-full mt-2 pt-3 border-t border-border-line/50">
-            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-dim">1. Aparece en Hoy</p>
-          </div>
-        )}
-        {/* Frecuencia de aparición (Rutina) o recurrencia (Hábito) */}
-        {(type === 'Hábito' || type === 'Rutina') && (
-          <div className="flex items-center gap-1 bg-transparent rounded-md pl-2 pr-1 relative">
-            <span className="text-xs text-text-dim font-mono">Cada</span>
-            <input 
-              type="number" 
-              min={1} 
-              className="w-10 py-1 bg-base text-text-main text-xs font-medium focus:outline-none text-center border-b border-border-line" 
-              value={frecuencia} 
-              onChange={e => setFrecuencia(Number(e.target.value))}
-            />
-            <select 
-              className="appearance-none py-1 bg-base text-text-main text-xs font-medium border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6" 
-              value={frecuenciaUnidad} 
-              onChange={e => setFrecuenciaUnidad(e.target.value)}
+        {(type === 'Tarea' || type === 'Rutina' || (type === 'Hábito' && !isRutinaParent)) && (
+          <>
+            <div className="col-span-full border-t border-border-line/60 pt-4">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-text-dim">Aparición en Hoy</p>
+            </div>
+            <select
+              className={selectClass}
+              value={appearanceMode}
+              onChange={event => setAppearanceMode(event.target.value as AppearanceMode | '')}
             >
-              <option value="días">días</option>
-              <option value="semanas">semanas</option>
-              <option value="meses">meses</option>
+              {type === 'Tarea' && <option value="">Sin aparición · Backlog</option>}
+              {type === 'Tarea' && <option value="persistent">Fija hasta completar</option>}
+              <option value="interval">Cada intervalo</option>
+              <option value="weekdays">Días específicos</option>
+              {type === 'Hábito' && <option value="quota">Cuota flexible</option>}
             </select>
-            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-          </div>
+            {appearanceMode && (
+              <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+                {appearanceMode === 'persistent' ? 'Mostrar desde' : appearanceMode === 'quota' ? 'Cuota desde' : 'Calendario desde'}
+                <input
+                  type="date"
+                  required
+                  className={cn(fieldClass, 'font-mono')}
+                  value={fechaAparicion}
+                  onChange={event => setFechaAparicion(event.target.value)}
+                />
+              </label>
+            )}
+            {appearanceMode === 'interval' && (
+              <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+                Intervalo
+                <div className="grid grid-cols-[72px_1fr] gap-2">
+                <input type="number" min={1} className={numberClass} value={frecuencia} onChange={e => setFrecuencia(Math.max(1, Number(e.target.value)))} />
+                <select className={cn(selectClass, 'normal-case')} value={frecuenciaUnidad} onChange={e => setFrecuenciaUnidad(e.target.value)}>
+                  <option value="días">días</option><option value="semanas">semanas</option><option value="meses">meses</option>
+                </select>
+                </div>
+              </label>
+            )}
+            {appearanceMode === 'weekdays' && (
+              <div className="col-span-full flex flex-col gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-dim">Días</span>
+                <div className="flex flex-wrap gap-2">
+                {WEEKDAYS.map(day => {
+                  const selected = appearanceWeekdays.includes(day.value);
+                  return <button key={day.value} type="button" onClick={() => setAppearanceWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())} className={cn('h-9 min-w-10 border-0 border-b-2 bg-transparent px-2 text-[10px] transition-colors cursor-pointer', selected ? 'border-text-main font-medium text-text-main' : 'border-transparent text-text-dim hover:border-border-line hover:text-text-main')}>{day.label}</button>;
+                })}
+                </div>
+              </div>
+            )}
+            {appearanceMode === 'quota' && (
+              <div className="grid grid-cols-[72px_auto_1fr] items-center gap-2 text-xs text-text-dim">
+                <input type="number" min={1} className={numberClass} value={quotaTarget} onChange={event => setQuotaTarget(Math.max(1, Number(event.target.value)))} />
+                <span>veces por</span>
+                <select className={selectClass} value={quotaPeriodUnit} onChange={event => setQuotaPeriodUnit(event.target.value as QuotaPeriodUnit)}>
+                  <option value="semanas">semana</option><option value="meses">mes</option>
+                </select>
+              </div>
+            )}
+          </>
         )}
 
-        {type === 'Rutina' && frecuenciaUnidad === 'semanas' && (
-          <div className="basis-full flex flex-wrap items-center gap-1.5 px-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-text-dim mr-1">Días</span>
-            {WEEKDAYS.map(day => {
-              const selected = appearanceWeekdays.includes(day.value);
-              return (
-                <button
-                  key={day.value}
-                  type="button"
-                  onClick={() => setAppearanceWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())}
-                  className={cn('px-2.5 py-1 rounded-full border text-[10px] cursor-pointer transition-colors', selected ? 'border-text-main bg-text-main text-base' : 'border-border-line bg-transparent text-text-dim')}
-                >
-                  {day.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {type === 'Rutina' && (
-          <label className="flex flex-col gap-1 px-2 text-[10px] font-mono uppercase text-text-dim">
-            Próxima aparición
-            <input
-              type="date"
-              className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[150px] outline-none"
-              value={fechaPlanificada}
-              onChange={event => setFechaPlanificada(event.target.value)}
-            />
+        {type === 'Hábito' && isRutinaParent && (
+          <label className="col-span-full flex max-w-md flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+            Objetivo en el ciclo de la rutina
+            <div className="flex items-center gap-2 normal-case tracking-normal">
+              <input type="number" min={1} className={cn(numberClass, 'w-20')} value={objetivoPorCiclo} onChange={event => setObjetivoPorCiclo(Math.max(1, Number(event.target.value)))} />
+              <span className="text-xs">veces</span>
+              {parentRoutineCapacity !== undefined && <span className="text-[10px] font-mono text-text-dim">Máximo seguro: {parentRoutineCapacity}</span>}
+            </div>
           </label>
         )}
 
         {type === 'Rutina' && (
           <>
-            <div className="basis-full mt-2 pt-3 border-t border-border-line/50">
-              <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-dim">2. Ciclo de progreso</p>
+            <div className="col-span-full border-t border-border-line/60 pt-4">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-text-dim">Ciclo de progreso</p>
             </div>
-            <div className="flex items-center gap-1 pl-2 relative">
-              <span className="text-xs text-text-dim font-mono">Cada</span>
+            <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+              Duración del ciclo
+              <div className="grid grid-cols-[72px_1fr] gap-2">
               <input
                 type="number"
                 min={1}
-                className="w-10 py-1 bg-base text-text-main text-xs font-medium focus:outline-none text-center border-b border-border-line"
+                className={numberClass}
                 value={routineCycleFrequency}
                 onChange={event => setRoutineCycleFrequency(Math.max(1, Number(event.target.value)))}
               />
               <select
-                className="appearance-none bg-base text-text-main text-xs font-medium border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6"
+                className={cn(selectClass, 'font-medium normal-case')}
                 value={routineCycleUnit}
                 onChange={event => setRoutineCycleUnit(event.target.value as RecurrenceUnit)}
               >
@@ -294,9 +323,9 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 <option value="semanas">semanas</option>
                 <option value="meses">meses</option>
               </select>
-              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-            </div>
-            <p className="basis-full px-2 text-[10px] text-text-dim">
+              </div>
+            </label>
+            <p className="self-end pb-2 text-[10px] font-mono text-text-dim sm:col-span-1 lg:col-span-2">
               Período actual: {(() => {
                 const period = getCalendarCycleRange(routineCycleFrequency, routineCycleUnit, new Date());
                 return `${period.start} — ${period.end}`;
@@ -308,80 +337,72 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         {/* Pulso (Contador) */}
         {type === 'Pulso' && (
           <>
-            <div className="flex items-center gap-1 bg-transparent rounded-md pl-2 pr-1 relative">
-              <span className="text-xs text-text-dim font-mono">Meta:</span>
+            <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+              Meta
+              <div className="grid grid-cols-[72px_1fr] gap-2">
               <input 
                 type="number" 
                 min={1} 
-                className="w-10 py-1 bg-base text-text-main text-xs font-medium focus:outline-none text-center border-b border-border-line" 
+                className={numberClass}
                 value={targetCount} 
                 onChange={e => setTargetCount(Number(e.target.value))}
               />
               <input 
                 type="text"
-                className="w-16 py-1 bg-base text-text-main text-xs font-medium border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none placeholder:text-text-dim/50 ml-1" 
+                className={cn(fieldClass, 'font-medium')}
                 placeholder="veces"
                 value={unitLabel}
                 onChange={e => setUnitLabel(e.target.value)}
               />
-            </div>
-            <div className="relative flex items-center bg-transparent rounded-md">
+              </div>
+            </label>
+            <div className="relative flex flex-col gap-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Dirección</span>
               <select 
-                className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
+                className={selectClass}
                 value={polaridad} 
                 onChange={e => setPolaridad(e.target.value as any)}
               >
-                 <option value="Reforzar">📈 Reforzar</option>
-                 <option value="Abandonar">📉 Abandonar</option>
+                 <option value="Reforzar">Reforzar</option>
+                 <option value="Abandonar">Abandonar</option>
               </select>
-              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
             </div>
           </>
         )}
 
-        {/* Fecha Planificada (Tarea/Proyecto/Rutina) */}
         {(type === 'Tarea' || type === 'Proyecto') && (
-          <input 
-            type="date"
-            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[130px] outline-none"
-            value={fechaPlanificada}
-            onChange={e => setFechaPlanificada(e.target.value)}
-            title="Fecha Planificada / Límite (Opcional)"
-          />
+          <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+            Fecha límite
+            <input
+              type="date"
+              className={cn(fieldClass, 'font-mono')}
+              value={fechaLimite}
+              onChange={e => setFechaLimite(e.target.value)}
+            />
+          </label>
         )}
 
         {/* Hora (Tarea/Rutina/Hábito simple) */}
         {(type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && (
-          <input 
-            type="time" 
-            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono outline-none" 
-            value={hora}
-            onChange={e => setHora(e.target.value)}
-            title="Hora (Opcional)"
-          />
-        )}
-
-        {/* Vista (Tarea) */}
-        {type === 'Tarea' && !isActualSubtask && (
-          <div className="relative flex items-center bg-transparent rounded-md">
-            <select 
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
-              value={view} 
-              onChange={e => setView(e.target.value)}
-            >
-               <option value="Hoy">☀️ Hoy</option>
-               <option value="Backlog">📥 Backlog</option>
-            </select>
-            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-          </div>
+          <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+            Hora opcional
+            <input
+              type="time"
+              className={cn(fieldClass, 'font-mono')}
+              value={hora}
+              onChange={e => setHora(e.target.value)}
+            />
+          </label>
         )}
 
         {/* Área / Categoría (Todos excepto Subtareas) */}
         {(!isActualSubtask || type === 'Hábito') && (
-          <div className="flex gap-2 items-center flex-wrap">
-            <div className="relative flex items-center bg-transparent rounded-md">
+          <div className="col-span-full grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="relative flex flex-col gap-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Área</span>
               <select 
-                className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full max-w-[150px] truncate focus:outline-none cursor-pointer" 
+                className={selectClass}
                 value={area} 
                 onChange={e => { setArea(e.target.value); setSubCategory(''); }}
               >
@@ -390,13 +411,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-            </div>
+              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+            </label>
             
             {area && typeof config?.areas?.[area] !== 'string' && (config?.areas?.[area] as any)?.categories?.length > 0 && (
-              <div className="relative flex items-center bg-transparent rounded-md">
+              <label className="relative flex flex-col gap-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Categoría</span>
                 <select 
-                  className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full max-w-[150px] truncate focus:outline-none cursor-pointer" 
+                  className={selectClass}
                   value={subCategory}
                   onChange={e => setSubCategory(e.target.value)}
                 >
@@ -405,52 +427,56 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                     <option key={sc} value={sc}>{sc}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-              </div>
+                <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+              </label>
             )}
           </div>
         )}
 
         {/* Duración (Tarea/Hábito) */}
         {(type === 'Tarea' || type === 'Hábito') && (
-          <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-2 pr-1 relative">
+          <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+            Duración estimada
+            <div className="relative">
             <input 
               type="number" step="0.25" min="0" 
-              className="w-12 py-1 bg-base text-text-main text-xs font-medium border-b border-border-line focus:outline-none text-center" 
+              className={cn(fieldClass, 'pr-8 font-medium')}
               value={duracion || ''}
               onChange={e => setDuracion(Number(e.target.value))}
               placeholder="0.0"
             />
-            <span className="text-xs text-text-dim uppercase font-mono mr-1">h</span>
-          </div>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-text-dim">h</span>
+            </div>
+          </label>
         )}
 
         {/* Asignación Energética (Tarea/Proyecto) */}
         {(type === 'Tarea' || type === 'Proyecto') && (
-          <div className="relative flex items-center bg-transparent rounded-md">
+          <label className="relative flex flex-col gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Asignación</span>
             <select 
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer" 
+              className={selectClass}
               value={allocationType} 
               onChange={e => setAllocationType(e.target.value as any)}
             >
-               <option value="growth">⚡ Inversión</option>
-               <option value="fixed">🛡️ Soporte Vital</option>
-               <option value="mixed">☯️ Mixto</option>
+               <option value="growth">Inversión</option>
+               <option value="fixed">Soporte vital</option>
+               <option value="mixed">Mixto</option>
             </select>
-            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-          </div>
+            <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+          </label>
         )}
       </div>
 
       {/* Pertenece a / Asociar a Rutina o Proyecto (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && !isRutinaParent && (
-        <div className="mt-2 text-left w-full flex flex-col gap-1.5">
+        <div className="w-full border-t border-border-line/60 pt-4 text-left flex flex-col gap-1.5">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">
             {type === 'Hábito' ? 'Rutina asociada:' : 'Proyecto asociado:'}
           </span>
-          <div className="relative max-w-sm">
+          <div className="relative max-w-md">
             <select
-              className="w-full appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer truncate"
+              className={selectClass}
               value={parentId}
               onChange={e => {
                 setParentId(e.target.value);
@@ -473,31 +499,29 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                   return (t.type === 'Proyecto' || t.type === 'Rutina' || (t.type === 'Tarea' && t.id !== initialData?.id && t.parentId !== initialData?.id));
                 })
                 .map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.type === 'Proyecto' ? '📁' : t.type === 'Rutina' ? '🔁' : '📝'} {t.text}
-                  </option>
+                  <option key={t.id} value={t.id}>{t.text}</option>
                 ))
               }
             </select>
-            <ChevronDown className="absolute right-2 top-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
           </div>
         </div>
       )}
 
       {/* Dependencias (Tarea) */}
       {type === 'Tarea' && (
-        <div className="mt-2 text-left w-full flex flex-col gap-1.5">
+        <div className="w-full border-t border-border-line/60 pt-4 text-left flex flex-col gap-1.5">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Depende de (Prerrequisito):</span>
           <div className="relative max-w-sm">
             <input 
               type="text"
               placeholder="Buscar tarea compañera..."
-              className="w-full px-3 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+              className={fieldClass}
               value={depSearch}
               onChange={e => setDepSearch(e.target.value)}
             />
             {depSearch && (
-              <div className="absolute top-full mt-1 w-full bg-base border border-border-line rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
+              <div className="absolute top-full z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-border-line bg-base">
                 {allTasks
                   .filter(t => (t.type === 'Tarea' || t.type === 'Hábito' || t.type === 'Rutina') && t.id !== initialData?.id && t.text.toLowerCase().includes(depSearch.toLowerCase()))
                   .map(t => (
@@ -518,7 +542,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             {dependencyId && (
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-xs text-amber-500 font-medium truncate flex-1">
-                  🔒 {allTasks.find(t => t.id === dependencyId)?.text || 'Tarea desconocida'}
+                  {allTasks.find(t => t.id === dependencyId)?.text || 'Tarea desconocida'}
                 </span>
                 <button onClick={() => setDependencyId('')} className="text-red-500 text-xs hover:underline bg-transparent border-none cursor-pointer">Quitar</button>
               </div>
@@ -529,11 +553,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
       {/* Notas (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && (
-        <div className="mt-3 flex flex-col gap-1.5 text-left w-full">
+        <div className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Notas:</span>
           <textarea 
             placeholder="Notas y contexto..."
-            className="w-full min-h-[80px] p-3 text-xs bg-base text-text-main border border-border-line rounded-xl focus:outline-none focus:border-[#a2b29f] resize-y font-sans font-light"
+            className="min-h-[96px] w-full resize-y border-0 border-b border-border-line bg-transparent px-0 py-2 text-xs font-sans font-light leading-relaxed text-text-main outline-none placeholder:text-text-dim/50 focus:border-text-main"
             value={notes}
             onChange={e => setNotes(e.target.value)}
           />
@@ -542,7 +566,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
       {/* Checklist (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && (
-        <div className="flex flex-col gap-2 text-left w-full mt-3">
+        <div className="flex w-full flex-col gap-2 border-t border-border-line/60 pt-4 text-left">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Checklist (Guía Operativa):</span>
           <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
             {checklist.length === 0 ? (
@@ -555,7 +579,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                     <Reorder.Item 
                       key={item.id} 
                       value={item} 
-                      className="flex items-center bg-base-dim/20 px-3 py-1.5 rounded-lg border border-border-line/40 select-none cursor-grab active:cursor-grabbing gap-2"
+                      className="flex min-h-10 items-center gap-2 border-b border-border-line/60 bg-transparent px-0 py-2 select-none cursor-grab active:cursor-grabbing"
                     >
                       <GripIcon />
                       <div className="flex-1 min-w-0">
@@ -563,7 +587,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                           <input
                             autoFocus
                             type="text"
-                            className="w-full bg-base border border-border-line rounded-md px-2 py-0.5 text-xs text-text-main focus:outline-none focus:border-[#a2b29f]"
+                            className="w-full border-0 border-b border-text-main bg-transparent px-0 py-0.5 text-xs text-text-main outline-none"
                             value={editingChecklistItemText}
                             onChange={e => setEditingChecklistItemText(e.target.value)}
                             onBlur={() => handleSaveChecklistItemText(item.id)}
@@ -581,7 +605,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                             className={cn("text-xs text-text-main cursor-text block truncate", item.done && "line-through opacity-60")}
                             title="Haz clic para editar"
                           >
-                            {item.text}
+                            <LinkedText text={item.text} />
                           </span>
                         )}
                       </div>
@@ -602,7 +626,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             <input
               type="text"
               placeholder="Añadir ítem al checklist..."
-              className="flex-1 px-4 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+              className={cn(fieldClass, 'flex-1')}
               value={newChecklistItemText}
               onChange={e => setNewChecklistItemText(e.target.value)}
               onKeyDown={e => {
@@ -633,7 +657,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                   setNewChecklistItemText('');
                 }
               }}
-              className="px-3 py-1.5 bg-primary text-base-dim rounded-full text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer border-0 outline-none flex items-center justify-center"
+              className="flex h-10 w-10 items-center justify-center border-0 bg-text-main text-base outline-none transition-colors hover:bg-text-main/85 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -642,16 +666,16 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       )}
 
       {validationError && (
-        <p role="alert" className="text-xs text-red-500 border border-red-500/30 bg-red-500/5 rounded-xl px-3 py-2">
+        <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-500">
           {validationError}
         </p>
       )}
-      <div className="flex items-center gap-6 mt-3 pt-2">
-        <button onClick={handleSave} className="text-text-main text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity cursor-pointer hover:underline border-0 bg-transparent outline-none">
-          + Guardar
+      <div className="flex items-center gap-3 border-t border-border-line/60 pt-4">
+        <button onClick={handleSave} className="h-10 border-0 bg-text-main px-4 text-xs font-bold uppercase tracking-[0.16em] text-base outline-none transition-colors hover:bg-text-main/85 active:scale-[0.98] cursor-pointer">
+          Guardar
         </button>
-        <button onClick={onCancel} className="text-text-dim text-xs font-mono uppercase tracking-wider flex items-center gap-2 hover:opacity-75 transition-opacity cursor-pointer hover:underline border-0 bg-transparent outline-none">
-          ✕ Cancelar
+        <button onClick={onCancel} className="h-10 border-0 bg-transparent px-2 text-xs font-mono uppercase tracking-[0.12em] text-text-dim outline-none transition-colors hover:text-text-main cursor-pointer">
+          Cancelar
         </button>
       </div>
     </div>

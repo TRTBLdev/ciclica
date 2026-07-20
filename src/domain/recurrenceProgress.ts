@@ -94,15 +94,17 @@ function lastDayOfMonth(year: number, monthIndex: number): number {
 }
 
 function getTaskAnchor(task: AppTask): Date {
-  return parseDateOnly(task.recurrenceAnchorDate || task.fechaPlanificada || task.createdAt);
+  return parseDateOnly(task.recurrenceAnchorDate || task.fechaAparicion || task.fechaPlanificada || task.createdAt);
 }
 
 export function isTaskScheduledOnDate(task: AppTask, at: string | Date): boolean {
   const date = parseDateOnly(at);
   const anchor = getTaskAnchor(task);
-  const frequency = Math.max(1, task.frecuencia || 1);
-  const unit = task.frecuenciaUnidad || 'días';
+  const frequency = Math.max(1, task.appearanceFrequency || task.frecuencia || 1);
+  const unit = task.appearanceFrequencyUnit || task.frecuenciaUnidad || 'días';
   if (date < anchor) return false;
+  if (task.appearanceMode === 'persistent') return true;
+  if (task.appearanceMode === 'once') return formatDateOnly(date) === formatDateOnly(anchor);
 
   if (unit === 'meses') {
     const months = (date.getFullYear() - anchor.getFullYear()) * 12 + date.getMonth() - anchor.getMonth();
