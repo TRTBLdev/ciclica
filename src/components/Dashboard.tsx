@@ -24,7 +24,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [showIntentionForm, setShowIntentionForm] = useState(false);
   const [showOmnibar, setShowOmnibar] = useState(false);
-  
+
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
     if (view === 'hoy' || view === 'foco') targetView = 'hoy';
@@ -218,15 +218,16 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
       if (t.type === 'Hábito') {
         if (isComp) {
-          const nextPlanned = getNextScheduledDate(t, new Date(t.fechaPlanificada || sessionEnd));
-          const periodEnd = new Date(nextPlanned);
+          const referenceDateStr = t.fechaPlanificada || formatDateOnly(new Date());
+          const nextPlanned = getNextScheduledDate(t, referenceDateStr);
+          const periodEnd = new Date(`${nextPlanned}T00:00:00`);
           periodEnd.setDate(periodEnd.getDate() - 1);
           snapshotsToAdd.push({
             userId: user.uid,
             kind: 'habit-period',
             taskId: t.id,
             taskSnapshotText: t.text,
-            periodStart: formatDateOnly(new Date(t.fechaPlanificada || sessionEnd)),
+            periodStart: referenceDateStr.slice(0, 10),
             periodEnd: formatDateOnly(periodEnd),
             progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
             wasCompleted: true,
@@ -239,7 +240,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         } else {
           tasksToUpdate.push({
             id: t.id,
-            updates: { completed: false, fechaPlanificada: new Date().toISOString(), lastExecutedAt: '' }
+            updates: { completed: false, fechaPlanificada: new Date(`${formatDateOnly(new Date())}T00:00:00`).toISOString(), lastExecutedAt: '' }
           });
         }
       } else if (t.type !== 'Pulso') {
@@ -251,15 +252,15 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         if (isComp && t.parentId) {
           const parent = tasks.find(p => p.id === t.parentId);
           if (parent && parent.type !== 'Proyecto' && parent.type !== 'Rutina') {
-              const siblings = tasks.filter(s => s.parentId === parent.id);
-              const allSiblingsDone = siblings.every(s => {
-                if (s.id === t.id) return true;
-                const updated = tasksToUpdate.find(up => up.id === s.id);
-                return updated ? !!updated.updates.completed : s.completed;
-              });
-              if (allSiblingsDone && !parent.completed) {
-                processToggle(parent, true);
-              }
+            const siblings = tasks.filter(s => s.parentId === parent.id);
+            const allSiblingsDone = siblings.every(s => {
+              if (s.id === t.id) return true;
+              const updated = tasksToUpdate.find(up => up.id === s.id);
+              return updated ? !!updated.updates.completed : s.completed;
+            });
+            if (allSiblingsDone && !parent.completed) {
+              processToggle(parent, true);
+            }
           }
         }
       }
@@ -346,301 +347,301 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         "font-sans h-screen w-full flex overflow-hidden transition-all duration-500",
         config?.theme === 'kyoto-dusk' ? "theme-kyoto-dusk bg-[#181512] text-[#f3eae1]" : "bg-[#fbf9f4] text-[#2d2d2d]"
       )}>
-      {/* Navigation Sidebar */}
-      <div className="hidden md:flex w-[200px] flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-colors duration-500">
-        <div className="p-6 border-b border-border-line flex flex-col gap-2 transition-colors duration-500">
-          <div>
-            <h1 className="text-title mb-1">CICLICA</h1>
-            <p className="text-xs text-[#5d5d5d] tracking-wide whitespace-nowrap">
-              Gestión Operativa v4.0.0-beta.1
-            </p>
-          </div>
-          
-          {/* Minimal Theme Switcher */}
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={() => updateConfig({ theme: 'muji' })}
-              className={cn(
-                "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
-                config?.theme === 'muji' ? "bg-[#fbf9f4] border-[#2d2d2d] scale-110 shadow-sm" : "bg-[#fbf9f4] border-[#e4e2dd] hover:scale-105"
-              )}
-              title="Tema Muji Neutro"
-            />
-            <button
-              onClick={() => updateConfig({ theme: 'kyoto-dusk' })}
-              className={cn(
-                "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
-                config?.theme === 'kyoto-dusk' ? "bg-[#181512] border-[#d4af37] scale-110 shadow-sm" : "bg-[#181512] border-[#e4e2dd] hover:scale-105"
-              )}
-              title="Tema Kyoto Dusk (Premium)"
-            />
-            <span className="text-[9px] font-mono text-[#a2b29f] uppercase tracking-wider ml-1">
-              {config?.theme === 'kyoto-dusk' ? 'Kyoto Dusk' : 'Muji Neutro'}
-            </span>
-          </div>
-        </div>
-        
-        <div className="flex flex-col flex-1 py-2 gap-0 overflow-y-auto no-scrollbar">
-          <NavButton 
-            active={showOmnibar} 
-            icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
-            label="Acción" 
-            onClick={() => setShowOmnibar(!showOmnibar)} 
-            rightElement={
-              activeTimer?.isRunning && !showOmnibar && (
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm ml-auto mr-2" />
-              )
-            }
-          />
-          <NavButton 
-            active={currentView === 'hoy' && !showOmnibar} 
-            icon={<Target className="w-4 h-4" />} 
-            label="Foco" 
-            onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            active={currentView === 'sintonia' && !showOmnibar} 
-            icon={<Compass className="w-4 h-4" />} 
-            label="Sintonía" 
-            onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            active={currentView === 'estrategia' && !showOmnibar} 
-            icon={<Layers className="w-4 h-4" />} 
-            label="Estrategia y Plan" 
-            onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            active={currentView === 'bitacora' && !showOmnibar} 
-            icon={<Calendar className="w-4 h-4" />} 
-            label="Bitácora" 
-            onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            active={currentView === 'configuracion' && !showOmnibar} 
-            icon={<Settings className="w-4 h-4" />} 
-            label="Ajustes" 
-            onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }} 
-          />
-        </div>
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        {showOmnibar && (
-          <>
-            {/* Desktop Panel */}
-            <div className="hidden md:flex fixed top-[10vh] left-[200px] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200">
-              <Omnibar
-                activeTimer={activeTimer}
-                tasks={tasks}
-                config={config}
-                onPause={handlePauseTimer}
-                onResume={handleResumeTimer}
-                onStop={handleStopTimer}
-                onDiscard={handleDiscardTimer}
-                onStartTimer={handleStartTimer}
-                onToggleTask={handleToggleTask}
-                onUpdateStartTime={handleUpdateTimerStartTime}
-                onAddTask={addTask}
-                onUpdateTask={handleUpdateTask}
-                onDeleteTask={deleteTask}
-                onNavigate={handleNavigate}
-              />
+        {/* Navigation Sidebar */}
+        <div className="hidden md:flex w-[200px] flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-colors duration-500">
+          <div className="p-6 border-b border-border-line flex flex-col gap-2 transition-colors duration-500">
+            <div>
+              <h1 className="text-title mb-1">CICLICA</h1>
+              <p className="text-xs text-[#5d5d5d] tracking-wide whitespace-nowrap">
+                Gestión Operativa v4.0.0-beta.1
+              </p>
             </div>
-            
-            {/* Mobile Panel (Bottom Sheet) */}
-            <div className="md:hidden fixed bottom-[50px] left-0 right-0 max-h-[85vh] bg-base shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden flex-col animate-in slide-in-from-bottom duration-300">
-              <Omnibar
-                activeTimer={activeTimer}
-                tasks={tasks}
-                config={config}
-                onPause={handlePauseTimer}
-                onResume={handleResumeTimer}
-                onStop={handleStopTimer}
-                onDiscard={handleDiscardTimer}
-                onStartTimer={handleStartTimer}
-                onToggleTask={handleToggleTask}
-                onUpdateStartTime={handleUpdateTimerStartTime}
-                onAddTask={addTask}
-                onUpdateTask={handleUpdateTask}
-                onDeleteTask={deleteTask}
-                onNavigate={handleNavigate}
+
+            {/* Minimal Theme Switcher */}
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => updateConfig({ theme: 'muji' })}
+                className={cn(
+                  "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
+                  config?.theme === 'muji' ? "bg-[#fbf9f4] border-[#2d2d2d] scale-110 shadow-sm" : "bg-[#fbf9f4] border-[#e4e2dd] hover:scale-105"
+                )}
+                title="Tema Muji Neutro"
               />
+              <button
+                onClick={() => updateConfig({ theme: 'kyoto-dusk' })}
+                className={cn(
+                  "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
+                  config?.theme === 'kyoto-dusk' ? "bg-[#181512] border-[#d4af37] scale-110 shadow-sm" : "bg-[#181512] border-[#e4e2dd] hover:scale-105"
+                )}
+                title="Tema Kyoto Dusk (Premium)"
+              />
+              <span className="text-[9px] font-mono text-[#a2b29f] uppercase tracking-wider ml-1">
+                {config?.theme === 'kyoto-dusk' ? 'Kyoto Dusk' : 'Muji Neutro'}
+              </span>
             </div>
-            
-            {/* Backdrop */}
-            <div className="fixed inset-0 bg-black/5 z-40 backdrop-blur-[1px]" onClick={() => setShowOmnibar(false)} />
-          </>
-        )}
-        
-        {/* Content */}
-        <div className={cn(
-          "flex-1 h-screen bg-base overflow-y-auto w-full",
-          activeTimer && !showOmnibar
-            ? "pb-[80px] md:pb-0" 
-            : "pb-[100px] md:pb-0"
-        )}>
-          <Suspense fallback={<ViewLoader />}>
-            {currentView === 'hoy' && (
-              <HoyView 
-                config={config} 
-                tasks={tasks} 
-                history={history} 
-                progressSnapshots={progressSnapshots}
-                onToggleTask={handleToggleTask}
-                onAddEvent={handleAddEvent}
-                onDeleteTask={deleteTask}
-                onUpdateTask={handleUpdateTask}
-                onTogglePulseSafeDay={handleTogglePulseSafeDay}
-                onAddTask={addTask}
-                activeTimer={activeTimer}
-                onStartTimer={handleStartTimer}
-                onUpdateConfig={updateConfig}
-                onNavigate={handleNavigate}
-              />
-            )}
-            {currentView === 'sintonia' && (
-              <SintoniaView 
-                config={config}
-                onUpdateConfig={updateConfig}
-                onNavigate={handleNavigate}
-              />
-            )}
-            {currentView === 'estrategia' && (
-              <EstrategiaView 
-                config={config} 
-                tasks={tasks}
-                history={history}
-                progressSnapshots={progressSnapshots}
-                intentions={intentions}
-                onUpdateConfig={updateConfig}
-                onToggleTask={handleToggleTask}
-                onDeleteTask={deleteTask}
-                onAddTask={addTask}
-                onUpdateTask={handleUpdateTask}
-                activeTimer={activeTimer}
-                onStartTimer={handleStartTimer}
-                focusTaskId={focusTaskId}
-                onNavigate={handleNavigate}
-              />
-            )}
-            {currentView === 'bitacora' && (
-              <BitacoraView 
-                config={config} 
-                tasks={tasks}
-                history={history}
-                progressSnapshots={progressSnapshots}
-                intentions={intentions}
-                onAddIntention={addIntention}
-                onUpdateIntention={updateIntention}
-                onDeleteIntention={deleteIntention}
-                onOpenIntentions={() => setShowIntentionForm(true)}
-                onToggleTask={handleToggleTask}
-                onDeleteTask={deleteTask}
-                onAddTask={addTask}
-                onUpdateTask={handleUpdateTask}
-                onUpdateConfig={updateConfig}
-                onUpdateHistory={updateHistory}
-                onDeleteHistory={deleteHistory}
-                onAddHistory={addHistory}
-              />
-            )}
-            {currentView === 'configuracion' && (
-              <ConfiguracionView 
-                config={config} 
-                onUpdateConfig={updateConfig} 
-                tasks={tasks}
-                history={history}
-                progressSnapshots={progressSnapshots}
-                intentions={intentions}
-                onSignOut={onSignOut}
-                importLocalData={importLocalData}
-                mergeLocalData={mergeLocalData}
-                clearPartialData={clearPartialData}
-                onNavigate={handleNavigate}
-              />
-            )}
-          </Suspense>
+          </div>
+
+          <div className="flex flex-col flex-1 py-2 gap-0 overflow-y-auto no-scrollbar">
+            <NavButton
+              active={showOmnibar}
+              icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
+              label="Acción"
+              onClick={() => setShowOmnibar(!showOmnibar)}
+              rightElement={
+                activeTimer?.isRunning && !showOmnibar && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm ml-auto mr-2" />
+                )
+              }
+            />
+            <NavButton
+              active={currentView === 'hoy' && !showOmnibar}
+              icon={<Target className="w-4 h-4" />}
+              label="Foco"
+              onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              active={currentView === 'sintonia' && !showOmnibar}
+              icon={<Compass className="w-4 h-4" />}
+              label="Sintonía"
+              onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              active={currentView === 'estrategia' && !showOmnibar}
+              icon={<Layers className="w-4 h-4" />}
+              label="Estrategia y Plan"
+              onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              active={currentView === 'bitacora' && !showOmnibar}
+              icon={<Calendar className="w-4 h-4" />}
+              label="Bitácora"
+              onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              active={currentView === 'configuracion' && !showOmnibar}
+              icon={<Settings className="w-4 h-4" />}
+              label="Ajustes"
+              onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }}
+            />
+          </div>
         </div>
 
-        {/* Mobile Tabs fixed at the bottom */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
-          <NavButton 
-            isMobile
-            active={showOmnibar} 
-            icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
-            label="Acción" 
-            onClick={() => setShowOmnibar(!showOmnibar)} 
-            rightElement={
-              activeTimer?.isRunning && !showOmnibar && (
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm absolute right-2" />
-              )
-            }
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'hoy' && !showOmnibar} 
-            icon={<Target className="w-4 h-4" />} 
-            label="Foco" 
-            onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'sintonia' && !showOmnibar} 
-            icon={<Compass className="w-4 h-4" />} 
-            label="Sintonía" 
-            onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'estrategia' && !showOmnibar} 
-            icon={<Layers className="w-4 h-4" />} 
-            label="Estrategia" 
-            onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'bitacora' && !showOmnibar} 
-            icon={<Calendar className="w-4 h-4" />} 
-            label="Bitácora" 
-            onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }} 
-          />
-          <NavButton 
-            isMobile
-            active={currentView === 'configuracion' && !showOmnibar} 
-            icon={<Settings className="w-4 h-4" />} 
-            label="Ajustes" 
-            onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }} 
-          />
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+          {showOmnibar && (
+            <>
+              {/* Desktop Panel */}
+              <div className="hidden md:flex fixed top-[10vh] left-[200px] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200">
+                <Omnibar
+                  activeTimer={activeTimer}
+                  tasks={tasks}
+                  config={config}
+                  onPause={handlePauseTimer}
+                  onResume={handleResumeTimer}
+                  onStop={handleStopTimer}
+                  onDiscard={handleDiscardTimer}
+                  onStartTimer={handleStartTimer}
+                  onToggleTask={handleToggleTask}
+                  onUpdateStartTime={handleUpdateTimerStartTime}
+                  onAddTask={addTask}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={deleteTask}
+                  onNavigate={handleNavigate}
+                />
+              </div>
+
+              {/* Mobile Panel (Bottom Sheet) */}
+              <div className="md:hidden fixed bottom-[50px] left-0 right-0 max-h-[85vh] bg-base shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden flex-col animate-in slide-in-from-bottom duration-300">
+                <Omnibar
+                  activeTimer={activeTimer}
+                  tasks={tasks}
+                  config={config}
+                  onPause={handlePauseTimer}
+                  onResume={handleResumeTimer}
+                  onStop={handleStopTimer}
+                  onDiscard={handleDiscardTimer}
+                  onStartTimer={handleStartTimer}
+                  onToggleTask={handleToggleTask}
+                  onUpdateStartTime={handleUpdateTimerStartTime}
+                  onAddTask={addTask}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={deleteTask}
+                  onNavigate={handleNavigate}
+                />
+              </div>
+
+              {/* Backdrop */}
+              <div className="fixed inset-0 bg-black/5 z-40 backdrop-blur-[1px]" onClick={() => setShowOmnibar(false)} />
+            </>
+          )}
+
+          {/* Content */}
+          <div className={cn(
+            "flex-1 h-screen bg-base overflow-y-auto w-full",
+            activeTimer && !showOmnibar
+              ? "pb-[80px] md:pb-0"
+              : "pb-[100px] md:pb-0"
+          )}>
+            <Suspense fallback={<ViewLoader />}>
+              {currentView === 'hoy' && (
+                <HoyView
+                  config={config}
+                  tasks={tasks}
+                  history={history}
+                  progressSnapshots={progressSnapshots}
+                  onToggleTask={handleToggleTask}
+                  onAddEvent={handleAddEvent}
+                  onDeleteTask={deleteTask}
+                  onUpdateTask={handleUpdateTask}
+                  onTogglePulseSafeDay={handleTogglePulseSafeDay}
+                  onAddTask={addTask}
+                  activeTimer={activeTimer}
+                  onStartTimer={handleStartTimer}
+                  onUpdateConfig={updateConfig}
+                  onNavigate={handleNavigate}
+                />
+              )}
+              {currentView === 'sintonia' && (
+                <SintoniaView
+                  config={config}
+                  onUpdateConfig={updateConfig}
+                  onNavigate={handleNavigate}
+                />
+              )}
+              {currentView === 'estrategia' && (
+                <EstrategiaView
+                  config={config}
+                  tasks={tasks}
+                  history={history}
+                  progressSnapshots={progressSnapshots}
+                  intentions={intentions}
+                  onUpdateConfig={updateConfig}
+                  onToggleTask={handleToggleTask}
+                  onDeleteTask={deleteTask}
+                  onAddTask={addTask}
+                  onUpdateTask={handleUpdateTask}
+                  activeTimer={activeTimer}
+                  onStartTimer={handleStartTimer}
+                  focusTaskId={focusTaskId}
+                  onNavigate={handleNavigate}
+                />
+              )}
+              {currentView === 'bitacora' && (
+                <BitacoraView
+                  config={config}
+                  tasks={tasks}
+                  history={history}
+                  progressSnapshots={progressSnapshots}
+                  intentions={intentions}
+                  onAddIntention={addIntention}
+                  onUpdateIntention={updateIntention}
+                  onDeleteIntention={deleteIntention}
+                  onOpenIntentions={() => setShowIntentionForm(true)}
+                  onToggleTask={handleToggleTask}
+                  onDeleteTask={deleteTask}
+                  onAddTask={addTask}
+                  onUpdateTask={handleUpdateTask}
+                  onUpdateConfig={updateConfig}
+                  onUpdateHistory={updateHistory}
+                  onDeleteHistory={deleteHistory}
+                  onAddHistory={addHistory}
+                />
+              )}
+              {currentView === 'configuracion' && (
+                <ConfiguracionView
+                  config={config}
+                  onUpdateConfig={updateConfig}
+                  tasks={tasks}
+                  history={history}
+                  progressSnapshots={progressSnapshots}
+                  intentions={intentions}
+                  onSignOut={onSignOut}
+                  importLocalData={importLocalData}
+                  mergeLocalData={mergeLocalData}
+                  clearPartialData={clearPartialData}
+                  onNavigate={handleNavigate}
+                />
+              )}
+            </Suspense>
+          </div>
+
+          {/* Mobile Tabs fixed at the bottom */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
+            <NavButton
+              isMobile
+              active={showOmnibar}
+              icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
+              label="Acción"
+              onClick={() => setShowOmnibar(!showOmnibar)}
+              rightElement={
+                activeTimer?.isRunning && !showOmnibar && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm absolute right-2" />
+                )
+              }
+            />
+            <NavButton
+              isMobile
+              active={currentView === 'hoy' && !showOmnibar}
+              icon={<Target className="w-4 h-4" />}
+              label="Foco"
+              onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              isMobile
+              active={currentView === 'sintonia' && !showOmnibar}
+              icon={<Compass className="w-4 h-4" />}
+              label="Sintonía"
+              onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              isMobile
+              active={currentView === 'estrategia' && !showOmnibar}
+              icon={<Layers className="w-4 h-4" />}
+              label="Estrategia"
+              onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              isMobile
+              active={currentView === 'bitacora' && !showOmnibar}
+              icon={<Calendar className="w-4 h-4" />}
+              label="Bitácora"
+              onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }}
+            />
+            <NavButton
+              isMobile
+              active={currentView === 'configuracion' && !showOmnibar}
+              icon={<Settings className="w-4 h-4" />}
+              label="Ajustes"
+              onClick={() => { setCurrentView('configuracion'); setShowOmnibar(false); }}
+            />
+          </div>
         </div>
-      </div>
 
-      {showOnboarding && (
-        <Onboarding 
-          config={config} 
-          onUpdateConfig={updateConfig} 
-          onAddTask={addTask} 
-          onClose={() => setShowOnboarding(false)} 
-          onBackToLogin={onSignOut}
-        />
-      )}
-
-      {showIntentionForm && config && (
-        <Suspense fallback={null}>
-          <IntentionForm
-            isOpen={showIntentionForm}
-            onClose={() => setShowIntentionForm(false)}
+        {showOnboarding && (
+          <Onboarding
             config={config}
-            tasks={tasks}
-            history={history}
-            intentions={intentions}
-            onSave={addIntention}
-            onUpdate={updateIntention}
-            onDelete={deleteIntention}
+            onUpdateConfig={updateConfig}
+            onAddTask={addTask}
+            onClose={() => setShowOnboarding(false)}
+            onBackToLogin={onSignOut}
           />
-        </Suspense>
-      )}
+        )}
+
+        {showIntentionForm && config && (
+          <Suspense fallback={null}>
+            <IntentionForm
+              isOpen={showIntentionForm}
+              onClose={() => setShowIntentionForm(false)}
+              config={config}
+              tasks={tasks}
+              history={history}
+              intentions={intentions}
+              onSave={addIntention}
+              onUpdate={updateIntention}
+              onDelete={deleteIntention}
+            />
+          </Suspense>
+        )}
       </div>
     </ToastProvider>
   );
@@ -656,7 +657,7 @@ function ViewLoader() {
 
 function NavButton({ active, icon, label, onClick, isMobile, rightElement }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void, isMobile?: boolean, rightElement?: React.ReactNode }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "relative shrink-0 flex items-center justify-start gap-4 px-6 h-10 transition-colors text-left",
@@ -669,9 +670,9 @@ function NavButton({ active, icon, label, onClick, isMobile, rightElement }: { a
       {rightElement}
       {active && (
         isMobile ? (
-            <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-[var(--color-text-main)]" />
+          <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-[var(--color-text-main)]" />
         ) : (
-            <div className="absolute right-0 top-2 bottom-2 w-[3px] bg-[var(--color-text-main)]" />
+          <div className="absolute right-0 top-2 bottom-2 w-[3px] bg-[var(--color-text-main)]" />
         )
       )}
     </button>

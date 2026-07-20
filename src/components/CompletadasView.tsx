@@ -20,7 +20,11 @@ import { useToast } from './ToastProvider';
 import CategoryBadge from './ui/CategoryBadge';
 
 const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
-  let nextPlan = new Date(plannedDateStr || new Date().toISOString());
+  const dateStr = plannedDateStr || new Date().toISOString();
+  const datePart = dateStr.slice(0, 10);
+  const [year, month, day] = datePart.split('-').map(Number);
+  let nextPlan = (year && month && day) ? new Date(year, month - 1, day) : new Date();
+
   let daysToAdd = freq || 1;
   if (unit === 'semanas') daysToAdd *= 7;
   if (unit === 'meses') daysToAdd *= 30;
@@ -31,7 +35,11 @@ const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, un
   while (nextPlan.getTime() < todayStart.getTime()) {
     nextPlan.setDate(nextPlan.getDate() + daysToAdd);
   }
-  return nextPlan.toISOString();
+
+  const y = nextPlan.getFullYear();
+  const m = String(nextPlan.getMonth() + 1).padStart(2, '0');
+  const d = String(nextPlan.getDate()).padStart(2, '0');
+  return new Date(`${y}-${m}-${d}T00:00:00`).toISOString();
 };
 
 interface Props {
