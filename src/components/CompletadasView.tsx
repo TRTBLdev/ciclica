@@ -182,7 +182,8 @@ export default function CompletadasView({
 
       // Ocultar del nivel superior si tiene un padre y ese padre tiene un registro el mismo día
       if (task.parentId) {
-        const parentHasLogSameDay = filteredHistory.some(ph =>
+        const parent = tasks.find(candidate => candidate.id === task.parentId);
+        const parentHasLogSameDay = parent?.type !== 'Proyecto' && filteredHistory.some(ph =>
           ph.taskId === task.parentId && isSameDay(h.date, ph.date)
         );
         if (parentHasLogSameDay) return false;
@@ -285,6 +286,21 @@ export default function CompletadasView({
           finalStartISO = new Date(new Date(finalEndISO).getTime() - editDuration * 3600000).toISOString();
         }
 
+        const currentRecord = history.find(record => record.id === id);
+        const currentTask = currentRecord ? tasks.find(task => task.id === currentRecord.taskId) : undefined;
+        const isRecurringCompletion = currentRecord?.isCompletion === true
+          && (currentTask?.type === 'Hábito' || currentTask?.type === 'Rutina');
+        const duplicate = isRecurringCompletion && history.some(record => (
+          record.id !== id
+          && record.taskId === currentRecord!.taskId
+          && record.isCompletion === true
+          && isSameDay(record.date, finalEndISO)
+        ));
+        if (duplicate) {
+          showToast("Ya existe una finalización de este elemento en ese día", "error");
+          return;
+        }
+
         onUpdateHistory(id, {
           date: finalEndISO,
           duration: Number(editDuration),
@@ -374,7 +390,8 @@ export default function CompletadasView({
           const formattedTime = evDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
           const childTasks = task ? tasks.filter(t => t.parentId === task.id) : [];
-          const hasChildren = childTasks.length > 0;
+          const isProjectClosure = task?.type === 'Proyecto' && h.isCompletion === true && (h.duration || 0) === 0;
+          const hasChildren = !isProjectClosure && childTasks.length > 0;
 
           return (
             <div
@@ -488,7 +505,11 @@ export default function CompletadasView({
                         {displayCategory && (
                           <CategoryBadge area={displayCategory} subCategory={task?.subCategory} config={config} />
                         )}
-                        {h.isCompletion === false ? (
+                        {isProjectClosure ? (
+                          <small className="select-none border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary" title="Este evento registra el cierre manual del proyecto; no representa tiempo trabajado">
+                            Proyecto cerrado
+                          </small>
+                        ) : h.isCompletion === false ? (
                           <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-border-line/30 text-text-dim bg-base-dim/40 rounded-full select-none" title="Esta sesión registra tiempo de progreso, pero el ítem no se marcó como completado en el planificador">
                             ⏱️ Progreso
                           </span>

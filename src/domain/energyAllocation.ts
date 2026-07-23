@@ -1,24 +1,16 @@
 import { AppTask } from '../types';
+import { getProjectForTask } from './workTracking';
 
 export type EnergyAllocation = 'fixed' | 'growth' | 'mixed';
 
 export const MIXED_INVESTMENT_SHARE = 0.75;
 export const MIXED_SUPPORT_SHARE = 0.25;
 
-const getProjectForTask = (task: AppTask, tasks: AppTask[]): AppTask | undefined => {
-  let current: AppTask | undefined = task;
-  while (current) {
-    if (current.type === 'Proyecto') return current;
-    current = current.parentId ? tasks.find(candidate => candidate.id === current?.parentId) : undefined;
-  }
-  return undefined;
-};
-
 export function getEffectiveEnergyAllocation(task: AppTask, tasks: AppTask[]): EnergyAllocation {
   if (task.type === 'Hábito' || task.type === 'Pulso' || task.type === 'Rutina') return 'fixed';
   if (task.allocationType) return task.allocationType;
   if (task.type === 'Proyecto') return 'growth';
-  if (getProjectForTask(task, tasks)) return 'growth';
+  if (getProjectForTask(task.id, tasks) || (task.parentId && getProjectForTask(task.parentId, tasks))) return 'growth';
   return 'mixed';
 }
 

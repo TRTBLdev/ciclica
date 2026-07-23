@@ -4,15 +4,7 @@ import { cn, getAreaColorClasses, getAreaTextClasses } from '../lib/utils';
 import { Layers, CheckCircle2, Repeat, ChevronRight, ChevronDown } from 'lucide-react';
 import { calculateBiologicalPhase, parseLocalDate } from '../domain/cycle';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
-const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
-  let current = allTasks.find(t => t.id === taskId);
-  while (current) {
-    if (current.type === 'Proyecto') return current;
-    if (!current.parentId) break;
-    current = allTasks.find(t => t.id === current.parentId);
-  }
-  return null;
-};
+import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 
 interface OccupancyNode {
   id: string;
@@ -44,7 +36,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     const standaloneNodes: Record<string, OccupancyNode> = {};
 
     const filteredHistory = history.filter(h => {
-      const d = h.date.slice(0, 10);
+      const d = getHistoryDateKey(h);
       return d >= periodStart && d <= periodEnd;
     });
 
@@ -175,12 +167,12 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
   };
 
   history.filter(h => {
-    const d = h.date.slice(0, 10);
+    const d = getHistoryDateKey(h);
     return d >= periodStart && d <= periodEnd;
   }).forEach(h => {
     const originalTask = tasks.find(t => t.id === h.taskId);
     if (originalTask) {
-      const dateObj = parseLocalDate(h.date.slice(0, 10));
+      const dateObj = parseLocalDate(getHistoryDateKey(h));
       const phase = calculateBiologicalPhase(config, dateObj);
       if (phaseBreakdown[phase]) {
         const energy = getTaskEnergyBreakdown(originalTask, tasks, h.duration || 0);

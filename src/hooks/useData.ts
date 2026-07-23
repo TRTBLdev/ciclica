@@ -5,6 +5,7 @@ import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../
 import { migrateDatabase } from '../data/migration';
 import { formatDateOnly, getCalendarCycleRange, getRoutineAppearanceTarget, isRoutineConfigured, isTaskScheduledOnDate, parseDateOnly } from '../domain/recurrenceProgress';
 import { getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask } from '../domain/appearance';
+import { applyRecurringHistoryContext, reconcileSnapshotsAfterHistoryEdit } from '../domain/historyEditing';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
@@ -250,9 +251,23 @@ export function useData(userId: string) {
   };
 
   const updateHistory = async (historyId: string, updates: Partial<HistoryRecord>) => {
-    setHistory(prev => {
-      const next = prev.map(h => h.id === historyId ? { ...h, ...updates, updatedAt: new Date().toISOString() } : h);
-      setLocal(getDataKeys(effectiveUserId).history, next);
+    const original = history.find(record => record.id === historyId);
+    if (!original) return;
+
+    const originalTask = tasks.find(task => task.id === original.taskId);
+    const merged = applyRecurringHistoryContext({
+      ...original,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }, originalTask, tasks);
+
+    const nextHistory = history.map(record => record.id === historyId ? merged : record);
+    setHistory(nextHistory);
+    setLocal(getDataKeys(effectiveUserId).history, nextHistory);
+
+    setProgressSnapshots(previous => {
+      const next = reconcileSnapshotsAfterHistoryEdit(previous, tasks, nextHistory, original, merged);
+      setLocal(getDataKeys(effectiveUserId).progressSnapshots, next);
       return next;
     });
   };

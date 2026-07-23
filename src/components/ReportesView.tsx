@@ -23,19 +23,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
-
-// Helper to find parent project of any task recursively
-const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
-  let current = allTasks.find(t => t.id === taskId);
-  while (current) {
-    if (current.type === 'Proyecto') {
-      return current;
-    }
-    if (!current.parentId) break;
-    current = allTasks.find(t => t.id === current.parentId);
-  }
-  return null;
-};
+import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
+import { formatDateOnly } from '../domain/recurrenceProgress';
 
 interface Props {
   config: Config | null;
@@ -55,10 +44,10 @@ export default function ReportesView({ config, tasks, history }: Props) {
   const [customStart, setCustomStart] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
-    return d.toISOString().substring(0, 10);
+    return formatDateOnly(d);
   });
   const [customEnd, setCustomEnd] = useState(() => {
-    return new Date().toISOString().substring(0, 10);
+    return formatDateOnly(new Date());
   });
 
   const [copied, setCopied] = useState(false);
@@ -146,7 +135,8 @@ export default function ReportesView({ config, tasks, history }: Props) {
     if (areaFilter === 'Todas') return filteredHistoryByDate;
     return filteredHistoryByDate.filter(h => {
       const task = tasks.find(t => t.id === h.taskId);
-      return task && task.category === areaFilter;
+      const project = task ? getProjectForTask(task.id, tasks) : null;
+      return (project || task)?.category === areaFilter;
     });
   }, [filteredHistoryByDate, tasks, areaFilter]);
 
@@ -189,7 +179,7 @@ export default function ReportesView({ config, tasks, history }: Props) {
     const standaloneNodes: Record<string, OccupancyNode> = {};
 
     filteredHistory.forEach(h => {
-      const dayKey = new Date(h.date).toISOString().substring(0, 10);
+      const dayKey = getHistoryDateKey(h);
       const originalTask = tasks.find(t => t.id === h.taskId);
       const projectTask = originalTask ? getProjectForTask(originalTask.id, tasks) : null;
       const routineTask = (originalTask && originalTask.type === 'Hábito' && originalTask.parentId)
@@ -373,8 +363,10 @@ export default function ReportesView({ config, tasks, history }: Props) {
       totalDuration += duration;
 
       // Track active days
-      const localDateStr = new Date(h.date).toLocaleDateString('es-ES');
-      activeDaysSet.add(localDateStr);
+      if (duration > 0) {
+        const localDateStr = new Date(h.date).toLocaleDateString('es-ES');
+        activeDaysSet.add(localDateStr);
+      }
 
       const originalTask = tasks.find(t => t.id === h.taskId);
       if (originalTask) {
@@ -1320,7 +1312,7 @@ SORT date DESC
                       )}
                     >
                       {daysInRange.map((date, idx) => {
-                        const dayKey = date.toISOString().substring(0, 10);
+                        const dayKey = formatDateOnly(date);
                         const hours = row.logsByDay[dayKey] || 0;
 
                         const areaConfig = config?.areas?.[row.area];

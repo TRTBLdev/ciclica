@@ -750,13 +750,13 @@ export default function RutinasView({
                     </div>
 
                     {isExpanded && (
-                      <div className="relative pl-4 flex flex-col gap-2 mt-4 pt-4 border-t border-border-line/30 animate-in fade-in duration-200">
+                      <section className="relative mt-4 flex flex-col gap-2 pl-4 animate-in fade-in duration-200" aria-label={`Hábitos de ${routine.text}`}>
                         {routineTemporalIndicators.length > 0 && (
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
-                            {routineTemporalIndicators.map(indicator => <span key={indicator.kind}>{indicator.title}</span>)}
-                          </div>
+                          <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 font-mono text-[10px] text-text-dim">
+                            {routineTemporalIndicators.map(indicator => <li key={indicator.kind}>{indicator.title}</li>)}
+                          </ul>
                         )}
-                        <div className="flex flex-col gap-1 mt-1 mb-2 z-10 w-full pr-2">
+                        <section className="z-10 mb-2 mt-1 flex w-full flex-col gap-1 pr-2" aria-label={`Añadir hábito a ${routine.text}`}>
                           <form
                             onSubmit={(e: any) => {
                               e.preventDefault();
@@ -786,28 +786,31 @@ export default function RutinasView({
                               + Añadir
                             </button>
                           </form>
-                        </div>
-                        {subtasks.map(sub => (
-                          <TaskItem
-                            key={sub.id}
-                            task={sub}
-                            config={config}
-                            allTasks={tasks}
-                            history={history}
-                            onToggle={onToggleTask}
-                            onDelete={() => onDeleteTask(sub.id)}
-                            onUpdate={onUpdateTask}
-                            onAddTask={onAddTask}
-                            onDeleteTask={onDeleteTask}
-                            isSubtask
-                            hideAreaCategory={false}
-                            showMoveArrows={sortBy === 'manual'}
-                            activeTimer={activeTimer}
-                            onStartTimer={onStartTimer}
-                            context="routine"
-                          />
-                        ))}
-                      </div>
+                        </section>
+                        <ul className="m-0 list-none space-y-1 p-0">
+                          {subtasks.map(sub => (
+                            <li key={sub.id}>
+                              <TaskItem
+                                task={sub}
+                                config={config}
+                                allTasks={tasks}
+                                history={history}
+                                onToggle={onToggleTask}
+                                onDelete={() => onDeleteTask(sub.id)}
+                                onUpdate={onUpdateTask}
+                                onAddTask={onAddTask}
+                                onDeleteTask={onDeleteTask}
+                                isSubtask
+                                hideAreaCategory={false}
+                                showMoveArrows={sortBy === 'manual'}
+                                activeTimer={activeTimer}
+                                onStartTimer={onStartTimer}
+                                context="routine"
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     )}
                   </div>
                 );

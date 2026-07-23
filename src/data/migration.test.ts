@@ -158,6 +158,22 @@ describe('migrateDatabase', () => {
     expect(project?.fechaLimite).toBeUndefined();
   });
 
+  it('normalizes explicit project appearances without reusing the legacy deadline', () => {
+    const project = normalizeTask({
+      id: 'project_scheduled',
+      userId: 'local_user',
+      text: 'Proyecto programado',
+      type: 'Proyecto',
+      fechaPlanificada: '2026-08-31',
+      fechaAparicion: '2026-07-20T00:00:00.000Z',
+      appearanceWeekdays: [1, 3],
+    });
+
+    expect(project?.fechaLimite).toBe('2026-08-31');
+    expect(project?.fechaAparicion).toBe('2026-07-20');
+    expect(project?.appearanceMode).toBe('weekdays');
+  });
+
   it('migrates a child habit frequency to a direct routine-cycle quota', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const result = migrateDatabase({

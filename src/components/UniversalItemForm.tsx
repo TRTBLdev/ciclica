@@ -7,6 +7,8 @@ import LinkedText from './ui/LinkedText';
 import { formatDateOnly, getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
 import { getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
+import { getProjectScheduleLabel } from '../domain/projectPresentation';
+import { getProjectForTask } from '../domain/workTracking';
 
 const WEEKDAYS = [
   { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mié' },
@@ -33,9 +35,10 @@ interface Props {
   allTasks: AppTask[];
   onSave: (data: Partial<AppTask>) => void;
   onCancel: () => void;
+  onEditProject?: (projectId: string) => void;
 }
 
-export default function UniversalItemForm({ initialData, defaultType = 'Tarea', defaultText = '', config, allTasks, onSave, onCancel }: Props) {
+export default function UniversalItemForm({ initialData, defaultType = 'Tarea', defaultText = '', config, allTasks, onSave, onCancel, onEditProject }: Props) {
   const [text, setText] = useState(initialData?.text || defaultText);
   const [type, setType] = useState<TaskType>(initialData?.type || defaultType);
   const [priority, setPriority] = useState(initialData?.priority || 'Baja');
@@ -81,6 +84,8 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
   const parentTaskHere = parentId ? allTasks.find(t => t.id === parentId) : null;
   const isRutinaParent = parentTaskHere && parentTaskHere.type === 'Rutina';
+  const inheritedProjectHere = type === 'Tarea' && parentId ? getProjectForTask(parentId, allTasks) : null;
+  const inheritsProjectContext = !!inheritedProjectHere;
   const isActualSubtask = !!(parentTaskHere && parentTaskHere.type !== 'Proyecto');
   const parentRoutineCapacity = isRutinaParent ? getMinimumRoutineOpportunityCount(parentTaskHere) : undefined;
 
@@ -109,16 +114,24 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     const data: Partial<AppTask> = {
       text: text.trim(),
       type,
-      category: area,
-      subCategory,
       parentId: parentId || undefined,
       dependencyId: dependencyId || undefined,
       notes,
       checklist,
-      allocationType: (type === 'Rutina' || type === 'Hábito') ? 'fixed' : allocationType,
     };
 
-    if ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask) {
+    if (!inheritsProjectContext) {
+      data.category = area;
+      data.subCategory = subCategory;
+    }
+    if (type !== 'Proyecto') {
+      data.allocationType = (type === 'Rutina' || type === 'Hábito') ? 'fixed' : allocationType;
+    }
+
+    if (
+      type === 'Proyecto'
+      || ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && !inheritsProjectContext)
+    ) {
       data.hora = hora;
     }
     if (type === 'Tarea' || type === 'Rutina' || type === 'Hábito') {
@@ -131,14 +144,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       data.routineCycleAnchorDate = (initialData?.routineCycleAnchorDate || formatDateOnly(new Date())).slice(0, 10);
     }
 
-    if (type === 'Proyecto') {
-      data.fechaLimite = fechaLimite || undefined;
-    } else if (type !== 'Pulso') {
+    if (type !== 'Pulso') {
       const childHabit = type === 'Hábito' && !!parentId;
       if (childHabit) {
         data.objetivoPorCiclo = Math.max(1, objetivoPorCiclo);
         data.appearanceMode = undefined;
         data.fechaAparicion = undefined;
+      } else if (inheritsProjectContext) {
+        // La programación propia permanece inactiva mientras la tarea pertenezca a un proyecto.
       } else if (appearanceMode) {
         const start = fechaAparicion || formatDateOnly(new Date());
         data.appearanceMode = appearanceMode;
@@ -158,7 +171,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         data.appearanceMode = undefined;
         data.fechaAparicion = undefined;
       }
-      data.fechaLimite = type === 'Tarea' ? fechaLimite || undefined : undefined;
+      data.fechaLimite = (type === 'Tarea' || type === 'Proyecto') ? fechaLimite || undefined : undefined;
     }
 
     if (type === 'Pulso') {
@@ -175,7 +188,13 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const numberClass = `${fieldClass} text-center`;
 
   return (
-    <div className="flex flex-col gap-5 my-1 animate-in fade-in max-w-4xl">
+    <form
+      className="my-1 flex max-w-4xl animate-in flex-col gap-5 fade-in"
+      onSubmit={event => {
+        event.preventDefault();
+        handleSave();
+      }}
+    >
       <input 
         autoFocus
         type="text" 
@@ -184,11 +203,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         value={text}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter') handleSave();
           if (e.key === 'Escape') onCancel();
         }}
       />
-      <div className="grid grid-cols-1 gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
         {/* Selector de Tipo (Solo visible al crear, no al editar) */}
         {!initialData && (
           <label className="flex flex-col gap-1.5" title="Tipo de elemento">
@@ -226,22 +244,25 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </label>
         )}
 
-        {(type === 'Tarea' || type === 'Rutina' || (type === 'Hábito' && !isRutinaParent)) && (
-          <>
-            <div className="col-span-full border-t border-border-line/60 pt-4">
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-text-dim">Aparición en Hoy</p>
-            </div>
-            <select
-              className={selectClass}
-              value={appearanceMode}
-              onChange={event => setAppearanceMode(event.target.value as AppearanceMode | '')}
-            >
-              {type === 'Tarea' && <option value="">Sin aparición · Backlog</option>}
-              {type === 'Tarea' && <option value="persistent">Fija hasta completar</option>}
-              <option value="interval">Cada intervalo</option>
-              <option value="weekdays">Días específicos</option>
-              {type === 'Hábito' && <option value="quota">Cuota flexible</option>}
-            </select>
+        {((type === 'Tarea' && !inheritsProjectContext) || type === 'Proyecto' || type === 'Rutina' || (type === 'Hábito' && !isRutinaParent)) && (
+          <fieldset className="contents">
+            <legend className="col-span-full w-full border-t border-border-line/60 pt-4 text-[10px] font-mono uppercase tracking-[0.18em] text-text-dim">
+              Aparición en Hoy
+            </legend>
+            <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+              Frecuencia
+              <select
+                className={selectClass}
+                value={appearanceMode}
+                onChange={event => setAppearanceMode(event.target.value as AppearanceMode | '')}
+              >
+                {(type === 'Tarea' || type === 'Proyecto') && <option value="">Sin aparición</option>}
+                {type === 'Tarea' && <option value="persistent">Fija hasta completar</option>}
+                <option value="interval">Cada intervalo</option>
+                <option value="weekdays">Días específicos</option>
+                {type === 'Hábito' && <option value="quota">Cuota flexible</option>}
+              </select>
+            </label>
             {appearanceMode && (
               <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
                 {appearanceMode === 'persistent' ? 'Mostrar desde' : appearanceMode === 'quota' ? 'Cuota desde' : 'Calendario desde'}
@@ -266,15 +287,15 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
               </label>
             )}
             {appearanceMode === 'weekdays' && (
-              <div className="col-span-full flex flex-col gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-dim">Días</span>
-                <div className="flex flex-wrap gap-2">
+              <fieldset className="col-span-full flex flex-col gap-2">
+                <legend className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-dim">Días</legend>
+                <menu className="m-0 flex list-none flex-wrap gap-2 p-0">
                 {WEEKDAYS.map(day => {
                   const selected = appearanceWeekdays.includes(day.value);
                   return <button key={day.value} type="button" onClick={() => setAppearanceWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())} className={cn('h-9 min-w-10 border-0 border-b-2 bg-transparent px-2 text-[10px] transition-colors cursor-pointer', selected ? 'border-text-main font-medium text-text-main' : 'border-transparent text-text-dim hover:border-border-line hover:text-text-main')}>{day.label}</button>;
                 })}
-                </div>
-              </div>
+                </menu>
+              </fieldset>
             )}
             {appearanceMode === 'quota' && (
               <div className="grid grid-cols-[72px_auto_1fr] items-center gap-2 text-xs text-text-dim">
@@ -285,7 +306,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 </select>
               </div>
             )}
-          </>
+          </fieldset>
         )}
 
         {type === 'Hábito' && isRutinaParent && (
@@ -384,7 +405,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         )}
 
         {/* Hora (Tarea/Rutina/Hábito simple) */}
-        {(type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && (
+        {(
+          (type === 'Proyecto' && !!appearanceMode)
+          || ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && !inheritsProjectContext)
+        ) && (
           <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
             Hora opcional
             <input
@@ -397,7 +421,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         )}
 
         {/* Área / Categoría (Todos excepto Subtareas) */}
-        {(!isActualSubtask || type === 'Hábito') && (
+        {(!isActualSubtask || type === 'Hábito') && !inheritsProjectContext && (
           <div className="col-span-full grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="relative flex flex-col gap-1.5">
               <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Área</span>
@@ -451,7 +475,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         )}
 
         {/* Asignación Energética (Tarea/Proyecto) */}
-        {(type === 'Tarea' || type === 'Proyecto') && (
+        {type === 'Tarea' && (
           <label className="relative flex flex-col gap-1.5">
             <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Asignación</span>
             <select 
@@ -466,25 +490,21 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
           </label>
         )}
-      </div>
+      </section>
 
       {/* Pertenece a / Asociar a Rutina o Proyecto (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && !isRutinaParent && (
-        <div className="w-full border-t border-border-line/60 pt-4 text-left flex flex-col gap-1.5">
-          <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">
+        <section className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
+          <label htmlFor={`parent-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-wider text-text-dim">
             {type === 'Hábito' ? 'Rutina asociada:' : 'Proyecto asociado:'}
-          </span>
-          <div className="relative max-w-md">
+          </label>
+          <section className="relative max-w-md">
             <select
+              id={`parent-${initialData?.id || 'new'}`}
               className={selectClass}
               value={parentId}
               onChange={e => {
                 setParentId(e.target.value);
-                const pTask = allTasks.find(t => t.id === e.target.value);
-                if (pTask) {
-                  setArea(pTask.category || '');
-                  setSubCategory(pTask.subCategory || '');
-                }
               }}
             >
               <option value="">(Ninguno) Raíz</option>
@@ -504,51 +524,86 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
               }
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
-          </div>
-        </div>
+          </section>
+        </section>
+      )}
+
+      {inheritsProjectContext && inheritedProjectHere && (
+        <section className="border-t border-border-line/60 pt-4 text-left" aria-labelledby={`inherited-project-${initialData?.id || 'new'}`}>
+          <header className="mb-3 flex items-center justify-between gap-4">
+            <p id={`inherited-project-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-dim">
+              Contexto heredado del proyecto
+            </p>
+            {onEditProject && (
+              <button
+                type="button"
+                onClick={() => onEditProject(inheritedProjectHere.id)}
+                className="border-0 bg-transparent p-0 text-[10px] font-mono uppercase tracking-[0.12em] text-primary hover:text-text-main"
+              >
+                Editar proyecto
+              </button>
+            )}
+          </header>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 border-l border-border-line/70 pl-4 text-xs">
+            <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Proyecto</dt>
+            <dd className="text-text-main">{inheritedProjectHere.text}</dd>
+            <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Aparición</dt>
+            <dd className="text-text-main">{getProjectScheduleLabel(inheritedProjectHere)}{inheritedProjectHere.hora ? ` · ${inheritedProjectHere.hora}` : ''}</dd>
+            <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Área</dt>
+            <dd className="text-text-main">{inheritedProjectHere.category || 'Sin área'}</dd>
+            <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Categoría</dt>
+            <dd className="text-text-main">{inheritedProjectHere.subCategory || 'Sin categoría'}</dd>
+          </dl>
+        </section>
       )}
 
       {/* Dependencias (Tarea) */}
       {type === 'Tarea' && (
-        <div className="w-full border-t border-border-line/60 pt-4 text-left flex flex-col gap-1.5">
-          <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Depende de (Prerrequisito):</span>
-          <div className="relative max-w-sm">
+        <section className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
+          <label htmlFor={`dependency-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-wider text-text-dim">Depende de (prerrequisito)</label>
+          <section className="relative max-w-sm">
             <input 
+              id={`dependency-${initialData?.id || 'new'}`}
               type="text"
               placeholder="Buscar tarea compañera..."
               className={fieldClass}
               value={depSearch}
               onChange={e => setDepSearch(e.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') event.preventDefault();
+              }}
             />
             {depSearch && (
-              <div className="absolute top-full z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-border-line bg-base">
+              <ul className="absolute top-full z-10 m-0 mt-1 max-h-40 w-full list-none overflow-y-auto border border-border-line bg-base p-0">
                 {allTasks
                   .filter(t => (t.type === 'Tarea' || t.type === 'Hábito' || t.type === 'Rutina') && t.id !== initialData?.id && t.text.toLowerCase().includes(depSearch.toLowerCase()))
                   .map(t => (
-                    <div 
-                      key={t.id} 
-                      className="px-3 py-2 text-xs hover:bg-base-dim/40 cursor-pointer truncate border-b border-border-line/40 last:border-b-0"
-                      onClick={() => {
-                        setDependencyId(t.id);
-                        setDepSearch('');
-                      }}
-                    >
-                      {t.text}
-                    </div>
+                    <li key={t.id} className="border-b border-border-line/40 last:border-b-0">
+                      <button
+                        type="button"
+                        className="w-full truncate border-0 bg-transparent px-3 py-2 text-left text-xs hover:bg-base-dim/40"
+                        onClick={() => {
+                          setDependencyId(t.id);
+                          setDepSearch('');
+                        }}
+                      >
+                        {t.text}
+                      </button>
+                    </li>
                   ))
                 }
-              </div>
+              </ul>
             )}
             {dependencyId && (
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-xs text-amber-500 font-medium truncate flex-1">
+              <p className="mt-1 flex items-center gap-2">
+                <output className="flex-1 truncate text-xs font-medium text-amber-600">
                   {allTasks.find(t => t.id === dependencyId)?.text || 'Tarea desconocida'}
-                </span>
-                <button onClick={() => setDependencyId('')} className="text-red-500 text-xs hover:underline bg-transparent border-none cursor-pointer">Quitar</button>
-              </div>
+                </output>
+                <button type="button" onClick={() => setDependencyId('')} className="cursor-pointer border-0 bg-transparent text-xs text-red-500 hover:underline">Quitar</button>
+              </p>
             )}
-          </div>
-        </div>
+          </section>
+        </section>
       )}
 
       {/* Notas (Tarea/Hábito) */}
@@ -592,7 +647,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                             onChange={e => setEditingChecklistItemText(e.target.value)}
                             onBlur={() => handleSaveChecklistItemText(item.id)}
                             onKeyDown={e => {
-                              if (e.key === 'Enter') handleSaveChecklistItemText(item.id);
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSaveChecklistItemText(item.id);
+                              }
                               if (e.key === 'Escape') setEditingChecklistItemId(null);
                             }}
                           />
@@ -670,14 +728,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           {validationError}
         </p>
       )}
-      <div className="flex items-center gap-3 border-t border-border-line/60 pt-4">
-        <button onClick={handleSave} className="h-10 border-0 bg-text-main px-4 text-xs font-bold uppercase tracking-[0.16em] text-base outline-none transition-colors hover:bg-text-main/85 active:scale-[0.98] cursor-pointer">
+      <footer className="flex items-center gap-3 border-t border-border-line/60 pt-4">
+        <button type="submit" className="h-10 border-0 bg-text-main px-4 text-xs font-bold uppercase tracking-[0.16em] text-base outline-none transition-colors hover:bg-text-main/85 active:scale-[0.98] cursor-pointer">
           Guardar
         </button>
-        <button onClick={onCancel} className="h-10 border-0 bg-transparent px-2 text-xs font-mono uppercase tracking-[0.12em] text-text-dim outline-none transition-colors hover:text-text-main cursor-pointer">
+        <button type="button" onClick={onCancel} className="h-10 border-0 bg-transparent px-2 text-xs font-mono uppercase tracking-[0.12em] text-text-dim outline-none transition-colors hover:text-text-main cursor-pointer">
           Cancelar
         </button>
-      </div>
-    </div>
+      </footer>
+    </form>
   );
 }

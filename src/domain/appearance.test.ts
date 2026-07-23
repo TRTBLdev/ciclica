@@ -73,6 +73,34 @@ describe('appearance schedules', () => {
     expect(getTodayPlacement(between, all, [], [], '2026-07-21')).toBe('backlog');
   });
 
+  it('places scheduled projects by their own hour and keeps descendants nested', () => {
+    const project = task({
+      id: 'project',
+      type: 'Proyecto',
+      appearanceMode: 'weekdays',
+      fechaAparicion: '2026-07-20',
+      appearanceWeekdays: [1],
+      hora: '09:00',
+    });
+    const child = task({
+      id: 'child',
+      parentId: project.id,
+      appearanceMode: 'persistent',
+      fechaAparicion: '2026-07-20',
+      hora: '11:00',
+    });
+    const all = [project, child];
+
+    expect(getTodayPlacement(project, all, [], [], '2026-07-20')).toBe('timeline');
+    expect(getTodayPlacement({ ...project, hora: '' }, all, [], [], '2026-07-20')).toBe('flexible');
+    expect(getTodayPlacement(child, all, [], [], '2026-07-20')).toBeNull();
+  });
+
+  it('places every active unscheduled project in Backlog', () => {
+    const project = task({ id: 'project', type: 'Proyecto' });
+    expect(getTodayPlacement(project, [project], [], [], '2026-07-20')).toBe('backlog');
+  });
+
   it('keeps persistent tasks in their timed or flexible lane until completion', () => {
     const timed = task({ id: 'persistent_timed', appearanceMode: 'persistent', fechaAparicion: '2026-07-20', hora: '08:00' });
     const flexible = task({ id: 'persistent_flexible', appearanceMode: 'persistent', fechaAparicion: '2026-07-20' });
@@ -80,6 +108,26 @@ describe('appearance schedules', () => {
     expect(getTodayPlacement(timed, [timed], [], [], '2026-08-02')).toBe('timeline');
     expect(getTodayPlacement(flexible, [flexible], [], [], '2026-08-02')).toBe('flexible');
     expect(getTodayPlacement({ ...timed, completed: true }, [timed], [], [], '2026-08-02')).toBeNull();
+  });
+
+  it('places a scheduled project in Hoy and hides its descendants from top-level placement', () => {
+    const project = task({
+      id: 'project',
+      type: 'Proyecto',
+      appearanceMode: 'weekdays',
+      fechaAparicion: '2026-07-20',
+      appearanceWeekdays: [1, 3],
+    });
+    const child = task({
+      id: 'child',
+      parentId: project.id,
+      appearanceMode: 'persistent',
+      fechaAparicion: '2026-07-20',
+    });
+
+    expect(getTodayPlacement(project, [project, child], [], [], '2026-07-20')).toBe('flexible');
+    expect(getTodayPlacement(project, [project, child], [], [], '2026-07-21')).toBeNull();
+    expect(getTodayPlacement(child, [project, child], [], [], '2026-07-20')).toBeNull();
   });
 
   it('keeps pulse records visible as Timeline logs while blocking their tracker', () => {
@@ -138,7 +186,7 @@ const completion = (taskId: string, appearance: string) => record({
     expect(canTrackTask(pulse, [pulse], [], '2026-07-20')).toBe(false);
     expect(canTrackTask(habitC, [routine, habitC], [], '2026-07-20')).toBe(true);
     expect(canTrackTask(habitC, [routine, habitC], history, '2026-07-20')).toBe(false);
-    expect(canTrackTask(habitC, [routine, habitC], [], '2026-07-21')).toBe(false);
+    expect(canTrackTask(habitC, [routine, habitC], [], '2026-07-21')).toBe(true);
   });
 
   it('enumerates real opportunities and recognizes a manually closed cycle', () => {
@@ -165,7 +213,10 @@ describe('project date summaries', () => {
     const project = task({ id: 'project_1', type: 'Proyecto', fechaLimite: '2026-08-01' });
     const child = task({ id: 'child_1', parentId: project.id, appearanceMode: 'persistent', fechaAparicion: '2026-07-25' });
     const grandchild = task({ id: 'child_2', parentId: child.id, appearanceMode: 'persistent', fechaAparicion: '2026-07-24' });
-    const history = [record({ taskId: child.id, date: '2026-07-20T09:00:00.000Z', isCompletion: false })];
+    const history = [
+      record({ taskId: child.id, date: '2026-07-20T09:00:00.000Z', isCompletion: false, duration: 1 }),
+      record({ taskId: grandchild.id, date: '2026-07-21T09:00:00.000Z', isCompletion: true, duration: 0 }),
+    ];
     const summary = getProjectDateSummary(project, [project, child, grandchild], history, '2026-07-21');
     expect(summary.startDate).toBe('2026-07-20');
     expect(summary.lastActivityDate).toBe('2026-07-20');
@@ -296,7 +347,7 @@ describe('compact card dates and metadata', () => {
   it('uses the universal presenter for project start and deadline without a next-task indicator', () => {
     const project = task({ id: 'project_temporal', type: 'Proyecto', fechaLimite: '2026-07-25' });
     const child = task({ id: 'project_child', parentId: project.id });
-    const log = [record({ taskId: child.id, date: '2026-07-20T09:00:00.000Z', isCompletion: false })];
+    const log = [record({ taskId: child.id, date: '2026-07-20T09:00:00.000Z', isCompletion: false, duration: 1 })];
     expect(getItemTemporalIndicators(project, [project, child], log, '2026-07-22')).toEqual([
       expect.objectContaining({ kind: 'start', text: 'Inicio 2d', tone: 'neutral' }),
       expect.objectContaining({ kind: 'deadline', text: 'Lím. 3d', tone: 'amber' }),
@@ -332,7 +383,7 @@ describe('unstarted temporal state', () => {
     const grandchild = task({ id: 'project_grandchild', parentId: childTask.id });
     const logs = [
       record({ taskId: childHabit.id, date: '2026-07-20T09:00:00.000Z' }),
-      record({ taskId: grandchild.id, date: '2026-07-20T10:00:00.000Z' }),
+      record({ taskId: grandchild.id, date: '2026-07-20T10:00:00.000Z', duration: 1 }),
     ];
     expect(getItemTemporalIndicators(routine, [routine, childHabit], logs).some(indicator => indicator.kind === 'unstarted')).toBe(false);
     expect(getItemTemporalIndicators(project, [project, childTask, grandchild], logs).some(indicator => indicator.kind === 'unstarted')).toBe(false);

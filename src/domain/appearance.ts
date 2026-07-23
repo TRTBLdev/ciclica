@@ -1,5 +1,6 @@
 import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit } from '../types';
 import { DateRange, formatDateOnly, getCalendarCycleRange, getIsoWeekday, parseDateOnly } from './recurrenceProgress';
+import { getProjectForTask } from './workTracking';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -10,7 +11,8 @@ export function toDateKey(value?: string | Date): string | undefined {
 }
 
 export function getAppearanceDate(task: AppTask): string | undefined {
-  return toDateKey(task.fechaAparicion || task.fechaPlanificada || task.recurrenceAnchorDate);
+  const legacyAppearance = task.type === 'Proyecto' ? undefined : task.fechaPlanificada;
+  return toDateKey(task.fechaAparicion || legacyAppearance || task.recurrenceAnchorDate);
 }
 
 export function getDeadlineDate(task: AppTask): string | undefined {
@@ -96,7 +98,7 @@ export function isItemAppearingOnDate(
   history: HistoryRecord[],
   at: string | Date = new Date(),
 ): boolean {
-  if (task.completed || task.type === 'Proyecto' || task.type === 'Pulso') return false;
+  if (task.completed || task.type === 'Pulso') return false;
   if (task.type === 'Hábito' && task.parentId) return false;
   const dateKey = formatDateOnly(parseDateOnly(at));
   if (task.type === 'Hábito' && history.some(record => isVerifiedHabitCompletion(task, record) && toDateKey(record.date) === dateKey)) return false;
@@ -172,10 +174,10 @@ export function canTrackTask(
   history: HistoryRecord[],
   at: string | Date = new Date(),
 ): boolean {
-  if (task.completed || task.type === 'Pulso' || task.type === 'Rutina') return false;
+  if (task.completed || task.type === 'Pulso' || task.type === 'Rutina' || task.type === 'Proyecto') return false;
   if (task.type !== 'Hábito' || !task.parentId) return true;
   const routine = tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina');
-  if (!routine || !isAppearanceScheduledOnDate(routine, at)) return false;
+  if (!routine) return false;
   if (wasChildHabitCompletedInAppearance(routine, task, history, at)) return false;
   return getChildHabitCycleCount(routine, task, history, at) < Math.max(1, task.objetivoPorCiclo || 1);
 }
@@ -247,11 +249,10 @@ export function getTodayPlacement(
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
 ): TodayPlacement {
-  if (task.completed || task.type === 'Proyecto' || task.type === 'Pulso') return null;
-  if (task.parentId) {
-    const parent = tasks.find(candidate => candidate.id === task.parentId);
-    if (parent && parent.type !== 'Proyecto') return null;
-  }
+  if (task.completed || task.type === 'Pulso') return null;
+  const parentProject = task.parentId ? getProjectForTask(task.parentId, tasks) : null;
+  if (parentProject) return null;
+  if (task.type === 'Proyecto' && !getAppearanceMode(task)) return 'backlog';
   const appears = task.type === 'Rutina'
     ? isAppearanceScheduledOnDate(task, at) && !isRoutineCycleClosed(task, snapshots, at)
     : isItemAppearingOnDate(task, history, at);
@@ -572,7 +573,10 @@ export function getProjectDateSummary(
     frontier.forEach(id => descendantIds.add(id));
   }
   const records = history
-    .filter(record => record.taskId === project.id || descendantIds.has(record.taskId))
+    .filter(record => (
+      (record.taskId === project.id || descendantIds.has(record.taskId))
+      && (record.duration || 0) > 0
+    ))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const candidates = tasks
     .filter(task => descendantIds.has(task.id) && task.type === 'Tarea' && !task.completed)

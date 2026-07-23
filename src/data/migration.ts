@@ -77,6 +77,15 @@ export function normalizeTask(rawTask: any, now = new Date()): AppTask | null {
 
   if (task.type === 'Proyecto') {
     task.fechaLimite = dateOnly(task.fechaLimite || task.fechaPlanificada);
+    task.fechaAparicion = dateOnly(task.fechaAparicion);
+    if (task.fechaAparicion || task.appearanceMode || task.appearanceWeekdays?.length) {
+      task.recurrenceAnchorDate = dateOnly(task.recurrenceAnchorDate || task.fechaAparicion);
+      task.appearanceFrequency = Math.max(1, task.appearanceFrequency || 1);
+      task.appearanceFrequencyUnit = task.appearanceFrequencyUnit || 'días';
+      if (!task.appearanceMode && task.fechaAparicion) {
+        task.appearanceMode = task.appearanceWeekdays?.length ? 'weekdays' : 'interval';
+      }
+    }
   } else if (task.type !== 'Pulso') {
     task.fechaAparicion = dateOnly(task.fechaAparicion || task.fechaPlanificada);
     if (task.type === 'Hábito' || task.type === 'Rutina') {

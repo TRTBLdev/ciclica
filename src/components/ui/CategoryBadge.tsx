@@ -20,27 +20,37 @@ export default function CategoryBadge({ area, subCategory, config, className, on
   const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
 
 
-  return (
-    <div className={cn("flex items-center gap-1.5", className)} onClick={onClick} title={title}>
+  const content = (
+    <>
       {area && !hideArea && (
-        <span className={cn(
+        <b className={cn(
           "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono font-bold uppercase tracking-wider rounded-full leading-none whitespace-nowrap bg-transparent border",
           getAreaTextClasses(color),
           getAreaBorderClasses(color),
           onClick && "cursor-pointer hover:opacity-80 transition-opacity"
         )}>
           {area}
-        </span>
+        </b>
       )}
       {subCategory && (
-        <span className={cn(
-          "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono uppercase tracking-wider rounded-full leading-none whitespace-nowrap",
+        <em className={cn(
+          "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono not-italic uppercase tracking-wider rounded-full leading-none whitespace-nowrap",
           getAreaColorClasses(color),
           onClick && "cursor-pointer hover:opacity-80 transition-opacity"
         )}>
           {subCategory}
-        </span>
+        </em>
       )}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" className={cn('flex items-center gap-1.5 border-0 bg-transparent p-0', className)} onClick={onClick} title={title}>
+        {content}
+      </button>
+    );
+  }
+
+  return <small className={cn('flex items-center gap-1.5', className)} title={title}>{content}</small>;
 }

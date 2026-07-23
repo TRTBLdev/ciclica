@@ -1,18 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Layers, ChevronDown, ChevronUp, ChevronRight, CheckCircle, Folder, Plus, X, Edit2, Trash2, Save, ArrowUp, ArrowDown } from 'lucide-react';
+import { Layers, ChevronDown, ChevronRight, Plus, X, Edit2, Trash2, Save } from 'lucide-react';
 import { AppTask, Config, HistoryRecord } from '../types';
 import TaskItem from './TaskItem';
 import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
-import CategoryBadge from './ui/CategoryBadge';
-import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { cn, getAreaColorClasses, getAreaProgressClasses, getAreaTextClasses } from '../lib/utils';
-import { formatRelativeCalendarDate, getAppearanceDate, getDeadlineDate, getItemTemporalIndicators, getProjectDateSummary } from '../domain/appearance';
-import TemporalIndicator from './ui/TemporalIndicator';
-import { formatDateOnly } from '../domain/recurrenceProgress';
+import { cn, getAreaColorClasses } from '../lib/utils';
+import { getAppearanceDate, getDeadlineDate } from '../domain/appearance';
+import ProjectCard from './ProjectCard';
+import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -55,9 +53,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const [addingTaskId, setAddingTaskId] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState('');
   const [expandedProjs, setExpandedProjs] = useState<string[]>([]);
+  const [expandedCompletedTasks, setExpandedCompletedTasks] = useState<string[]>([]);
+  const [editingTaskIds, setEditingTaskIds] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'manual' | 'priority' | 'date' | 'name' | 'progress'>('manual');
-  const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
-  const [menuProjUpwards, setMenuProjUpwards] = useState(false);
 
   // Collapsible states
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
@@ -91,8 +89,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       sortedPending.sort((a, b) => {
         const getProgress = (t: AppTask) => {
           if (t.type === 'Proyecto') {
-            const subs = tasks.filter(s => s.parentId === t.id);
-            return subs.length ? (subs.filter(s => s.completed).length / subs.length) : (t.completed ? 1 : 0);
+            return getProjectPresentation(t, tasks, history || []).progress / 100;
           }
           return t.completed ? 1 : 0;
         };
@@ -128,6 +125,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         
         if (projectToExpand) {
           setExpandedProjs(prev => prev.includes(projectToExpand) ? prev : [...prev, projectToExpand]);
+          if (foundTask.completed && foundTask.type === 'Tarea') {
+            setExpandedCompletedTasks(prev => prev.includes(projectToExpand) ? prev : [...prev, projectToExpand]);
+          }
         }
         
         // Scroll and highlight
@@ -146,7 +146,20 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   }, [focusTaskId, tasks]);
 
   const toggleProject = (id: string) => {
-    setExpandedProjs(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+    setExpandedProjs(prev => {
+      const hasEditingTask = editingTaskIds.some(taskId => getProjectForTask(taskId, tasks)?.id === id);
+      if (hasEditingTask) return prev.includes(id) ? prev : [...prev, id];
+      return prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
+    });
+  };
+
+  const setProjectTaskEditing = (projectId: string, taskId: string, editing: boolean) => {
+    setEditingTaskIds(current => (
+      editing
+        ? current.includes(taskId) ? current : [...current, taskId]
+        : current.filter(id => id !== taskId)
+    ));
+    if (editing) setExpandedProjs(current => current.includes(projectId) ? current : [...current, projectId]);
   };
 
   let projects = tasks.filter(t => t.type === 'Proyecto');
@@ -154,7 +167,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     projects = projects.filter(p => p.category === filterArea);
   }
   if (filterAllocation !== 'Todas') {
-    projects = projects.filter(p => p.allocationType === filterAllocation);
+    projects = projects.filter(p => projectMatchesEnergyFilter(p, tasks, filterAllocation));
   }
 
 
@@ -270,13 +283,10 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     onAddTask({
       userId: 'placeholder',
       text: newTaskText.trim(),
-      category: proj.category,
-      subCategory: proj.subCategory,
       type: 'Tarea',
       parentId: proj.id,
       completed: false,
-      appearanceMode: 'persistent',
-      fechaAparicion: formatDateOnly(new Date()),
+      allocationType: 'growth',
       createdAt: new Date().toISOString()
     });
 
@@ -287,20 +297,14 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const renderProjBlock = (projList: AppTask[]) => projList.map(proj => {
     const rawSubtasks = tasks.filter(t => t.parentId === proj.id);
     const subtasks = sortTasks(rawSubtasks, sortBy);
-    const finiteSubtasks = subtasks.filter(subtask => subtask.type !== 'Tarea' || !['interval', 'weekdays'].includes(subtask.appearanceMode || ''));
-    const completedFiniteSubtasks = finiteSubtasks.filter(subtask => subtask.completed).length;
-    const progress = finiteSubtasks.length
-      ? Math.round((finiteSubtasks.filter(s => s.completed).length / finiteSubtasks.length) * 100)
-      : (proj.completed ? 100 : 0);
-    
-    const projDuration = subtasks.filter(s => !s.completed).reduce((acc, s) => acc + (s.duracion || 0), 0);
-    const areaProps = config?.areas?.[proj.category || ''];
-    const pColor = typeof areaProps === 'string' ? areaProps : (areaProps?.color || 'slate');
+    const pendingSubtasks = subtasks.filter(subtask => !subtask.completed);
+    const completedSubtasks = subtasks.filter(subtask => subtask.completed);
+    const presentation = getProjectPresentation(proj, tasks, history || []);
 
     if (editingProjId === proj.id) {
        return (
-         <div key={proj.id} className="bg-base-dim/20 p-5 border border-border-line mb-4 text-left animate-in slide-in-from-top-1 duration-200 rounded-2xl">
-            <h4 className="text-[10px] font-mono tracking-widest text-primary font-bold mb-3 uppercase">Editando Proyecto</h4>
+         <article key={proj.id} className="mb-4 animate-in border border-border-line bg-base-dim/10 p-5 text-left duration-200 slide-in-from-top-1">
+            <h4 className="mb-3 text-[10px] font-mono font-bold uppercase tracking-widest text-primary">Editando proyecto</h4>
             <UniversalItemForm
               initialData={proj}
               config={config}
@@ -311,7 +315,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
               }}
               onCancel={() => setEditingProjId(null)}
             />
-         </div>
+         </article>
        );
     }
 
@@ -319,183 +323,90 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     const idx = projList.findIndex(p => p.id === proj.id);
     const isFirstItem = idx <= 0;
     const isLastItem = idx === -1 || idx === projList.length - 1;
-    const dateSummary = getProjectDateSummary(proj, tasks, history || []);
-    const projectTemporalIndicators = getItemTemporalIndicators(proj, tasks, history || []);
-    const projectStart = projectTemporalIndicators.find(indicator => indicator.kind === 'unstarted' || indicator.kind === 'start');
-    const projectDeadline = projectTemporalIndicators.find(indicator => indicator.kind === 'deadline');
+    const completedExpanded = expandedCompletedTasks.includes(proj.id);
 
     return (
-      <div key={proj.id} id={`task-item-${proj.id}`} className={cn("relative p-4 transition-all group border-b last:border-b-0 border-border-line/40", proj.completed && "grayscale")}>
-        
-        <div className="flex items-start gap-3 md:gap-4 w-full">
-          {/* Toggle button showing project type icon */}
-          <button onClick={() => onToggleTask(proj)} className="mt-1 flex-shrink-0 focus:outline-none hover:scale-105 transition-transform bg-transparent border-0 cursor-pointer flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40">
-             {proj.completed ? (
-               <CheckCircle className="text-emerald-600 dark:text-emerald-500 w-4 h-4" />
-             ) : (
-               <span className="text-text-main/70 group-hover:text-text-main transition-colors flex items-center justify-center shrink-0">
-                 <Folder className={cn("w-3.5 h-3.5", getAreaTextClasses(pColor))} />
-               </span>
-             )}
-          </button>
-
-          {/* Middle content: text, badges, progress bar */}
-          <div className="flex-1 min-w-0 text-left">
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h3 className={cn("text-base font-medium text-text-main overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]", proj.completed ? "line-through opacity-60 font-light" : "")}>
-                {proj.text}
-              </h3>
-              <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} />
-              {proj.allocationType && <AllocationBadge allocation={proj.allocationType} />}
-            </div>
-            
-            <div className="mb-2 flex min-w-0 items-center gap-2 overflow-hidden text-[10px] font-mono text-text-dim">
-              {projectStart && <TemporalIndicator indicator={projectStart} />}
-              <span className="text-text-dim/40">·</span>
-              <span className="shrink-0">{completedFiniteSubtasks}/{finiteSubtasks.length} · {progress}%</span>
-              {projectDeadline && <span className="text-text-dim/40">·</span>}
-              {projectDeadline && <TemporalIndicator indicator={projectDeadline} />}
-            </div>
-
-            <div className="flex items-center gap-3 w-full max-w-xs">
-              <div className="flex-1 h-[2px] bg-[var(--color-border-line)]/50 rounded-full overflow-hidden">
-                <div className={cn("h-full transition-all", getAreaProgressClasses(pColor))} style={{ width: `${progress}%` }}></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Controls Column (on the right) */}
-          <div className="flex flex-col items-center gap-1.5 shrink-0 w-6 pt-1">
-            {/* Chevron */}
-            <button 
-              title={isExpanded ? "Contraer tareas" : "Expandir tareas"}
-              aria-label={isExpanded ? "Contraer tareas" : "Expandir tareas"}
-              aria-expanded={isExpanded}
-              onClick={() => toggleProject(proj.id)} 
-              className="text-[#a2b29f] hover:text-[#2d2d2d] p-0.5 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
+      <ProjectCard
+        key={proj.id}
+        project={proj}
+        presentation={presentation}
+        config={config}
+        variant="strategy"
+        expanded={isExpanded}
+        onToggleExpanded={() => toggleProject(proj.id)}
+        onToggleProject={() => onToggleTask(proj)}
+        onEdit={() => startEdit(proj)}
+        onDelete={() => onDeleteTask(proj.id)}
+        onMoveUp={sortBy === 'manual' ? () => handleMoveProjUp(proj) : undefined}
+        onMoveDown={sortBy === 'manual' ? () => handleMoveProjDown(proj) : undefined}
+        canMoveUp={!isFirstItem}
+        canMoveDown={!isLastItem}
+        completedSection={completedSubtasks.length > 0 ? (
+          <section className="mt-3 border-t border-border-line/50 pt-2">
+            <button
+              type="button"
+              onClick={() => setExpandedCompletedTasks(current => (
+                current.includes(proj.id)
+                  ? current.filter(id => id !== proj.id)
+                  : [...current, proj.id]
+              ))}
+              aria-expanded={completedExpanded}
+              className="flex w-full items-center justify-between border-0 bg-transparent py-2 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-text-dim hover:text-text-main"
             >
-               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              Completadas ({completedSubtasks.length})
+              <b aria-hidden="true">{completedExpanded ? '−' : '+'}</b>
             </button>
-
-            {/* 3-dots Options */}
-            <div className="relative flex items-center justify-center">
-              <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const spaceBelow = window.innerHeight - rect.bottom;
-                  setMenuProjUpwards(spaceBelow < 250);
-                  setOpenMenuProjId(openMenuProjId === proj.id ? null : proj.id); 
-                }}
-                className="text-[#a2b29f] hover:text-text-main p-0.5 cursor-pointer bg-transparent border-0 rounded-full hover:bg-base-dim/50 flex items-center justify-center transition-colors"
-                title="Opciones"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="12" cy="5" r="1" />
-                  <circle cx="12" cy="19" r="1" />
-                </svg>
-              </button>
-
-              {openMenuProjId === proj.id && (
-                <>
-                  <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuProjId(null)} />
-                  <div className={cn(
-                    "absolute right-0 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
-                    menuProjUpwards ? "bottom-full mb-1" : "top-full mt-1"
-                  )}>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); startEdit(proj); setOpenMenuProjId(null); }}
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                    >
-                      <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                      Editar
-                    </button>
-                    {sortBy === 'manual' && (
-                      <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleMoveProjUp(proj); setOpenMenuProjId(null); }}
-                          disabled={isFirstItem}
-                          className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                        >
-                          <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-                          Mover arriba
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleMoveProjDown(proj); setOpenMenuProjId(null); }}
-                          disabled={isLastItem}
-                          className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                        >
-                          <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                          Mover abajo
-                        </button>
-                      </>
-                    )}
-                    <div className="h-[1px] bg-border-line/40 my-1"></div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuProjId(null);
-                        if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente el proyecto "${proj.text}" y todas sus tareas?`)) {
-                          onDeleteTask(proj.id);
+            {completedExpanded && (
+              <ul className="m-0 list-none space-y-1 p-0">
+                {completedSubtasks.map(sub => (
+                  <li key={sub.id}>
+                    <TaskItem
+                      task={sub}
+                      config={config}
+                      allTasks={tasks}
+                      history={history}
+                      onToggle={onToggleTask}
+                      onDelete={() => onDeleteTask(sub.id)}
+                      onUpdate={onUpdateTask}
+                      onAddTask={onAddTask}
+                      onDeleteTask={onDeleteTask}
+                      isSubtask
+                      hideAreaCategory
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                      onEditProject={() => startEdit(proj)}
+                      onEditingChange={editing => {
+                        setProjectTaskEditing(proj.id, sub.id, editing);
+                        if (editing) {
+                          setExpandedCompletedTasks(current => current.includes(proj.id) ? current : [...current, proj.id]);
                         }
-                      }} 
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50/15 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                    >
-                      <X className="w-3 h-3 text-red-500" />
-                      Eliminar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Reordering Arrows */}
-            {sortBy === 'manual' && (
-              <div className="flex flex-col gap-0.5 items-center">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleMoveProjUp(proj); }}
-                  disabled={isFirstItem}
-                  className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
-                  title="Mover arriba"
-                >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleMoveProjDown(proj); }}
-                  disabled={isLastItem}
-                  className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
-                  title="Mover abajo"
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                      }}
+                      showMoveArrows={sortBy === 'manual'}
+                      context="project"
+                    />
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
-        </div>
-
-        {isExpanded && (
-          <div className="relative pl-2 flex flex-col gap-2 mt-4 animate-in fade-in duration-200">
-            <div className="ml-8 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
-              {(dateSummary.startDate || !proj.completed) && <span>Inicio: {dateSummary.startDate ? formatRelativeCalendarDate(dateSummary.startDate) : 'Sin iniciar'}</span>}
-              {dateSummary.lastActivityDate && <span>Última actividad: {formatRelativeCalendarDate(dateSummary.lastActivityDate)}</span>}
-              {projDuration > 0 && <span>Estimación abierta: {projDuration.toFixed(1)}h</span>}
-            </div>
+          </section>
+        ) : null}
+      >
+        <section className="mb-2">
             {addingTaskId === proj.id ? (
-              <form onSubmit={e => handleInlineAddTask(e, proj)} className="flex items-center gap-4 mt-1 mb-2 ml-8 text-left w-full pr-2">
+              <form onSubmit={e => handleInlineAddTask(e, proj)} className="mb-2 flex w-full items-center gap-4 text-left">
                 <input 
                   autoFocus
                   type="text" 
                   placeholder="Nombre de la nueva tarea..."
-                  className="flex-1 px-4 py-1.5 text-sm bg-base text-text-main border border-border-line rounded-full focus:outline-none focus:border-[#a2b29f]"
+                  className="h-9 flex-1 border-0 border-b border-border-line bg-transparent px-0 text-sm text-text-main outline-none focus:border-text-main"
                   value={newTaskText}
                   onChange={e => setNewTaskText(e.target.value)}
                   onBlur={() => {
                     if (!newTaskText.trim()) setAddingTaskId(null);
                   }}
                 />
-                <button type="submit" disabled={!newTaskText.trim()} className="text-text-main disabled:opacity-40 text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-2 hover:opacity-75 transition-opacity ml-2 cursor-pointer hover:underline bg-transparent border-0 outline-none">
-                  + Añadir
+                <button type="submit" disabled={!newTaskText.trim()} className="border-0 bg-transparent text-xs font-bold uppercase tracking-[0.16em] text-text-main disabled:opacity-40">
+                  Añadir
                 </button>
               </form>
             ) : (
@@ -504,35 +415,38 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   setAddingTaskId(proj.id);
                   setNewTaskText('');
                 }}
-                className="mt-1 mb-2 ml-8 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-text-dim hover:text-text-main hover:underline transition-colors py-2 cursor-pointer bg-transparent border-0 outline-none"
+                className="mb-2 flex items-center gap-2 border-0 bg-transparent py-2 text-xs font-mono uppercase tracking-wider text-text-dim transition-colors hover:text-text-main"
               >
                 <Plus className="w-3.5 h-3.5" /> Añadir Tarea
               </button>
             )}
-
-            {subtasks.map(sub => (
-              <TaskItem 
-                key={sub.id}
-                task={sub} 
-                config={config} 
-                allTasks={tasks} 
-                history={history}
-                onToggle={onToggleTask} 
-                onDelete={() => onDeleteTask(sub.id)} 
-                onUpdate={onUpdateTask}
-                onAddTask={onAddTask}
-                onDeleteTask={onDeleteTask}
-                isSubtask 
-                hideAreaCategory
-                activeTimer={activeTimer}
-                onStartTimer={onStartTimer}
-                showMoveArrows={sortBy === 'manual'}
-                context="project"
-              />
+          <ul className="m-0 list-none space-y-1 p-0">
+            {pendingSubtasks.map(sub => (
+              <li key={sub.id}>
+                <TaskItem
+                  task={sub}
+                  config={config}
+                  allTasks={tasks}
+                  history={history}
+                  onToggle={onToggleTask}
+                  onDelete={() => onDeleteTask(sub.id)}
+                  onUpdate={onUpdateTask}
+                  onAddTask={onAddTask}
+                  onDeleteTask={onDeleteTask}
+                  isSubtask
+                  hideAreaCategory
+                  activeTimer={activeTimer}
+                  onStartTimer={onStartTimer}
+                  onEditProject={() => startEdit(proj)}
+                  onEditingChange={editing => setProjectTaskEditing(proj.id, sub.id, editing)}
+                  showMoveArrows={sortBy === 'manual'}
+                  context="project"
+                />
+              </li>
             ))}
-          </div>
-        )}
-      </div>
+          </ul>
+        </section>
+      </ProjectCard>
     );
   });
 

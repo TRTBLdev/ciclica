@@ -14,6 +14,7 @@ import { formatDateOnly, getIsoWeekday, isRoutineConfigured } from '../domain/re
 import { getPulseLogValue, getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
+import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
 
 interface Props {
   config: Config | null;
@@ -29,7 +30,7 @@ interface Props {
   activeTimer?: { taskId: string; isRunning: boolean } | null;
   onStartTimer?: (taskId: string) => void;
   onUpdateConfig?: (c: Partial<Config>) => void;
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: string, taskId?: string) => void;
 }
 
 export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
@@ -124,8 +125,16 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   }
 
   if (filterAllocation !== 'Todas') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => t.allocationType === filterAllocation);
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.allocationType === filterAllocation);
+    filteredTodayTasks = filteredTodayTasks.filter(t => (
+      t.type === 'Proyecto'
+        ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
+        : t.allocationType === filterAllocation
+    ));
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => (
+      t.type === 'Proyecto'
+        ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
+        : t.allocationType === filterAllocation
+    ));
   }
 
   const todayTasks = filteredTodayTasks;
@@ -174,19 +183,29 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
 
   todayTasks.forEach(t => {
     let taskDur = t.duracion || 0;
-    if (t.type === 'Rutina' || t.type === 'Proyecto') {
+    let displayTask = t;
+    if (t.type === 'Proyecto') {
+      const presentation = getProjectPresentation(t, tasks, history, currentDay);
+      taskDur = presentation.openEstimate;
+      plannedSoporte += presentation.energy.support;
+      plannedInversion += presentation.energy.investment;
+      displayTask = { ...t, duracion: presentation.openEstimate };
+    } else if (t.type === 'Rutina') {
       taskDur = tasks.filter(sub => sub.parentId === t.id && !sub.completed).reduce((acc, sub) => acc + (sub.duracion || 0), 0);
+      const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
+      plannedSoporte += energy.support;
+      plannedInversion += energy.investment;
+    } else {
+      const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
+      plannedSoporte += energy.support;
+      plannedInversion += energy.investment;
     }
-
-    const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
-    plannedSoporte += energy.support;
-    plannedInversion += energy.investment;
 
     const safeTime = extractSafeTime(t.hora);
     if (safeTime) {
-      timedTasks.push({ ...t, hora: safeTime });
+      timedTasks.push({ ...displayTask, hora: safeTime });
     } else {
-      untimedTasks.push(t);
+      untimedTasks.push(displayTask);
     }
   });
 
@@ -846,12 +865,13 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             </div>
 
             {showFlexible && (
-              <div className="space-y-3 animate-in fade-in duration-200">
+              <section className="animate-in duration-200 fade-in">
                 {untimedTasks.length === 0 ? (
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Sin elementos flexibles.</p>
                 ) : (
-                  getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
-                    <div 
+                  <ul className="m-0 list-none space-y-3 p-0">
+                  {getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
+                    <li
                       key={t.id} 
                       draggable={sortFlexiblesBy === 'manual'}
                       onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
@@ -874,10 +894,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                         onNavigate={onNavigate}
                         context="today"
                       />
-                    </div>
-                  ))
+                    </li>
+                  ))}
+                  </ul>
                 )}
-              </div>
+              </section>
             )}
           </div>
 
@@ -911,12 +932,13 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             </div>
 
             {showBacklog && (
-              <div className="space-y-3 animate-in fade-in duration-200">
+              <section className="animate-in duration-200 fade-in">
                 {backlogTasks.length === 0 ? (
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Backlog vacío. Buen trabajo.</p>
                 ) : (
-                  getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
-                    <div 
+                  <ul className="m-0 list-none space-y-3 p-0">
+                  {getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
+                    <li
                       key={t.id}
                       draggable={sortBacklogBy === 'manual'}
                       onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
@@ -939,10 +961,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                         onNavigate={onNavigate}
                         context="backlog"
                       />
-                    </div>
-                  ))
+                    </li>
+                  ))}
+                  </ul>
                 )}
-              </div>
+              </section>
             )}
           </div>
 

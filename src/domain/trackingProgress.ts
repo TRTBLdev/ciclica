@@ -1,7 +1,7 @@
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
 import { formatDateOnly, getNextScheduledDate, isTaskScheduledOnDate, parseDateOnly } from './recurrenceProgress';
 
-export type TrackingCellState = 'complete' | 'partial' | 'exceeded' | 'failed' | 'absent' | 'unconfirmed' | 'unscheduled';
+export type TrackingCellState = 'complete' | 'executed' | 'partial' | 'exceeded' | 'failed' | 'absent' | 'unconfirmed' | 'unscheduled';
 
 export interface TaskTrackingSummary {
   compliancePercent: number;

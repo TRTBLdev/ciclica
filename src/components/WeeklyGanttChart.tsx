@@ -3,6 +3,8 @@ import { AppTask, HistoryRecord, Config } from '../types';
 import { cn } from '../lib/utils';
 import { Clock } from 'lucide-react';
 import { getEffectiveEnergyAllocation } from '../domain/energyAllocation';
+import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
+import { formatDateOnly, parseDateOnly } from '../domain/recurrenceProgress';
 
 interface Props {
   tasks: AppTask[];
@@ -12,20 +14,10 @@ interface Props {
   config: Config;
 }
 
-const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
-  let current = allTasks.find(t => t.id === taskId);
-  while (current) {
-    if (current.type === 'Proyecto') return current;
-    if (!current.parentId) break;
-    current = allTasks.find(t => t.id === current.parentId);
-  }
-  return null;
-};
-
 export default function WeeklyGanttChart({ tasks, history, periodStart, periodEnd, config }: Props) {
   // Group tasks executed in this period by Area, then by Energy (Soporte Vital vs Inversión)
   const relevantHistory = history.filter(h => {
-    const d = h.date.slice(0, 10);
+    const d = getHistoryDateKey(h);
     return d >= periodStart && d <= periodEnd;
   });
 
@@ -36,7 +28,7 @@ export default function WeeklyGanttChart({ tasks, history, periodStart, periodEn
 
   activeTasks.forEach(t => {
     const p = getProjectForTask(t.id, tasks);
-    const area = t.category || p?.category || 'General';
+    const area = p?.category || t.category || 'General';
     const energy = getEffectiveEnergyAllocation(t, tasks) === 'fixed' ? 'Soporte Vital' : 'Inversión';
 
     if (!itemsByAreaAndEnergy[area]) itemsByAreaAndEnergy[area] = { 'Soporte Vital': [], 'Inversión': [] };
@@ -44,8 +36,8 @@ export default function WeeklyGanttChart({ tasks, history, periodStart, periodEn
   });
 
   // Calculate days in the period
-  const start = new Date(periodStart);
-  const end = new Date(periodEnd);
+  const start = parseDateOnly(periodStart);
+  const end = parseDateOnly(periodEnd);
   const days: Date[] = [];
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     days.push(new Date(d));
@@ -121,8 +113,8 @@ export default function WeeklyGanttChart({ tasks, history, periodStart, periodEn
                               </div>
                               <div className="flex-grow flex">
                                 {days.map((d, i) => {
-                                  const dateStr = d.toISOString().slice(0, 10);
-                                  const dayHistory = taskHistory.filter(h => h.date.startsWith(dateStr));
+                                  const dateStr = formatDateOnly(d);
+                                  const dayHistory = taskHistory.filter(h => getHistoryDateKey(h) === dateStr);
                                   const executedToday = dayHistory.reduce((acc, h) => acc + (h.duration || 0), 0);
                                   
                                   const hasPlan = task.hora || plannedHours > 0;

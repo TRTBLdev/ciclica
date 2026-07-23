@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, Circle, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isAppearanceScheduledOnDate, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import CompactDate from './ui/CompactDate';
 import TemporalIndicator, { temporalToneClassName } from './ui/TemporalIndicator';
 import LinkedText from './ui/LinkedText';
+import { getProjectForTask, getProjectTaskIds } from '../domain/workTracking';
+import ProjectCard from './ProjectCard';
+import { getInheritedProjectContext, getProjectPresentation } from '../domain/projectPresentation';
+import ItemDetails from './ItemDetails';
 
 
 const GripIcon = () => (
@@ -86,6 +90,8 @@ interface Props {
   history?: HistoryRecord[];
   onNavigateToLocation?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
+  onEditProject?: (projectId: string) => void;
+  onEditingChange?: (editing: boolean) => void;
   showMoveArrows?: boolean;
   context?: 'today' | 'backlog' | 'routine' | 'project' | 'default';
 }
@@ -106,9 +112,14 @@ export default function TaskItem({
   history,
   onNavigateToLocation,
   onNavigate,
+  onEditProject,
+  onEditingChange,
   showMoveArrows = false,
   context = 'default'
 }: Props) {  const [isEditing, setIsEditing] = useState(false);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const onEditingChangeRef = React.useRef(onEditingChange);
+  onEditingChangeRef.current = onEditingChange;
   const [editText, setEditText] = useState('');
   const [editHora, setEditHora] = useState('');
   const [editFrecuencia, setEditFrecuencia] = useState(1);
@@ -241,7 +252,8 @@ export default function TaskItem({
     }
   }, [isEditing, task]);
 
-  const subtasks = allTasks.filter(t => t.parentId === task.id);
+  const isActiveProjectContext = (context === 'today' || context === 'backlog') && task.type === 'Proyecto';
+  const subtasks = allTasks.filter(t => t.parentId === task.id && (!isActiveProjectContext || !t.completed));
   const getSubtasksWithOrders = () => {
     const isCompletedVisual = (t: AppTask) => t.completed;
 
@@ -267,6 +279,29 @@ export default function TaskItem({
   const activeProjects = allTasks.filter(t => t.type === 'Proyecto' && !t.completed);
   const activeRoutines = allTasks.filter(t => t.type === 'Rutina' && !t.completed);
   const hasSubtasks = subtasks.length > 0;
+  const projectTaskIds = task.type === 'Proyecto' ? new Set(getProjectTaskIds(task.id, allTasks)) : undefined;
+  const inheritedProject = getInheritedProjectContext(task, allTasks);
+  const isProjectChild = !!inheritedProject;
+  const activeTimerBelongsToProject = !!(
+    task.type === 'Proyecto'
+    && activeTimer?.taskId
+    && projectTaskIds?.has(activeTimer.taskId)
+  );
+  const lastAutoExpandedTimerRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    const activeTimerTaskId = activeTimer?.taskId || null;
+    if (activeTimerBelongsToProject && activeTimerTaskId !== lastAutoExpandedTimerRef.current) {
+      setIsExpanded(true);
+    }
+    lastAutoExpandedTimerRef.current = activeTimerTaskId;
+  }, [activeTimer?.taskId, activeTimerBelongsToProject]);
+
+  React.useEffect(() => {
+    onEditingChangeRef.current?.(isEditing);
+  }, [isEditing]);
+
+  React.useEffect(() => () => onEditingChangeRef.current?.(false), []);
 
   const isLocked = () => {
     if (!task.dependencyId) return false;
@@ -281,8 +316,8 @@ export default function TaskItem({
   const locked = isLocked();
   const parentTask = task.parentId ? allTasks.find(t => t.id === task.parentId) : null;
   const isActualSubtask = !!(parentTask && parentTask.type !== 'Proyecto');
-  const displayCategory = task.category || (parentTask ? parentTask.category : '');
-  const displaySubCategory = task.subCategory || (parentTask ? parentTask.subCategory : '');
+  const displayCategory = inheritedProject?.category || task.category || (parentTask ? parentTask.category : '');
+  const displaySubCategory = inheritedProject?.subCategory || task.subCategory || (parentTask ? parentTask.subCategory : '');
   const areaConfig = config?.areas?.[displayCategory || ''];
   const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
   const isHabit = task.type === 'Hábito';
@@ -292,7 +327,7 @@ export default function TaskItem({
   const childCycleTarget = Math.max(1, task.objetivoPorCiclo || 1);
   const childCompletedThisAppearance = parentRoutine ? wasChildHabitCompletedInAppearance(parentRoutine, task, history || [], todayKey) : false;
   const childTargetReached = !!parentRoutine && childCycleCount >= childCycleTarget;
-  const parentRoutineAppearsToday = parentRoutine ? isAppearanceScheduledOnDate(parentRoutine, todayKey) : true;
+  const occurrenceIsAvailable = !parentRoutine || !childCompletedThisAppearance;
   const routineProgress = task.type === 'Rutina' ? getRoutineCycleProgressFromHistory(task, allTasks, history || []) : 0;
   const canToggleRoutine = task.type === 'Rutina' && routineProgress === 100;
   const isCompletedVisual = parentRoutine ? childCompletedThisAppearance : task.completed;
@@ -329,8 +364,7 @@ export default function TaskItem({
     if (!history) return 0;
     
     if (task.type === 'Proyecto') {
-      const childrenIds = allTasks.filter(t => t.parentId === task.id).map(t => t.id);
-      return history.filter(h => childrenIds.includes(h.taskId)).reduce((acc, h) => acc + (h.duration || 0), 0);
+      return history.filter(h => projectTaskIds?.has(h.taskId)).reduce((acc, h) => acc + (h.duration || 0), 0);
     }
     
     if (task.type === 'Rutina' || hasSubtasks) {
@@ -367,9 +401,13 @@ export default function TaskItem({
 
   const trackedHours = getTrackedDuration();
 
-  const plannedHours = (task.type === 'Proyecto' || task.type === 'Rutina' || hasSubtasks)
-    ? allTasks.filter(t => t.parentId === task.id).reduce((acc, t) => acc + (t.duracion || 0), 0)
-    : (task.duracion || 0);
+  const plannedHours = task.type === 'Proyecto'
+    ? allTasks
+      .filter(candidate => projectTaskIds?.has(candidate.id) && candidate.id !== task.id && !candidate.completed)
+      .reduce((sum, candidate) => sum + (candidate.duracion || 0), 0)
+    : (task.type === 'Rutina' || hasSubtasks)
+      ? allTasks.filter(t => t.parentId === task.id).reduce((acc, t) => acc + (t.duracion || 0), 0)
+      : (task.duracion || 0);
 
   const childQuotaStatus = parentRoutine ? getChildHabitQuotaStatus(parentRoutine, task, history || []) : undefined;
   const childQuotaMetadata = parentRoutine ? (
@@ -386,18 +424,18 @@ export default function TaskItem({
   ) : null;
 
   const contextualMetadata: Array<React.ReactNode | null> = context === 'today' ? [
-    task.hora || null,
+    isProjectChild ? null : task.hora || null,
     childQuotaMetadata,
     (trackedHoursToday > 0 || plannedHours > 0) ? `${trackedHoursToday.toFixed(2)}h/${plannedHours.toFixed(1)}h` : null,
   ] : context === 'backlog' ? [
-    nextAppearanceDate ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
+    nextAppearanceDate && !isProjectChild ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
     task.dependencyId ? `Dep. #${task.dependencyId.slice(-4)}` : null,
   ] : context === 'routine' ? [
     childQuotaMetadata || `Ciclo ${routineProgress}%`,
     checklistTotal > 0 ? `pasos ${completedChecklistItems}/${checklistTotal}` : null,
     trackedHours > 0 ? `${trackedHours.toFixed(2)}h` : null,
   ] : [
-    nextAppearanceDate ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
+    nextAppearanceDate && !isProjectChild ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
     (trackedHours > 0 || plannedHours > 0) ? `${trackedHours.toFixed(2)}h/${plannedHours.toFixed(1)}h` : null,
   ];
   const itemTemporalIndicators = getItemTemporalIndicators(task, allTasks, history || []);
@@ -437,6 +475,75 @@ export default function TaskItem({
     return Math.min(100, Math.round((checksInPeriod / finalExpected) * 100));
   };
 
+  if (task.type === 'Proyecto' && isEditing) {
+    return (
+      <article className="border border-border-line bg-base-dim/10 p-5 text-left">
+        <h3 className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-primary">Editando proyecto</h3>
+        <UniversalItemForm
+          initialData={task}
+          config={config}
+          allTasks={allTasks}
+          onSave={updates => {
+            if (onUpdate) onUpdate(task.id, updates);
+            setIsEditing(false);
+          }}
+          onCancel={() => setIsEditing(false)}
+        />
+      </article>
+    );
+  }
+
+  if (task.type === 'Proyecto' && !isEditing) {
+    const presentation = getProjectPresentation(task, allTasks, history || []);
+    const projectVariant = context === 'backlog'
+      ? 'backlog'
+      : task.hora ? 'timeline' : 'flexible';
+
+    return (
+      <ProjectCard
+        project={task}
+        presentation={presentation}
+        config={config}
+        variant={projectVariant}
+        expanded={isExpanded}
+        onToggleExpanded={() => setIsExpanded(value => editingChildId ? true : !value)}
+        onToggleProject={() => onToggle(task)}
+        onEdit={onUpdate ? () => setIsEditing(true) : undefined}
+        onDelete={onDelete}
+      >
+        <ul className="m-0 list-none space-y-1 p-0" aria-label={`Tareas pendientes de ${task.text}`}>
+          {getSubtasksWithOrders().map(sub => (
+            <li key={sub.id}>
+              <TaskItem
+                task={sub}
+                config={config}
+                allTasks={allTasks}
+                history={history}
+                onToggle={onToggle}
+                onDelete={() => onDeleteTask && onDeleteTask(sub.id)}
+                onUpdate={onUpdate}
+                onAddTask={onAddTask}
+                onDeleteTask={onDeleteTask}
+                isSubtask
+                hideAreaCategory
+                activeTimer={activeTimer}
+                onStartTimer={onStartTimer}
+                onNavigate={onNavigate}
+                onEditProject={onEditProject}
+                onEditingChange={editing => {
+                  setEditingChildId(editing ? sub.id : current => current === sub.id ? null : current);
+                  if (editing) setIsExpanded(true);
+                }}
+                showMoveArrows={showMoveArrows}
+                context={context}
+              />
+            </li>
+          ))}
+        </ul>
+      </ProjectCard>
+    );
+  }
+
   return (
     <div 
       id={`task-item-${task.id}`}
@@ -444,19 +551,19 @@ export default function TaskItem({
         "relative group flex flex-col p-4 transition-all duration-200",
         isCompletedVisual && !isEditing ? "grayscale" : "",
         locked ? "opacity-60 grayscale" : "",
-        isSubtask ? "ml-2 md:ml-4 mt-1 relative before:content-[''] before:absolute before:-left-3 md:-left-4 before:-top-4 before:bottom-1/2 before:w-[1px] before:border-l before:border-b before:border-border-line before:rounded-bl" : ""
+        isSubtask ? "mt-1" : ""
       )}
     >
       
       <div className="flex items-start gap-3 md:gap-4 w-full">
         <button 
-          onClick={() => { if (!locked && parentRoutineAppearsToday && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) onToggle(task); }}
-          disabled={locked || !parentRoutineAppearsToday || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine)}
-          onMouseEnter={() => { if (!locked && parentRoutineAppearsToday && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) setIsCheckboxHovered(true); }}
+          onClick={() => { if (!locked && occurrenceIsAvailable && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) onToggle(task); }}
+          disabled={locked || !occurrenceIsAvailable || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine)}
+          onMouseEnter={() => { if (!locked && occurrenceIsAvailable && !childTargetReached && (task.type !== 'Rutina' || canToggleRoutine)) setIsCheckboxHovered(true); }}
           onMouseLeave={() => setIsCheckboxHovered(false)}
           className={cn(
             "mt-1 flex-shrink-0 focus:outline-none z-10 bg-transparent transition-all duration-200 flex items-center justify-center w-5 h-5 rounded-full hover:bg-base-dim/40",
-            locked || !parentRoutineAppearsToday || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine) ? "cursor-default opacity-70" : "cursor-pointer"
+            locked || !occurrenceIsAvailable || childTargetReached || (task.type === 'Rutina' && !canToggleRoutine) ? "cursor-default opacity-70" : "cursor-pointer"
           )}
         >
           {isActionComplete ? (
@@ -489,6 +596,10 @@ export default function TaskItem({
               setIsEditing(false);
             }}
             onCancel={() => setIsEditing(false)}
+            onEditProject={projectId => {
+              if (onEditProject) onEditProject(projectId);
+              else if (onNavigate) onNavigate('proyectos', projectId);
+            }}
           />
         ) : false ? (
           <div className="flex flex-col gap-2 mb-1.5 mt-0.5">
@@ -810,16 +921,16 @@ export default function TaskItem({
             <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
               <p 
                 onClick={() => {
-                  if (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
+                  if (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
                     onStartTimer(task.id);
                   }
                 }}
                 className={cn(
                   "text-base flex-1 min-w-0 break-words flex items-center gap-2 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
                   isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
-                  (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
+                  (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
                 )}
-                title={(task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
+                title={(task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
               >
                 <span>{task.text}</span>
               </p>
@@ -894,7 +1005,7 @@ export default function TaskItem({
                   🔴 Trackeando
                 </span>
               ) : (
-                task.type !== 'Rutina' && task.type !== 'Pulso' && !task.completed && parentRoutineAppearsToday && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && !locked && (
+                task.type !== 'Rutina' && task.type !== 'Pulso' && !task.completed && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && !locked && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onStartTimer(task.id); }}
                     className="p-1 hover:bg-base-dim/40 rounded-full transition-all cursor-pointer bg-transparent border-0 outline-none flex items-center justify-center"
@@ -1058,7 +1169,7 @@ export default function TaskItem({
       </div>
 
       {isExpanded && (
-        <div className="w-full mt-3 pl-4 md:pl-6 flex flex-col gap-3 relative before:content-[''] before:absolute before:left-2 md:before:left-3 before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100 pr-2">
+        <section className="mt-3 flex w-full flex-col gap-3 pl-4 pr-2 md:pl-6" aria-label={`Detalles de ${task.text}`}>
           {task.type !== 'Pulso' && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-text-dim">
               {task.type === 'Tarea' ? (
@@ -1079,80 +1190,48 @@ export default function TaskItem({
                   {taskDateSummary.lastActivityDate && <span>Última actividad: {formatRelativeCalendarDate(taskDateSummary.lastActivityDate)}</span>}
                 </>
               )}
-              {nextAppearanceDate && <span>Próxima aparición: {formatRelativeCalendarDate(nextAppearanceDate)}</span>}
+              {nextAppearanceDate && !isProjectChild && <span>Próxima aparición: {formatRelativeCalendarDate(nextAppearanceDate)}</span>}
               {task.type !== 'Tarea' && task.fechaLimite && <span>Fecha límite: {formatRelativeCalendarDate(task.fechaLimite)}</span>}
             </div>
           )}
           
-          {/* Notes display */}
-          {task.notes && (
-            <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main whitespace-pre-wrap font-sans font-light leading-relaxed mb-1">
-              <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest mb-1.5 font-bold">Notas</div>
-              <LinkedText text={task.notes} />
-            </div>
-          )}
-
-           {/* Checklist display */}
-          {checklistTotal > 0 && (
-            <div className="text-left bg-base-dim/40 p-4 rounded-2xl border border-border-line/40 text-xs text-text-main flex flex-col gap-2.5 mb-1">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest font-bold">Guía de Pasos (Checklist)</div>
-                <span className="text-[10px] font-mono text-text-dim">{checklistProgress}%</span>
-              </div>
-              <div className="h-1 w-full bg-border-line/40 overflow-hidden rounded-full">
-                <div className="h-full bg-emerald-600 transition-all" style={{ width: `${checklistProgress}%` }} />
-              </div>
-              <div className="flex flex-col gap-2">
-                {task.checklist.map(item => (
-                  <div key={item.id} className="flex items-center gap-2.5 select-none py-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleChecklistItem(item.id)}
-                      className="focus:outline-none bg-transparent border-0 p-0 text-text-dim hover:text-accent cursor-pointer flex items-center justify-center shrink-0"
-                    >
-                      {item.done ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-500 stroke-[2.25]" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-text-dim/60 stroke-[2.25]" />
-                      )}
-                    </button>
-                    <span className={cn("text-xs text-text-main font-light", item.done && "line-through opacity-50")}>
-                      <LinkedText text={item.text} />
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <ItemDetails
+            notes={task.notes}
+            checklist={task.checklist}
+            onToggleChecklistItem={onUpdate ? handleToggleChecklistItem : undefined}
+          />
 
           {/* Subtasks rendering */}
           {hasSubtasks && (
-            <div className="flex flex-col gap-1.5 w-full mt-1.5 pl-2 border-l-2 border-border-line/20">
-              <div className="text-[9px] text-text-dim font-mono uppercase tracking-widest mb-1 font-bold">Subtareas</div>
-              {getSubtasksWithOrders().map(sub => (
-                <TaskItem
-                  key={sub.id}
-                  task={sub}
-                  config={config}
-                  allTasks={allTasks}
-                  history={history}
-                  onToggle={onToggle}
-                  onDelete={() => onDeleteTask && onDeleteTask(sub.id)}
-                  onUpdate={onUpdate}
-                  onAddTask={onAddTask}
-                  onDeleteTask={onDeleteTask}
-                  isSubtask
-                  hideAreaCategory={true}
-                  activeTimer={activeTimer}
-                  onStartTimer={onStartTimer}
-                  showMoveArrows={showMoveArrows}
-                  context={context}
-                />
-              ))}
-            </div>
+            <section className="mt-1.5 w-full" aria-label={`Subtareas de ${task.text}`}>
+              <h4 className="mb-1 font-mono text-[9px] font-bold uppercase tracking-widest text-text-dim">Subtareas</h4>
+              <ul className="m-0 list-none space-y-1 p-0">
+                {getSubtasksWithOrders().map(sub => (
+                  <li key={sub.id}>
+                    <TaskItem
+                      task={sub}
+                      config={config}
+                      allTasks={allTasks}
+                      history={history}
+                      onToggle={onToggle}
+                      onDelete={() => onDeleteTask && onDeleteTask(sub.id)}
+                      onUpdate={onUpdate}
+                      onAddTask={onAddTask}
+                      onDeleteTask={onDeleteTask}
+                      isSubtask
+                      hideAreaCategory={true}
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                      showMoveArrows={showMoveArrows}
+                      context={context}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
-        </div>
+        </section>
       )}
     </div>
   );

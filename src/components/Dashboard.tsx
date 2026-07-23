@@ -10,7 +10,9 @@ import { isPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/tr
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
-import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, isAppearanceScheduledOnDate, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { resolveCompletionDuration } from '../domain/workTracking';
+import { canCloseProject, getProjectPresentation } from '../domain/projectPresentation';
 
 const HoyView = lazy(() => import('./HoyView'));
 const SintoniaView = lazy(() => import('./SintoniaView'));
@@ -181,9 +183,18 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
     const now = new Date();
     const todayKey = formatDateOnly(now);
+    const occurrenceKey = overrideEndTime ? formatDateOnly(new Date(overrideEndTime)) : todayKey;
     const parentRoutine = task.type === 'Hábito' && task.parentId
       ? tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina')
       : undefined;
+
+    if (task.type === 'Proyecto' && !task.completed) {
+      const pendingCount = getProjectPresentation(task, tasks, history, now).pendingCount;
+      if (!canCloseProject(task.id, tasks)) {
+        window.alert(`No puedes cerrar este proyecto: quedan ${pendingCount} tareas pendientes. Complétalas o muévelas a otro proyecto.`);
+        return;
+      }
+    }
 
     if (task.type === 'Rutina') {
       if (getRoutineCycleProgressFromHistory(task, tasks, history, now) < 100 || isRoutineCycleClosed(task, progressSnapshots, now)) return;
@@ -209,11 +220,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
 
     if (parentRoutine && (
-      !isAppearanceScheduledOnDate(parentRoutine, todayKey)
-      || wasChildHabitCompletedInAppearance(parentRoutine, task, history, todayKey)
-      || getChildHabitCycleCount(parentRoutine, task, history, todayKey) >= Math.max(1, task.objetivoPorCiclo || 1)
+      wasChildHabitCompletedInAppearance(parentRoutine, task, history, occurrenceKey)
+      || getChildHabitCycleCount(parentRoutine, task, history, occurrenceKey) >= Math.max(1, task.objetivoPorCiclo || 1)
     )) return;
-    const habitLockKey = task.type === 'Hábito' ? `habit:${task.id}:${todayKey}` : undefined;
+    const habitLockKey = task.type === 'Hábito' ? `habit:${task.id}:${occurrenceKey}` : undefined;
     if (habitLockKey && completionLocksRef.current.has(habitLockKey)) return;
     if (habitLockKey) completionLocksRef.current.add(habitLockKey);
     try {
@@ -245,13 +255,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
 
     const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
-      let duration = dur !== undefined ? dur : (t.duracion || 0);
-      if (t.type === 'Proyecto') {
-        const hasChildren = tasks.some(sub => sub.parentId === t.id);
-        if (hasChildren) duration = 0;
-      }
-      const sessionStart = startT || new Date(new Date().getTime() - duration * 3600000).toISOString();
       const sessionEnd = endT || new Date().toISOString();
+      const duration = resolveCompletionDuration(t, history, sessionEnd, dur);
+      const sessionStart = startT || new Date(new Date(sessionEnd).getTime() - duration * 3600000).toISOString();
+      const occurrenceDate = formatDateOnly(new Date(sessionEnd));
 
       if (isComp) {
         const historyRecord: Omit<HistoryRecord, 'id'> = {
@@ -268,7 +275,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         if (t.type === 'Hábito' && t.parentId) {
           const routine = tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina');
           if (routine) {
-            const cycle = getRoutineCycleRangeForTask(routine, sessionEnd);
+            const cycle = getRoutineCycleRangeForTask(routine, occurrenceDate);
             historyRecord.routineId = routine.id;
             historyRecord.routineCycleStart = cycle.start;
             historyRecord.routineAppearanceDate = formatDateOnly(new Date(sessionEnd));
@@ -282,7 +289,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           if (!t.parentId && getAppearanceMode(t) !== 'quota') {
             snapshotsToAdd.push({
               userId: user.uid, kind: 'habit-period', taskId: t.id, taskSnapshotText: t.text,
-              periodStart: todayKey, periodEnd: todayKey,
+              periodStart: occurrenceDate, periodEnd: occurrenceDate,
               progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
               wasCompleted: true, createdAt: sessionEnd,
             });
@@ -292,7 +299,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
             updates: {
               completed: false,
               checklist: t.checklist?.map(item => ({ ...item, done: false })),
-              checklistCycleStart: t.parentId ? parentRoutine ? getRoutineCycleRangeForTask(parentRoutine, sessionEnd).start : undefined : undefined,
+              checklistCycleStart: t.parentId ? parentRoutine ? getRoutineCycleRangeForTask(parentRoutine, occurrenceDate).start : undefined : undefined,
               lastExecutedAt: sessionEnd,
             }
           });

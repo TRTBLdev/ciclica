@@ -13,6 +13,15 @@ import {
   normalizePulsePolarity,
   TrackingCellState,
 } from '../domain/trackingProgress';
+import { isAppearanceScheduledOnDate } from '../domain/appearance';
+import {
+  getDescendantTaskIds,
+  getHistoryDateKey,
+  getProjectForTask,
+  getWorkDayState,
+  getWorkedHoursForDate,
+  WorkDayState,
+} from '../domain/workTracking';
 
 interface Props {
   config: Config | null;
@@ -87,7 +96,9 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
   const hasMonthly = monthly.routines.length > 0 || monthly.standaloneHabits.length > 0;
 
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-12 text-left">
+    <main className="p-6 md:p-10 max-w-6xl mx-auto space-y-12 text-left">
+      <ProjectWorkCalendar tasks={tasks} history={history} />
+
       <section>
         <h2 className="text-title mb-1">Pulsos</h2>
         <p className="text-xs text-text-dim mb-5">Cada registro cuenta como una ocurrencia durante los últimos 30 días. La polaridad define qué significa cumplir la meta.</p>
@@ -149,7 +160,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
             ))}
           </div>
         )}
-        <Legend labels={[['complete', 'Completo'], ['partial', 'Parcial'], ['absent', 'Ausente'], ['unscheduled', 'No programado']]} />
+        <Legend labels={[['complete', 'Completo'], ['executed', 'Fuera de agenda'], ['partial', 'Parcial'], ['absent', 'Ausente'], ['unscheduled', 'No programado']]} />
       </section>
 
       <section>
@@ -178,7 +189,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                       onToggle={() => toggleRoutine('monthly', group.routine.id)}
                     />
                     {expandedRoutines.has(`monthly:${group.routine.id}`) && group.habits.map(habit => (
-                      <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} nested /></React.Fragment>
+                      <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} scheduleTask={group.routine} history={history} snapshots={progressSnapshots} year={year} nested /></React.Fragment>
                     ))}
                   </React.Fragment>
                 ))}
@@ -190,8 +201,209 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
           </div>
         )}
       </section>
-    </div>
+    </main>
   );
+}
+
+function ProjectWorkCalendar({ tasks, history }: { tasks: AppTask[]; history: HistoryRecord[] }) {
+  const today = new Date();
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
+  const monthDays = Array.from(
+    { length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() },
+    (_, index) => new Date(month.getFullYear(), month.getMonth(), index + 1),
+  );
+  const activeProjects = tasks
+    .filter(task => task.type === 'Proyecto' && !task.completed)
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
+  const standaloneTasks = tasks
+    .filter(task => task.type === 'Tarea' && !task.completed && !getProjectForTask(task.id, tasks))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
+  const monthTitle = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(month);
+
+  const moveMonth = (offset: number) => {
+    setMonth(current => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  };
+
+  const toggleProject = (projectId: string) => {
+    setExpandedProjects(previous => {
+      const next = new Set(previous);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  const getCellLabel = (label: string, taskIds: string[], date: Date, planned: boolean, hours: number) => {
+    const dateKey = formatDateOnly(date);
+    const details = history
+      .filter(record => taskIds.includes(record.taskId) && getHistoryDateKey(record) === dateKey && (record.duration || 0) > 0)
+      .map(record => {
+        const task = tasks.find(candidate => candidate.id === record.taskId);
+        return `${task?.text || record.taskSnapshotText || 'Elemento'} ${(record.duration || 0).toFixed(2)} h`;
+      });
+    const status = planned && hours > 0
+      ? 'programado y ejecutado'
+      : planned ? 'programado, sin ejecución'
+        : hours > 0 ? 'ejecutado fuera de programación'
+          : 'sin programación ni ejecución';
+    return `${label}, ${dateKey}: ${status}${details.length ? `. ${details.join(', ')}` : ''}`;
+  };
+
+  const renderWorkCell = (label: string, taskIds: string[], date: Date, planned: boolean) => {
+    const hours = getWorkedHoursForDate(taskIds, history, date);
+    const state = getWorkDayState(planned, hours);
+    const cellLabel = getCellLabel(label, taskIds, date, planned, hours);
+    return (
+      <td key={formatDateOnly(date)} className="p-1 text-center">
+        <output
+          aria-label={cellLabel}
+          title={cellLabel}
+          className={cn(
+            'mx-auto flex h-6 w-6 items-center justify-center border text-[8px] font-mono',
+            workStateClassName(state),
+          )}
+        >
+          {hours > 0 ? hours.toFixed(1) : ''}
+        </output>
+      </td>
+    );
+  };
+
+  const hasRows = activeProjects.length > 0 || standaloneTasks.length > 0;
+
+  return (
+    <section aria-labelledby="project-work-title">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <section>
+          <h2 id="project-work-title" className="text-title mb-1">Trabajo mensual</h2>
+          <p className="text-xs text-text-dim">Programación y ejecución real de proyectos y tareas pendientes. Las ejecuciones de 0 h no pintan el día.</p>
+        </section>
+        <nav aria-label="Cambiar mes de seguimiento" className="flex items-center gap-3">
+          <button type="button" onClick={() => moveMonth(-1)} className="border-0 bg-transparent px-2 py-1 text-lg text-text-dim hover:text-text-main" aria-label="Mes anterior">‹</button>
+          <time dateTime={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`} className="min-w-36 text-center text-xs font-mono uppercase tracking-wider text-text-main">
+            {monthTitle}
+          </time>
+          <button type="button" onClick={() => moveMonth(1)} className="border-0 bg-transparent px-2 py-1 text-lg text-text-dim hover:text-text-main" aria-label="Mes siguiente">›</button>
+        </nav>
+      </header>
+
+      {!hasRows ? <Empty text="No hay proyectos o tareas pendientes para seguir." /> : (
+        <section className="overflow-x-auto border border-border-line/50" aria-label={`Trabajo en ${monthTitle}`}>
+          <table className="w-full min-w-max border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border-line bg-base-dim/20">
+                <th className="sticky left-0 z-20 min-w-[210px] bg-base-dim px-3 py-2.5 text-left font-mono uppercase tracking-wider">Elemento</th>
+                {monthDays.map(date => (
+                  <th key={formatDateOnly(date)} className="w-8 min-w-8 px-1 py-2 text-center font-normal text-text-dim">
+                    <abbr title={date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} className="no-underline">
+                      {date.toLocaleDateString('es-ES', { weekday: 'narrow' })}
+                    </abbr>
+                    <time dateTime={formatDateOnly(date)} className="block font-mono text-[9px]">{date.getDate()}</time>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            {activeProjects.map(project => {
+              const projectTaskIds = [
+                project.id,
+                ...tasks
+                  .filter(task => getProjectForTask(task.id, tasks)?.id === project.id)
+                  .map(task => task.id),
+              ];
+              const descendantIds = new Set(getDescendantTaskIds(project.id, tasks));
+              const pendingTasks = tasks
+                .filter(task => task.type === 'Tarea'
+                  && !task.completed
+                  && descendantIds.has(task.id)
+                  && getProjectForTask(task.id, tasks)?.id === project.id)
+                .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
+              const expanded = expandedProjects.has(project.id);
+
+              return (
+                <tbody key={project.id} className="border-b border-border-line/40">
+                  <tr className="bg-base-dim/10">
+                    <th scope="row" className="sticky left-0 z-10 min-w-[210px] bg-base-dim px-3 py-2 text-left font-normal">
+                      <button
+                        type="button"
+                        onClick={() => toggleProject(project.id)}
+                        aria-expanded={expanded}
+                        className="flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left text-xs text-text-main"
+                      >
+                        <b aria-hidden="true" className="w-3 text-primary">{expanded ? '−' : '+'}</b>
+                        {project.text}
+                        <small className="ml-auto font-mono text-[8px] text-text-dim">{pendingTasks.length}</small>
+                      </button>
+                    </th>
+                    {monthDays.map(date => renderWorkCell(
+                      project.text,
+                      projectTaskIds,
+                      date,
+                      isAppearanceScheduledOnDate(project, date),
+                    ))}
+                  </tr>
+                  {expanded && pendingTasks.map(task => {
+                    const createdDate = getHistoryDateKey({ date: task.createdAt });
+                    return (
+                      <tr key={task.id}>
+                        <th scope="row" className="sticky left-0 z-10 min-w-[210px] bg-base px-3 py-2 pl-8 text-left font-normal text-text-dim">↳ {task.text}</th>
+                        {monthDays.map(date => renderWorkCell(
+                          task.text,
+                          [task.id],
+                          date,
+                          formatDateOnly(date) >= createdDate && isAppearanceScheduledOnDate(project, date),
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
+
+            {standaloneTasks.length > 0 && (
+              <tbody>
+                <tr className="border-b border-border-line/40 bg-base-dim/20">
+                  <th colSpan={monthDays.length + 1} className="px-3 py-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim">Tareas sueltas</th>
+                </tr>
+                {standaloneTasks.map(task => (
+                  <tr key={task.id} className="border-b border-border-line/30 last:border-0">
+                    <th scope="row" className="sticky left-0 z-10 min-w-[210px] bg-base px-3 py-2 text-left font-normal text-text-main">{task.text}</th>
+                    {monthDays.map(date => renderWorkCell(
+                      task.text,
+                      [task.id],
+                      date,
+                      isAppearanceScheduledOnDate(task, date),
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </table>
+        </section>
+      )}
+
+      <ul className="mt-4 flex flex-wrap gap-4 text-[9px] font-mono uppercase text-text-dim" aria-label="Leyenda">
+        {([
+          ['planned', 'Programado'],
+          ['executed', 'Ejecutado fuera de agenda'],
+          ['matched', 'Programado y ejecutado'],
+        ] as [WorkDayState, string][]).map(([state, label]) => (
+          <li key={state} className="flex items-center gap-1.5">
+            <output aria-hidden="true" className={cn('h-4 w-4 border', workStateClassName(state))} />
+            {label}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function workStateClassName(state: WorkDayState): string {
+  if (state === 'planned') return 'border-primary/40 bg-primary/10 text-primary';
+  if (state === 'executed') return 'border-primary bg-primary text-white';
+  if (state === 'matched') return 'border-emerald-600 bg-emerald-600 text-white';
+  return 'border-border-line/30 bg-transparent text-text-dim';
 }
 
 function FrequentRoutineGroup({
@@ -236,7 +448,7 @@ function FrequentRoutineGroup({
           {row}
         </button>
       ) : row}
-      {expanded && habits.map(habit => <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} days={days} history={history} nested /></React.Fragment>)}
+      {expanded && habits.map(habit => <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} scheduleTask={routine} days={days} history={history} nested /></React.Fragment>)}
     </div>
   );
 }
@@ -250,24 +462,36 @@ function RoutineAppearanceCell({ routine, date, snapshots }: { routine: AppTask;
   return <Cell state={state} title={`${formatDateOnly(date)}: ${snapshot.progressPercent}% / meta ${target}%`} />;
 }
 
-function HabitTrackingRow({ habit, days, history, nested = false }: { habit: AppTask; days: Date[]; history: HistoryRecord[]; nested?: boolean }) {
+function HabitTrackingRow({
+  habit, scheduleTask, days, history, nested = false,
+}: {
+  habit: AppTask;
+  scheduleTask?: AppTask;
+  days: Date[];
+  history: HistoryRecord[];
+  nested?: boolean;
+}) {
   return (
     <TrackingRow
       label={<span className={cn('block truncate text-xs text-text-main', nested && 'pl-5 text-text-dim')} title={habit.text}>{nested && '↳ '}{habit.text}</span>}
       days={days}
       renderCell={date => {
-        if (!isTaskScheduledOnDate(habit, date)) return <Cell state="unscheduled" title={`${formatDateOnly(date)}: no programado`} />;
+        const scheduled = isTaskScheduledOnDate(scheduleTask || habit, date);
         const completed = completedHistoryForDate(history, habit.id, date) > 0;
-        return <Cell state={completed ? 'complete' : 'absent'} title={`${formatDateOnly(date)}: ${completed ? 'completo' : 'ausente'}`} />;
+        const state: TrackingCellState = completed
+          ? scheduled ? 'complete' : 'executed'
+          : scheduled ? 'absent' : 'unscheduled';
+        return <Cell state={state} title={`${formatDateOnly(date)}: ${completed ? scheduled ? 'completo' : 'ejecutado fuera de agenda' : scheduled ? 'ausente' : 'no programado'}`} />;
       }}
     />
   );
 }
 
 function MonthlyTaskRow({
-  task, history, snapshots, year, expandable = false, expanded = false, nested = false, onToggle,
+  task, scheduleTask, history, snapshots, year, expandable = false, expanded = false, nested = false, onToggle,
 }: {
   task: AppTask;
+  scheduleTask?: AppTask;
   history: HistoryRecord[];
   snapshots: ProgressSnapshot[];
   year: number;
@@ -299,18 +523,28 @@ function MonthlyTaskRow({
         {expandable ? <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full text-left bg-transparent border-0 p-0 cursor-pointer">{label}</button> : label}
       </th>
       <td className={cn('sticky left-[230px] z-[9] w-[86px] min-w-[86px] px-2 py-2 text-center font-mono text-primary', stickyBackground)}>{summary.dueCount ? `${summary.compliancePercent}%` : '—'}</td>
-      {MONTHS.map((_, month) => <React.Fragment key={month}><MonthlyResultCell task={task} history={history} snapshots={snapshots} year={year} month={month} /></React.Fragment>)}
+      {MONTHS.map((_, month) => <React.Fragment key={month}><MonthlyResultCell task={task} scheduleTask={scheduleTask} history={history} snapshots={snapshots} year={year} month={month} /></React.Fragment>)}
     </tr>
   );
 }
 
-function MonthlyResultCell({ task, history, snapshots, year, month }: { task: AppTask; history: HistoryRecord[]; snapshots: ProgressSnapshot[]; year: number; month: number }) {
-  const expected = plannedDatesInMonth(task, year, month);
-  if (!expected) return <td className="px-2 py-3 text-center text-text-dim/30">—</td>;
+function MonthlyResultCell({
+  task, scheduleTask, history, snapshots, year, month,
+}: {
+  task: AppTask;
+  scheduleTask?: AppTask;
+  history: HistoryRecord[];
+  snapshots: ProgressSnapshot[];
+  year: number;
+  month: number;
+}) {
+  const expected = plannedDatesInMonth(scheduleTask || task, year, month);
   if (task.type === 'Hábito') {
     const actual = history.filter(record => record.taskId === task.id && record.isCompletion && new Date(record.date).getFullYear() === year && new Date(record.date).getMonth() === month).length;
-    return <td className="p-0"><MonthlyCell actual={actual} expected={expected} /></td>;
+    if (!expected && !actual) return <td className="px-2 py-3 text-center text-text-dim/30">—</td>;
+    return <td className="p-0"><MonthlyCell actual={actual} expected={expected} detail={!expected && actual ? 'fuera de agenda' : undefined} /></td>;
   }
+  if (!expected) return <td className="px-2 py-3 text-center text-text-dim/30">—</td>;
   const records = snapshots.filter(snapshot => snapshot.taskId === task.id
     && snapshot.kind === 'routine-appearance'
     && new Date(`${snapshot.periodStart}T00:00:00`).getFullYear() === year
@@ -334,7 +568,7 @@ function TrackingRow({ label, days, renderCell }: { label: React.ReactNode; days
 }
 
 function Cell({ state, title, value }: { state: TrackingCellState; title: string; value?: number }) {
-  return <div title={title} className={cn('w-5 h-5 border flex items-center justify-center text-[8px] font-mono', state === 'complete' && 'bg-emerald-600 border-emerald-600 text-white', state === 'partial' && 'bg-amber-400/60 border-amber-500/50 text-text-main', state === 'failed' && 'bg-red-500/30 border-red-500/60 text-red-800', state === 'exceeded' && 'bg-red-700 border-red-700 text-white', state === 'absent' && 'bg-red-500/10 border-red-500/30', state === 'unconfirmed' && 'bg-transparent border-border-line/60', state === 'unscheduled' && 'bg-transparent border-border-line/30')}>{value}</div>;
+  return <div title={title} className={cn('w-5 h-5 border flex items-center justify-center text-[8px] font-mono', state === 'complete' && 'bg-emerald-600 border-emerald-600 text-white', state === 'executed' && 'bg-primary border-primary text-white', state === 'partial' && 'bg-amber-400/60 border-amber-500/50 text-text-main', state === 'failed' && 'bg-red-500/30 border-red-500/60 text-red-800', state === 'exceeded' && 'bg-red-700 border-red-700 text-white', state === 'absent' && 'bg-red-500/10 border-red-500/30', state === 'unconfirmed' && 'bg-transparent border-border-line/60', state === 'unscheduled' && 'bg-transparent border-border-line/30')}>{value}</div>;
 }
 
 function MonthlyCell({ actual, expected, detail }: { actual: number; expected: number; detail?: string }) {

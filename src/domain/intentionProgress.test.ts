@@ -15,6 +15,7 @@ describe('getTaskIdsForItem', () => {
     { id: 't3', userId: 'user', text: 'Ejercicio', type: 'Rutina', category: 'BODY', createdAt: '' },
     { id: 'proj1', userId: 'user', text: 'Proyecto X', type: 'Proyecto', category: 'FINANCE', createdAt: '' },
     { id: 'subt1', userId: 'user', text: 'Subtarea 1', type: 'Tarea', parentId: 'proj1', category: 'FINANCE', createdAt: '' },
+    { id: 'subt2', userId: 'user', text: 'Subtarea profunda', type: 'Tarea', parentId: 'subt1', category: 'FINANCE', createdAt: '' },
   ];
 
   it('resolves at Area level', () => {
@@ -37,6 +38,7 @@ describe('getTaskIdsForItem', () => {
     const ids = getTaskIdsForItem(item, mockTasks);
     expect(ids).toContain('proj1');
     expect(ids).toContain('subt1');
+    expect(ids).toContain('subt2');
     expect(ids).not.toContain('t1');
   });
 

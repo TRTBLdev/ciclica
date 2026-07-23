@@ -1,4 +1,5 @@
 import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem } from '../types';
+import { getHistoryDateKey, getProjectTaskIds } from './workTracking';
 
 export type AreaCommitment = {
   intention: Intention;
@@ -44,8 +45,7 @@ export function getTaskIdsForItem(item: IntentionItem, tasks: AppTask[]): string
     return [item.taskId];
   }
   if (item.projectId) {
-    const subTaskIds = tasks.filter(t => t.parentId === item.projectId).map(t => t.id);
-    return [item.projectId, ...subTaskIds];
+    return getProjectTaskIds(item.projectId, tasks);
   }
   if (item.areaName) {
     if (item.subCategory) {
@@ -67,7 +67,7 @@ export function calculateHoursProgress(
 ) {
   const taskIds = getTaskIdsForItem(item, tasks);
   const relevantHistory = history.filter(h => {
-    const recordDateStr = h.date.slice(0, 10);
+    const recordDateStr = getHistoryDateKey(h);
     return (
       taskIds.includes(h.taskId) &&
       recordDateStr >= periodStart &&
@@ -93,7 +93,7 @@ export function calculateConsistencyProgress(
 ) {
   const taskIds = getTaskIdsForItem(item, tasks);
   const relevantHistory = history.filter(h => {
-    const recordDateStr = h.date.slice(0, 10);
+    const recordDateStr = getHistoryDateKey(h);
     return (
       taskIds.includes(h.taskId) &&
       recordDateStr >= periodStart &&
@@ -101,7 +101,7 @@ export function calculateConsistencyProgress(
     );
   });
 
-  const uniqueDays = new Set(relevantHistory.map(h => h.date.slice(0, 10)));
+  const uniqueDays = new Set(relevantHistory.map(getHistoryDateKey));
   const current = uniqueDays.size;
   const target = item.targetDays || 0;
   const percent = target > 0 ? Math.min(100, (current / target) * 100) : 0;
