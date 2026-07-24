@@ -239,8 +239,8 @@ body {
 }
 
 .tracking-result-cell[data-result='planned'] {
-  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border-color: #C8E8E3;
+  background: #C8E8E3;
 }
 
 .tracking-result-cell[data-result='complete-planned'] {
@@ -249,21 +249,17 @@ body {
 }
 
 .tracking-result-cell[data-result='complete-extra'] {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-}
-
-.tracking-result-cell[data-result='partial-planned'],
-.tracking-result-cell[data-result='partial-extra'] {
-  border-color: #3f8f68;
+  border-color: #FEF494;
+  background: #FEF494;
 }
 
 .tracking-result-cell[data-result='partial-planned'] {
+  border-color: #3f8f68;
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .tracking-result-cell[data-result='partial-extra'] {
-  border-color: var(--color-primary);
+  border-color: #FEF494;
 }
 
 .tracking-result-cell[data-result='partial-planned']::before,
@@ -272,11 +268,14 @@ body {
   inset: 0;
   content: '';
   clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+
+.tracking-result-cell[data-result='partial-planned']::before {
   background: #3f8f68;
 }
 
 .tracking-result-cell[data-result='partial-extra']::before {
-  background: var(--color-primary);
+  background: #FEF494;
 }
 
 .tracking-result-cell[data-result='missed'] {
