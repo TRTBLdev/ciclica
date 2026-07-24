@@ -23,12 +23,18 @@ import {
   DEFAULT_HISTORY_PERIOD,
   filterHistoryRecords,
   getHistoryDayKey,
+  getHistoryContextTaskIds,
+  getHistorySearchSuggestions,
+  getRetrospectiveSessionTargets,
   getVisibleHistoryRecords,
   groupHistoryRecords,
   HISTORY_PAGE_SIZE,
   HistoryPeriod,
+  HistorySearchScope,
+  HistorySearchSuggestion,
   HistorySection,
 } from '../domain/historyPresentation';
+import HistorySearchControls from './HistorySearchControls';
 
 const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
   const dateStr = plannedDateStr || new Date().toISOString();
@@ -100,7 +106,9 @@ export default function CompletadasView({
   const [retroEnd, setRetroEnd] = useState('');
   const [retroDuration, setRetroDuration] = useState<number>(0);
   const [retroMarkCompleted, setRetroMarkCompleted] = useState(true);
-  const [sessionQuery, setSessionQuery] = useState('');
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyScopeSelection, setHistoryScopeSelection] = useState<HistorySearchSuggestion | null>(null);
+  const [retroQuery, setRetroQuery] = useState('');
   const [showSimple, setShowSimple] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
   const [showPulses, setShowPulses] = useState(true);
@@ -124,11 +132,29 @@ export default function CompletadasView({
 
   const selectedTask = taskById.get(retroTaskId);
 
-  const matchingTasks = useMemo(() => {
-    const query = sessionQuery.trim().toLocaleLowerCase('es-ES');
-    if (!query) return [];
-    return tasks.filter(task => task.text.toLocaleLowerCase('es-ES').includes(query));
-  }, [tasks, sessionQuery]);
+  const retrospectiveTasks = useMemo(() => {
+    return getRetrospectiveSessionTargets(tasks, retroQuery);
+  }, [tasks, retroQuery]);
+
+  const historySuggestions = useMemo(
+    () => getHistorySearchSuggestions(historyQuery, tasks, history),
+    [historyQuery, tasks, history],
+  );
+
+  const historyScope = useMemo<HistorySearchScope | undefined>(() => {
+    if (!historyScopeSelection) return undefined;
+    if (historyScopeSelection.kind === 'item') {
+      return { kind: 'item', id: historyScopeSelection.id };
+    }
+    const hasLiveContext = taskById.has(historyScopeSelection.id);
+    return {
+      kind: 'context',
+      id: historyScopeSelection.id,
+      taskIds: hasLiveContext
+        ? getHistoryContextTaskIds(historyScopeSelection.id, tasks)
+        : undefined,
+    };
+  }, [historyScopeSelection, taskById, tasks]);
 
   const [period, setPeriod] = useState<HistoryPeriod>(DEFAULT_HISTORY_PERIOD);
   const [visibleCounts, setVisibleCounts] = useState<Record<HistorySection, number>>(getInitialVisibleCounts);
@@ -142,10 +168,19 @@ export default function CompletadasView({
       sortedHistory,
       taskById,
       period,
-      sessionQuery,
+      historyQuery,
       config?.cycleConfig?.lastCycleStartDate,
+      new Date(),
+      historyScope,
     );
-  }, [sortedHistory, taskById, period, sessionQuery, config?.cycleConfig?.lastCycleStartDate]);
+  }, [
+    sortedHistory,
+    taskById,
+    period,
+    historyQuery,
+    config?.cycleConfig?.lastCycleStartDate,
+    historyScope,
+  ]);
 
   const historyGroups = useMemo(
     () => groupHistoryRecords(filteredHistory, taskById),
@@ -193,10 +228,9 @@ export default function CompletadasView({
     setRetroEnd(toLocalInputFormat(now.toISOString()));
     setRetroDuration(duration);
     setRetroTaskId(task?.id || '');
-    setRetroMarkCompleted(task?.type !== 'Rutina');
+    setRetroMarkCompleted(task ? !task.completed : true);
     if (task) {
-      setSessionQuery(task.text);
-      resetVisibleCounts();
+      setRetroQuery(task.text);
     }
     setShowAddForm(true);
   };
@@ -875,108 +909,90 @@ export default function CompletadasView({
   };
 
   return (
-    <div className="animate-in fade-in flex flex-col gap-6 px-6 md:px-10 pt-10 pb-16 max-w-4xl mx-auto w-full text-left">
+    <main className="animate-in fade-in flex flex-col gap-6 px-5 md:px-8 xl:px-10 pt-8 pb-16 max-w-[1600px] mx-auto w-full text-left">
+      <HistorySearchControls
+        period={period}
+        query={historyQuery}
+        selectedScope={historyScopeSelection}
+        suggestions={historySuggestions}
+        onPeriodChange={nextPeriod => {
+          setPeriod(nextPeriod);
+          resetVisibleCounts();
+        }}
+        onQueryChange={query => {
+          setHistoryQuery(query);
+          resetVisibleCounts();
+        }}
+        onSelectScope={suggestion => {
+          setHistoryScopeSelection(suggestion);
+          setHistoryQuery('');
+          resetVisibleCounts();
+        }}
+        onClearScope={() => {
+          setHistoryScopeSelection(null);
+          resetVisibleCounts();
+        }}
+        onOpenRegistration={() => openRetrospectiveForm()}
+      />
 
-      {/* Header Statement */}
-      <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border-line pb-6">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="w-6 h-6 text-text-main stroke-[2]" />
-          <h2 className="text-title">Historial de sesiones</h2>
-        </div>
-
-        {/* Date Filter Dropdown */}
-        <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-          <select
-            value={period}
-            onChange={(e) => {
-              setPeriod(e.target.value as HistoryPeriod);
-              resetVisibleCounts();
-            }}
-            className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-          >
-            <option value="todas">Todo el Historial</option>
-            <option value="hoy">Hoy</option>
-            <option value="semana">Esta Semana</option>
-            <option value="7dias">Últimos 7 Días</option>
-            <option value="mes">Este Mes</option>
-            <option value="30dias">Últimos 30 Días</option>
-            <option value="ciclo">Este Ciclo</option>
-          </select>
-          <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
-        </div>
-      </div>
-
-      <p className="text-sm text-text-dim max-w-2xl leading-relaxed -mt-2">
-        Consulta sesiones completadas y de progreso, o registra actividad retrospectiva desde el mismo punto de entrada.
-      </p>
-
-      <div className="relative flex flex-col gap-3 border-b border-border-line/30 pb-5">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim pointer-events-none" />
-            <input
-              type="search"
-              value={sessionQuery}
-              onChange={event => {
-                setSessionQuery(event.target.value);
-                resetVisibleCounts();
-              }}
-              placeholder="Buscar sesiones o elemento…"
-              className="w-full pl-10 pr-9 py-2.5 text-xs bg-base text-text-main border border-border-line rounded-full outline-none focus:border-[#a2b29f]"
-            />
-            {sessionQuery && (
-              <button type="button" onClick={() => {
-                setSessionQuery('');
-                resetVisibleCounts();
-              }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer" title="Limpiar búsqueda">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <button type="button" onClick={() => openRetrospectiveForm()} className="px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-text-main hover:bg-base-dim/40 bg-transparent cursor-pointer">
-            <Plus className="inline w-3.5 h-3.5 mr-1.5" /> Registrar sesión
-          </button>
-        </div>
-        {sessionQuery.trim() && (
-          <div className="flex flex-col border border-border-line/60 bg-base">
-            <div className="px-3 py-2 text-[9px] font-mono uppercase tracking-widest text-text-dim border-b border-border-line/40">Registrar para</div>
-            {matchingTasks.length > 0 ? matchingTasks.slice(0, 6).map(task => (
-              <button key={task.id} type="button" onClick={() => openRetrospectiveForm(task)} className="flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-base-dim/40 border-b border-border-line/30 last:border-0 bg-transparent cursor-pointer">
-                <span className="min-w-0 truncate text-xs text-text-main">{task.text}</span>
-                <span className="shrink-0 text-[9px] font-mono uppercase tracking-wider text-primary">Registrar sesión</span>
-              </button>
-            )) : (
-              <p className="px-3 py-2.5 text-xs text-text-dim">No hay elementos coincidentes para registrar.</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3 bg-transparent py-4 border-b border-border-line/30">
+      <section className="flex flex-col gap-3 bg-transparent py-4 border-b border-border-line/30">
         {showAddForm && (
-          <div className="pt-4 border-t border-border-line/40 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-primary">Registrar sesión retrospectiva</span>
+          <section className="pt-4 border-t border-border-line/40 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+            <header className="flex items-center justify-between gap-3">
+              <strong className="text-[10px] font-mono uppercase tracking-widest text-primary">Registrar sesión retrospectiva</strong>
               <button type="button" onClick={() => setShowAddForm(false)} className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer">Cancelar</button>
-            </div>
+            </header>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-              <div className="flex flex-col gap-1 sm:col-span-1 md:col-span-2 lg:col-span-1">
-                <label className="text-[10px] font-mono text-text-dim uppercase block mb-1.5">Elemento</label>
+              <fieldset className="relative flex flex-col gap-1 sm:col-span-1 md:col-span-2 lg:col-span-1 border-0 p-0 m-0">
+                <legend className="text-[10px] font-mono text-text-dim uppercase mb-1.5">Elemento</legend>
                 {selectedTask ? (
-                  <div className="flex items-center justify-between border border-border-line rounded-full px-4 py-2.5 bg-base-dim text-xs min-h-[38px]">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim">{selectedTask.type}</span>
-                      <span className="font-semibold text-text-main truncate">{selectedTask.text}</span>
-                    </div>
-                    <button type="button" onClick={() => setRetroTaskId('')} className="text-text-dim hover:text-text-main p-1 cursor-pointer bg-transparent border-0" title="Cambiar elemento desde la búsqueda superior">
+                  <output className="grid grid-cols-[minmax(0,1fr)_auto] items-center border border-border-line rounded-full px-4 py-2 bg-base-dim text-xs min-h-[38px]">
+                    <strong className="font-semibold text-text-main truncate">{selectedTask.text}</strong>
+                    <button type="button" onClick={() => {
+                      setRetroTaskId('');
+                      setRetroQuery('');
+                    }} className="text-text-dim hover:text-text-main p-1 cursor-pointer bg-transparent border-0" title="Cambiar elemento">
                       <X className="w-4 h-4" />
                     </button>
-                  </div>
+                    <small className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-text-dim">{selectedTask.type}</small>
+                  </output>
                 ) : (
-                  <p className="min-h-[38px] flex items-center px-4 text-xs text-text-dim border border-dashed border-border-line rounded-full">Busca y elige un elemento en la barra superior.</p>
+                  <>
+                    <label className="relative">
+                      <small className="sr-only">Buscar tarea o hábito</small>
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim pointer-events-none" />
+                      <input
+                        type="search"
+                        value={retroQuery}
+                        onChange={event => setRetroQuery(event.target.value)}
+                        placeholder="Buscar tarea o hábito…"
+                        className="w-full pl-10 pr-4 py-2.5 text-xs bg-base text-text-main border border-border-line rounded-full outline-none focus:border-[#a2b29f]"
+                      />
+                    </label>
+                    {retroQuery.trim() && (
+                      <nav aria-label="Elementos para registrar" className="absolute z-10 top-full left-0 right-0 border border-border-line/70 bg-base">
+                        <ul className="list-none m-0 p-0">
+                          {retrospectiveTasks.length > 0 ? retrospectiveTasks.map(task => (
+                            <li key={task.id} className="border-b border-border-line/30 last:border-0">
+                              <button
+                                type="button"
+                                onClick={() => openRetrospectiveForm(task)}
+                                className="w-full grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-left hover:bg-base-dim/40 bg-transparent border-0 cursor-pointer"
+                              >
+                                <strong className="min-w-0 truncate text-xs text-text-main font-medium">{task.text}</strong>
+                                <small className="text-[9px] font-mono uppercase tracking-wider text-primary">{task.type}</small>
+                              </button>
+                            </li>
+                          )) : (
+                            <li className="px-3 py-2.5 text-xs text-text-dim">No hay tareas o hábitos coincidentes.</li>
+                          )}
+                        </ul>
+                      </nav>
+                    )}
+                  </>
                 )}
-              </div>
+              </fieldset>
 
               {/* Start Date & Time */}
               <div className="flex flex-col gap-1">
@@ -1037,13 +1053,13 @@ export default function CompletadasView({
 
                 <div className="hidden sm:block h-8 w-px bg-[var(--color-border-line)]/30" />
 
-                <label className={cn("flex items-center gap-2.5 select-none", selectedTask?.type === 'Rutina' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')}>
+                <label className={cn("flex items-center gap-2.5 select-none", selectedTask?.completed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')}>
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
                       className="sr-only"
                       checked={retroMarkCompleted}
-                      disabled={selectedTask?.type === 'Rutina'}
+                      disabled={selectedTask?.completed}
                       onChange={e => setRetroMarkCompleted(e.target.checked)}
                     />
                     <div className={cn(
@@ -1056,8 +1072,12 @@ export default function CompletadasView({
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-text-main">Completar en planificador</span>
-                    <span className="text-[10px] text-text-dim font-mono uppercase">Marcar tarea como hecha</span>
+                    <span className="text-xs font-semibold text-text-main">
+                      {selectedTask?.completed ? 'Ya completada en el planificador' : 'Completar en planificador'}
+                    </span>
+                    <span className="text-[10px] text-text-dim font-mono uppercase">
+                      {selectedTask?.completed ? 'La sesión se añadirá al historial' : 'Marcar tarea como hecha'}
+                    </span>
                   </div>
                 </label>
               </div>
@@ -1095,8 +1115,7 @@ export default function CompletadasView({
                     setRetroStart('');
                     setRetroEnd('');
                     setRetroDuration(0);
-                    setSessionQuery('');
-                    resetVisibleCounts();
+                    setRetroQuery('');
                     setShowAddForm(false);
                   }
                 }}
@@ -1106,70 +1125,67 @@ export default function CompletadasView({
                 + Guardar Sesión Log
               </button>
             </div>
-          </div>
+          </section>
         )}
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-8 xl:gap-10">
 
         {/* SIMPLE ITEMS (TASKS/EVENTS) */}
-        <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div
+        <section className="flex flex-col gap-4 h-fit bg-transparent min-w-0">
+          <button
+            type="button"
             onClick={() => setShowSimple(!showSimple)}
-            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+            className="w-full flex items-center justify-between border-0 border-b border-border-line/40 pb-3 cursor-pointer select-none group bg-transparent text-left"
           >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Proyectos y Tareas
-              <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
+              <output className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.5 border border-border-line/50 font-normal">
                 {historyGroups.simple.length.toString().padStart(2, '0')}
-              </span>
+              </output>
             </h3>
-            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
-              {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </span>
-          </div>
+            {showSimple ? <ChevronUp className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" />}
+          </button>
           {showSimple && renderHistoryList(historyGroups.simple, "Sin sesiones de tareas o proyectos.", false, 'simple')}
-        </div>
+        </section>
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}
-        <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div
+        <section className="flex flex-col gap-4 h-fit bg-transparent min-w-0">
+          <button
+            type="button"
             onClick={() => setShowRecurring(!showRecurring)}
-            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+            className="w-full flex items-center justify-between border-0 border-b border-border-line/40 pb-3 cursor-pointer select-none group bg-transparent text-left"
           >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Hábitos y Rutinas
-              <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
+              <output className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.5 border border-border-line/50 font-normal">
                 {historyGroups.recurring.length.toString().padStart(2, '0')}
-              </span>
+              </output>
             </h3>
-            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
-              {showRecurring ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </span>
-          </div>
+            {showRecurring ? <ChevronUp className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" />}
+          </button>
           {showRecurring && renderHistoryList(historyGroups.recurring, "Sin hábitos o rutinas registradas.", true, 'recurring')}
-        </div>
+        </section>
 
         {/* PULSES */}
-        <div className="flex flex-col gap-4 h-fit bg-transparent">
-          <div
+        <section className="flex flex-col gap-4 h-fit bg-transparent min-w-0">
+          <button
+            type="button"
             onClick={() => setShowPulses(!showPulses)}
-            className="flex items-center justify-between border-b border-border-line/40 pb-3 cursor-pointer select-none group"
+            className="w-full flex items-center justify-between border-0 border-b border-border-line/40 pb-3 cursor-pointer select-none group bg-transparent text-left"
           >
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Pulsos
-              <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
+              <output className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.5 border border-border-line/50 font-normal">
                 {historyGroups.pulses.length.toString().padStart(2, '0')}
-              </span>
+              </output>
             </h3>
-            <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
-              {showPulses ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </span>
-          </div>
+            {showPulses ? <ChevronUp className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main" />}
+          </button>
           {showPulses && renderHistoryList(historyGroups.pulses, "Sin pulsos registrados.", false, 'pulses')}
-        </div>
+        </section>
 
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

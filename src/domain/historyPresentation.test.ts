@@ -3,6 +3,9 @@ import { AppTask, HistoryRecord } from '../types';
 import {
   DEFAULT_HISTORY_PERIOD,
   filterHistoryRecords,
+  getHistoryContextTaskIds,
+  getHistorySearchSuggestions,
+  getRetrospectiveSessionTargets,
   getVisibleHistoryRecords,
   groupHistoryRecords,
   HISTORY_PAGE_SIZE,
@@ -73,6 +76,73 @@ describe('history period and search presentation', () => {
     expect(filterHistoryRecords([deletedRecord], new Map(), '7dias', 'eliminado', undefined, now))
       .toEqual([deletedRecord]);
   });
+
+  it('combines a recursive project context with free title search and the active period', () => {
+    const project = task('project', 'Proyecto editorial', { type: 'Proyecto' });
+    const parent = task('parent', 'Preparar lanzamiento', { parentId: project.id });
+    const child = task('child', 'Revisar portada', { parentId: parent.id });
+    const tasks = [project, parent, child];
+    const taskMap = new Map(tasks.map(item => [item.id, item]));
+    const recentChild = record('child-log', child.id, new Date(2026, 6, 23, 10).toISOString());
+    const recentOutside = record('outside-log', recentTask.id, new Date(2026, 6, 23, 10).toISOString());
+    const oldChild = record('old-child-log', child.id, new Date(2026, 5, 1, 10).toISOString());
+    const contextIds = getHistoryContextTaskIds(project.id, tasks);
+
+    expect(filterHistoryRecords(
+      [recentChild, recentOutside, oldChild],
+      taskMap,
+      '7dias',
+      'portada',
+      undefined,
+      now,
+      { kind: 'context', id: project.id, taskIds: contextIds },
+    )).toEqual([recentChild]);
+  });
+
+  it('finds archived contexts once and filters their preserved records', () => {
+    const archivedRecord = record(
+      'archived-log',
+      'deleted-task',
+      new Date(2026, 6, 23, 10).toISOString(),
+      {
+        taskSnapshotText: 'Boceto',
+        context: { id: 'deleted-project', type: 'Proyecto', text: 'Proyecto archivado' },
+      },
+    );
+    const suggestions = getHistorySearchSuggestions(
+      'archivado',
+      [],
+      [archivedRecord, { ...archivedRecord, id: 'archived-log-2' }],
+    );
+
+    expect(suggestions).toEqual([expect.objectContaining({
+      id: 'deleted-project',
+      kind: 'context',
+      archived: true,
+    })]);
+    expect(filterHistoryRecords(
+      [archivedRecord],
+      new Map(),
+      'todas',
+      '',
+      undefined,
+      now,
+      { kind: 'context', id: 'deleted-project' },
+    )).toEqual([archivedRecord]);
+  });
+
+  it('offers completed tasks and habits for retrospective sessions but excludes containers and pulses', () => {
+    const candidates = [
+      task('completed-task', 'Trabajo terminado', { completed: true }),
+      task('habit', 'Trabajo corporal', { type: 'Hábito', completed: true }),
+      task('project', 'Trabajo proyecto', { type: 'Proyecto' }),
+      task('routine', 'Trabajo rutina', { type: 'Rutina' }),
+      task('pulse', 'Trabajo pulso', { type: 'Pulso' }),
+    ];
+
+    expect(getRetrospectiveSessionTargets(candidates, 'trabajo').map(item => item.id))
+      .toEqual(['completed-task', 'habit']);
+  });
 });
 
 describe('history grouping and progressive visibility', () => {
@@ -127,5 +197,13 @@ describe('history grouping and progressive visibility', () => {
 
     expect(getVisibleHistoryRecords(records, 'todas', 25)).toHaveLength(25);
     expect(getVisibleHistoryRecords(records, 'todas', 50)).toHaveLength(50);
+  });
+
+  it('keeps orphaned routine records in the recurring section through their snapshot', () => {
+    const archivedHabit = record('archived-habit', 'deleted-habit', '2026-07-24T12:00:00.000Z', {
+      context: { id: 'deleted-routine', type: 'Rutina', text: 'Rutina archivada' },
+    });
+
+    expect(groupHistoryRecords([archivedHabit], new Map()).recurring).toEqual([archivedHabit]);
   });
 });

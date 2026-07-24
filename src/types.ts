@@ -119,6 +119,12 @@ export interface AppTask {
   updatedAt?: string;
 }
 
+export interface HistoryContextSnapshot {
+  id: string;
+  type: 'Proyecto' | 'Rutina';
+  text: string;
+}
+
 export interface HistoryRecord {
   id: string;
   userId: string;
@@ -132,6 +138,8 @@ export interface HistoryRecord {
   /** Checklist completion captured when an occurrence was explicitly closed. */
   completionPercent?: number;
   taskSnapshotText?: string;
+  /** Project or routine owning the recorded item when the activity occurred. */
+  context?: HistoryContextSnapshot;
   /** Context for a child-habit completion inside a routine appearance/cycle. */
   routineId?: string;
   routineCycleStart?: string;

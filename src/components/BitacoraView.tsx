@@ -517,24 +517,20 @@ export default function BitacoraView({
         )}
 
         {activeTab === 'historial' && (
-          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto">
-            {/* Temporarily rendering CompletadasView inline until HistorialView is done */}
-            <div className="mb-8">
-              <h2 className="text-title mb-4 border-b border-border-line pb-2">Completadas</h2>
-              <CompletadasView
-                config={config}
-                tasks={tasks}
-                history={history}
-                onToggleTask={onToggleTask}
-                onDeleteTask={onDeleteTask}
-                onUpdateTask={onUpdateTask}
-                onAddTask={onAddTask}
-                onUpdateHistory={onUpdateHistory}
-                onDeleteHistory={onDeleteHistory}
-                onAddHistory={onAddHistory}
-              />
-            </div>
-          </div>
+          <section className="animate-in fade-in duration-200 w-full">
+            <CompletadasView
+              config={config}
+              tasks={tasks}
+              history={history}
+              onToggleTask={onToggleTask}
+              onDeleteTask={onDeleteTask}
+              onUpdateTask={onUpdateTask}
+              onAddTask={onAddTask}
+              onUpdateHistory={onUpdateHistory}
+              onDeleteHistory={onDeleteHistory}
+              onAddHistory={onAddHistory}
+            />
+          </section>
         )}
 
         {activeTab === 'archivo' && config?.cycleConfig?.menstruates !== false && (

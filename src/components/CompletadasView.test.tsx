@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AppTask, HistoryRecord } from '../types';
@@ -54,5 +55,15 @@ describe('completed history view', () => {
     expect(markup).toContain('value="7dias" selected=""');
     expect(markup).toContain('Sesión reciente');
     expect(markup).not.toContain('Sesión antigua');
+  });
+
+  it('uses the expanded desktop canvas and three columns only at the wide breakpoint', () => {
+    const source = readFileSync(new URL('./CompletadasView.tsx', import.meta.url), 'utf8');
+    const bitacoraSource = readFileSync(new URL('./BitacoraView.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('max-w-[1600px]');
+    expect(source).toContain('grid-cols-1 xl:grid-cols-3');
+    expect(source).not.toContain('grid-cols-1 lg:grid-cols-3 gap-8');
+    expect(bitacoraSource).not.toContain('>Completadas</h2>');
   });
 });

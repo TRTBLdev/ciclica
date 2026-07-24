@@ -3,6 +3,7 @@ import { DEFAULT_AREAS, DEFAULT_SEPARATORS } from './defaults';
 import { getFrequencyInDays } from './taskScheduling';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
 import { getCalendarCycleRange } from '../domain/recurrenceProgress';
+import { attachHistoryContext } from '../domain/historyContext';
 
 interface RawDatabase {
   tasks?: unknown;
@@ -214,18 +215,20 @@ export function migrateDatabase(rawData: RawDatabase): { tasks: AppTask[]; histo
 
   const history = rawHistory.map(h => {
     const record = normalizeHistoryRecord(h);
-    if (record.routineId && record.routineCycleStart && record.routineAppearanceDate) return record;
+    if (record.routineId && record.routineCycleStart && record.routineAppearanceDate) {
+      return attachHistoryContext(record, tasks);
+    }
     const habit = tasks.find(task => task.id === record.taskId && task.type === 'Hábito' && !!task.parentId);
     const routine = habit ? tasks.find(task => task.id === habit.parentId && task.type === 'Rutina') : undefined;
-    if (!routine) return record;
+    if (!routine) return attachHistoryContext(record, tasks);
     const appearanceDate = record.date.slice(0, 10);
     const cycle = getCalendarCycleRange(routine.routineCycleFrequency || 1, routine.routineCycleUnit || 'semanas', appearanceDate);
-    return {
+    return attachHistoryContext({
       ...record,
       routineId: record.routineId || routine.id,
       routineCycleStart: record.routineCycleStart || cycle.start,
       routineAppearanceDate: record.routineAppearanceDate || appearanceDate,
-    };
+    }, tasks);
   });
   const config = normalizeConfig(rawData.config);
 

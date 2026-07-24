@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Save, CheckCircle2, Circle, X, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
-import { AppTask } from '../types';
+import { AppTask, HistoryRecord } from '../types';
 import { cn } from '../lib/utils';
+import { canTrackTask } from '../domain/appearance';
 
 interface FloatingTimerProps {
   activeTimer: {
@@ -13,6 +14,7 @@ interface FloatingTimerProps {
     isRunning: boolean;
   } | null;
   tasks: AppTask[];
+  history?: HistoryRecord[];
   onPause: () => void;
   onResume: () => void;
   onStop: (saveHistory: boolean) => void;
@@ -26,6 +28,7 @@ interface FloatingTimerProps {
 export default function FloatingTimer({
   activeTimer,
   tasks,
+  history = [],
   onPause,
   onResume,
   onStop,
@@ -54,10 +57,10 @@ export default function FloatingTimer({
 
   // Filter tasks matching the search text
   const filteredTasks = useMemo(() => {
-    const activeTasks = tasks.filter(t => !t.completed && t.type !== 'Pulso' && t.type !== 'Rutina');
+    const activeTasks = tasks.filter(task => canTrackTask(task, tasks, history));
     if (!search.trim()) return activeTasks.slice(0, 5); // show first 5 active tasks by default
     return activeTasks.filter(t => t.text.toLowerCase().includes(search.toLowerCase())).slice(0, 10);
-  }, [tasks, search]);
+  }, [tasks, history, search]);
 
   if (!activeTimer) {
     return (

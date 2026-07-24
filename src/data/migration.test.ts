@@ -189,6 +189,29 @@ describe('migrateDatabase', () => {
     expect(result.history).toHaveLength(1);
     expect(result.history[0]).toMatchObject({
       id: 'hist_1', routineId: 'routine_1', routineCycleStart: '2026-07-20', routineAppearanceDate: '2026-07-20',
+      context: { id: 'routine_1', type: 'Rutina', text: 'Rutina' },
+    });
+    logSpy.mockRestore();
+  });
+
+  it('backfills project context for existing nested task records', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const result = migrateDatabase({
+      config: { userId: 'local_user' },
+      tasks: [
+        { id: 'project_1', userId: 'local_user', text: 'Proyecto histórico', type: 'Proyecto', createdAt: '2026-07-01T00:00:00.000Z' },
+        { id: 'task_1', userId: 'local_user', text: 'Tarea histórica', type: 'Tarea', parentId: 'project_1', createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
+      history: [
+        { id: 'hist_1', userId: 'local_user', taskId: 'task_1', date: '2026-07-20T09:00:00.000Z', duration: 1.25 },
+      ],
+    });
+
+    expect(result.history[0].duration).toBe(1.25);
+    expect(result.history[0].context).toEqual({
+      id: 'project_1',
+      type: 'Proyecto',
+      text: 'Proyecto histórico',
     });
     logSpy.mockRestore();
   });

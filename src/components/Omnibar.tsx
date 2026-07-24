@@ -9,6 +9,7 @@ import UniversalItemForm from './UniversalItemForm';
 import { getTypeIcon } from './TaskItem';
 import { canTrackTask } from '../domain/appearance';
 import LinkedText from './ui/LinkedText';
+import { getOmnibarSearchResults, getTrackableDescendants } from '../domain/omnibarSearch';
 
 interface OmnibarProps {
   activeTimer: {
@@ -80,6 +81,7 @@ export default function Omnibar({
   
   // Search state
   const [search, setSearch] = useState('');
+  const [expandedSearchContainerId, setExpandedSearchContainerId] = useState<string | null>(null);
   
   const [editingTask, setEditingTask] = useState<AppTask | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -133,14 +135,15 @@ export default function Omnibar({
   }, [activeTimer?.taskId, tasks]);
 
   const filteredTasks = useMemo(() => {
-    const activeTasks = tasks.filter(task => {
-      return canTrackTask(task, tasks, history);
-    });
-    if (!search.trim()) {
-      return [...activeTasks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
-    }
-    return activeTasks.filter(t => t.text.toLowerCase().includes(search.toLowerCase())).slice(0, 10);
+    return getOmnibarSearchResults(tasks, history, search);
   }, [history, tasks, search]);
+
+  const expandedSearchDescendants = useMemo(
+    () => expandedSearchContainerId
+      ? getTrackableDescendants(expandedSearchContainerId, tasks, history)
+      : [],
+    [expandedSearchContainerId, tasks, history],
+  );
 
   const contextParent = familyContext
     ? tasks.find(task => task.id === familyContext.parentId)
@@ -621,25 +624,43 @@ export default function Omnibar({
         <div className="flex flex-col gap-2 animate-in fade-in">
           
           {search.length > 0 && (
-            <div className="flex flex-col-reverse gap-1 flex-1 overflow-y-auto pr-2 no-scrollbar mb-4 mt-2">
+            <div className="flex flex-col gap-1 flex-1 overflow-y-auto pr-2 no-scrollbar mb-4 mt-2">
               {filteredTasks.length === 0 ? (
                 <div className="text-[10px] text-text-dim font-mono text-center uppercase py-4">Sin resultados</div>
               ) : (
-                filteredTasks.map(t => (
-                  <div key={t.id} className="group w-full px-3 py-2 rounded-lg hover:bg-base-dim/30 transition-colors flex items-center justify-between text-left">
-                    <div onClick={() => handleItemClick(t)} className="flex flex-col min-w-0 pr-2 flex-1 cursor-pointer hover:opacity-85 transition-opacity">
-                      <span className="truncate text-xs text-text-main font-medium flex items-center gap-2" title={`${t.text}`}>
-                        {getTypeIcon(t.type, "w-3.5 h-3.5 stroke-[2] fill-none shrink-0")}
-                        <span>{t.text}</span>
-                      </span>
-                      {(t.category || t.subCategory) && (
-                         <div className="scale-75 origin-left -mt-0.5 opacity-70">
-                           <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
-                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity shrink-0 gap-0.5 md:gap-1">
-                      {t.type !== 'Pulso' && t.type !== 'Rutina' && activeTimer?.taskId !== t.id && (
+                filteredTasks.map(t => {
+                  const isContainer = t.type === 'Proyecto' || t.type === 'Rutina';
+                  const isExpanded = expandedSearchContainerId === t.id;
+                  return (
+                    <section key={t.id} className="group w-full rounded-lg hover:bg-base-dim/30 transition-colors text-left">
+                      <header className="flex items-center justify-between px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => handleItemClick(t)}
+                          className="flex flex-col min-w-0 pr-2 flex-1 cursor-pointer hover:opacity-85 transition-opacity text-left bg-transparent border-0"
+                        >
+                          <strong className="truncate text-xs text-text-main font-medium flex items-center gap-2" title={t.text}>
+                            {getTypeIcon(t.type, "w-3.5 h-3.5 stroke-[2] fill-none shrink-0")}
+                            {t.text}
+                          </strong>
+                          {(t.category || t.subCategory) && (
+                            <small className="scale-75 origin-left -mt-0.5 opacity-70">
+                              <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
+                            </small>
+                          )}
+                        </button>
+                        <nav aria-label={`Acciones de ${t.text}`} className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity shrink-0 gap-0.5 md:gap-1">
+                          {isContainer && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedSearchContainerId(isExpanded ? null : t.id)}
+                              className="p-1.5 flex items-center justify-center bg-transparent border-none outline-none cursor-pointer"
+                              title={isExpanded ? 'Ocultar descendientes rastreables' : 'Mostrar descendientes rastreables'}
+                            >
+                              <ChevronDown className={cn("w-4 h-4 text-text-dim transition-transform", isExpanded && "rotate-180")} />
+                            </button>
+                          )}
+                          {canTrackTask(t, tasks, history) && (
                         <button
                           disabled={Boolean(activeTimer)}
                           onClick={(e) => { e.stopPropagation(); onStartTimer(t.id); setSearch(''); }}
@@ -658,9 +679,42 @@ export default function Omnibar({
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(t.id); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none transition-colors" title="Eliminar">
                         <Trash2 className="w-3.5 h-3.5 text-text-dim hover:text-red-500" />
                       </button>
-                    </div>
-                  </div>
-                ))
+                        </nav>
+                      </header>
+                      {isContainer && isExpanded && (
+                        <ul className="list-none m-0 px-4 pb-2 border-t border-border-line/30">
+                          {expandedSearchDescendants.length > 0 ? expandedSearchDescendants.map(descendant => (
+                            <li key={descendant.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2 border-b border-border-line/20 last:border-0">
+                              <button
+                                type="button"
+                                onClick={() => handleItemClick(descendant)}
+                                className="min-w-0 truncate text-[11px] text-text-main text-left bg-transparent border-0 cursor-pointer"
+                              >
+                                {descendant.text}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onStartTimer(descendant.id);
+                                  setSearch('');
+                                  setExpandedSearchContainerId(null);
+                                }}
+                                className="p-1 bg-transparent border-0 cursor-pointer text-text-dim hover:text-accent"
+                                title="Iniciar tracker"
+                              >
+                                <Play className="w-3.5 h-3.5" />
+                              </button>
+                            </li>
+                          )) : (
+                            <li className="py-2 text-[10px] text-text-dim">
+                              No hay descendientes rastreables disponibles.
+                            </li>
+                          )}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })
               )}
             </div>
           )}
@@ -677,7 +731,10 @@ export default function Omnibar({
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && search.trim()) {
-                  const exactMatch = filteredTasks.find(t => t.text.toLowerCase() === search.trim().toLowerCase());
+                  const normalizedSearch = search.trim().toLocaleLowerCase('es-ES');
+                  const exactMatch = tasks.find(
+                    task => task.text.toLocaleLowerCase('es-ES') === normalizedSearch,
+                  );
                   if (exactMatch) {
                      handleItemClick(exactMatch);
                   } else {

@@ -3,6 +3,7 @@ import { createDefaultConfig, createDemoTasks } from '../data/defaults';
 import { getDataKeys, getLocal, setLocal } from '../data/storage';
 import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { migrateDatabase } from '../data/migration';
+import { attachHistoryContext, preserveHistoryBeforeTaskDeletion } from '../domain/historyContext';
 import { formatDateOnly, getCalendarCycleRange, isRoutineConfigured, parseDateOnly } from '../domain/recurrenceProgress';
 import { applyRecurringHistoryContext, reconcileSnapshotsAfterHistoryEdit } from '../domain/historyEditing';
 import {
@@ -254,7 +255,10 @@ export function useData(userId: string) {
 
   const addHistory = async (recordData: Omit<HistoryRecord, 'id'>) => {
     const newId = `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const newRec = { id: newId, ...recordData, userId: effectiveUserId } as HistoryRecord;
+    const newRec = attachHistoryContext(
+      { id: newId, ...recordData, userId: effectiveUserId } as HistoryRecord,
+      tasks,
+    );
     setHistory(prev => {
       const next = [...prev, newRec];
       setLocal(getDataKeys(effectiveUserId).history, next);
@@ -263,11 +267,11 @@ export function useData(userId: string) {
   };
 
   const addHistoryRecords = async (recordsData: Omit<HistoryRecord, 'id'>[]) => {
-    const newRecs = recordsData.map(r => ({
+    const newRecs = recordsData.map(r => attachHistoryContext({
       id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${Math.floor(Math.random() * 1000)}`,
       ...r,
       userId: effectiveUserId
-    } as HistoryRecord));
+    } as HistoryRecord, tasks));
     setHistory(prev => {
       const next = [...prev, ...newRecs];
       setLocal(getDataKeys(effectiveUserId).history, next);
@@ -295,14 +299,8 @@ export function useData(userId: string) {
     const taskToDelete = tasks.find(t => t.id === taskId);
     if (taskToDelete) {
       setHistory(prev => {
-        let changed = false;
-        const next = prev.map(h => {
-          if (h.taskId === taskId && !h.taskSnapshotText) {
-            changed = true;
-            return { ...h, taskSnapshotText: taskToDelete.text, updatedAt: new Date().toISOString() };
-          }
-          return h;
-        });
+        const next = preserveHistoryBeforeTaskDeletion(prev, taskToDelete, tasks);
+        const changed = next.some((record, index) => record !== prev[index]);
         if (changed) {
           setLocal(getDataKeys(effectiveUserId).history, next);
         }
@@ -322,11 +320,11 @@ export function useData(userId: string) {
     if (!original) return;
 
     const originalTask = tasks.find(task => task.id === original.taskId);
-    const merged = applyRecurringHistoryContext({
+    const merged = attachHistoryContext(applyRecurringHistoryContext({
       ...original,
       ...updates,
       updatedAt: new Date().toISOString(),
-    }, originalTask, tasks);
+    }, originalTask, tasks), tasks);
 
     const nextHistory = history.map(record => record.id === historyId ? merged : record);
     setHistory(nextHistory);
@@ -349,14 +347,15 @@ export function useData(userId: string) {
 
   const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config, importedIntentions?: Intention[], importedSnapshots?: ProgressSnapshot[]) => {
     const keys = getDataKeys(effectiveUserId);
+    const contextualizedHistory = importedHistory.map(record => attachHistoryContext(record, importedTasks));
     setTasks(importedTasks);
-    setHistory(importedHistory);
+    setHistory(contextualizedHistory);
     setConfig(importedConfig);
     if (importedIntentions) setIntentions(importedIntentions);
     if (importedSnapshots) setProgressSnapshots(importedSnapshots);
 
     setLocal(keys.tasks, importedTasks);
-    setLocal(keys.history, importedHistory);
+    setLocal(keys.history, contextualizedHistory);
     setLocal(keys.config, importedConfig);
     if (importedIntentions) setLocal(keys.intentions, importedIntentions);
     if (importedSnapshots) setLocal(keys.progressSnapshots, importedSnapshots);
@@ -384,7 +383,13 @@ export function useData(userId: string) {
     if (importedHistory && importedHistory.length > 0) {
       setHistory(prev => {
         const next = [...prev];
-        importedHistory.forEach(impHist => {
+        const contextTasks = [...tasks];
+        importedTasks.forEach(importedTask => {
+          const index = contextTasks.findIndex(task => task.id === importedTask.id);
+          if (index >= 0) contextTasks[index] = importedTask;
+          else contextTasks.push(importedTask);
+        });
+        importedHistory.map(record => attachHistoryContext(record, contextTasks)).forEach(impHist => {
           const idx = next.findIndex(h => h.id === impHist.id);
           if (idx !== -1) {
             next[idx] = { ...next[idx], ...impHist, updatedAt: new Date().toISOString() };
