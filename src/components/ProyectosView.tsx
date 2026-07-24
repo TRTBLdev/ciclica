@@ -11,6 +11,7 @@ import { cn, getAreaColorClasses } from '../lib/utils';
 import { getAppearanceDate, getDeadlineDate } from '../domain/appearance';
 import ProjectCard from './ProjectCard';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
+import DurationEstimateField from './DurationEstimateField';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -606,21 +607,12 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                 onChange={e => setNewTaskForm({...newTaskForm, fechaPlanificada: e.target.value})}
               />
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-text-dim font-mono uppercase">Duración:</span>
-              <div className="flex items-center gap-1 bg-base border border-border-line rounded-full px-3 py-1.5">
-                <input 
-                  type="number" 
-                  min={0} 
-                  step="0.1"
-                  className="w-10 bg-transparent text-text-main text-xs font-bold focus:outline-none text-center" 
-                  value={newTaskForm.duracion || ''} 
-                  onChange={e => setNewTaskForm({...newTaskForm, duracion: Number(e.target.value)})}
-                  placeholder="0.0"
-                />
-                <span className="text-xs text-text-dim font-mono font-bold">h</span>
-              </div>
-            </div>
+            <DurationEstimateField
+              idPrefix="quick-task-duration"
+              className="w-full sm:w-48"
+              value={newTaskForm.duracion}
+              onChange={duracion => setNewTaskForm({ ...newTaskForm, duracion })}
+            />
             <button 
               type="submit" 
               disabled={!newTaskForm.text.trim() || !newTaskForm.category} 

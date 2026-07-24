@@ -15,10 +15,20 @@ import {
   Plus,
   Search
 } from 'lucide-react';
-import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
+import { cn, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
 import CategoryBadge from './ui/CategoryBadge';
 import { isSameRecurringClosureSlot } from '../domain/occurrenceResults';
+import {
+  DEFAULT_HISTORY_PERIOD,
+  filterHistoryRecords,
+  getHistoryDayKey,
+  getVisibleHistoryRecords,
+  groupHistoryRecords,
+  HISTORY_PAGE_SIZE,
+  HistoryPeriod,
+  HistorySection,
+} from '../domain/historyPresentation';
 
 const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
   const dateStr = plannedDateStr || new Date().toISOString();
@@ -56,6 +66,12 @@ interface Props {
   onAddHistory?: (recordData: Omit<HistoryRecord, 'id'>) => void;
 }
 
+const getInitialVisibleCounts = (): Record<HistorySection, number> => ({
+  simple: HISTORY_PAGE_SIZE,
+  recurring: HISTORY_PAGE_SIZE,
+  pulses: HISTORY_PAGE_SIZE,
+});
+
 export default function CompletadasView({
   config,
   tasks,
@@ -90,7 +106,23 @@ export default function CompletadasView({
   const [showPulses, setShowPulses] = useState(true);
   const [subTasksMarkCompleted, setSubTasksMarkCompleted] = useState<Record<string, boolean>>({});
 
-  const selectedTask = tasks.find(t => t.id === retroTaskId);
+  const taskById = useMemo(
+    () => new Map(tasks.map(task => [task.id, task])),
+    [tasks],
+  );
+
+  const childrenByParentId = useMemo(() => {
+    const index = new Map<string, AppTask[]>();
+    for (const task of tasks) {
+      if (!task.parentId) continue;
+      const children = index.get(task.parentId) || [];
+      children.push(task);
+      index.set(task.parentId, children);
+    }
+    return index;
+  }, [tasks]);
+
+  const selectedTask = taskById.get(retroTaskId);
 
   const matchingTasks = useMemo(() => {
     const query = sessionQuery.trim().toLocaleLowerCase('es-ES');
@@ -98,127 +130,48 @@ export default function CompletadasView({
     return tasks.filter(task => task.text.toLocaleLowerCase('es-ES').includes(query));
   }, [tasks, sessionQuery]);
 
-  const [period, setPeriod] = useState<string>('todas');
+  const [period, setPeriod] = useState<HistoryPeriod>(DEFAULT_HISTORY_PERIOD);
+  const [visibleCounts, setVisibleCounts] = useState<Record<HistorySection, number>>(getInitialVisibleCounts);
 
   const sortedHistory = useMemo(() => {
     return [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history]);
 
-  const filteredHistoryByDate = useMemo(() => {
-    if (period === 'todas') return sortedHistory;
+  const filteredHistory = useMemo(() => {
+    return filterHistoryRecords(
+      sortedHistory,
+      taskById,
+      period,
+      sessionQuery,
+      config?.cycleConfig?.lastCycleStartDate,
+    );
+  }, [sortedHistory, taskById, period, sessionQuery, config?.cycleConfig?.lastCycleStartDate]);
 
-    const now = new Date();
-    let start = new Date();
-    let end = new Date();
+  const historyGroups = useMemo(
+    () => groupHistoryRecords(filteredHistory, taskById),
+    [filteredHistory, taskById],
+  );
 
-    switch (period) {
-      case 'hoy': {
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
-      case 'semana': {
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        start = new Date(now.getTime());
-        start.setDate(diff);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
-      case '7dias': {
-        start.setDate(now.getDate() - 6);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
-      case 'mes': {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
-      case '30dias': {
-        start.setDate(now.getDate() - 29);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
-      case 'ciclo': {
-        if (config?.cycleConfig?.lastCycleStartDate) {
-          start = new Date(config.cycleConfig.lastCycleStartDate);
-        } else {
-          start.setDate(now.getDate() - 27);
-        }
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        break;
-      }
+  const historyIndexes = useMemo(() => {
+    const byId = new Map<string, HistoryRecord>();
+    const firstByTask = new Map<string, HistoryRecord>();
+    const byTaskDay = new Map<string, HistoryRecord>();
+
+    for (const record of history) {
+      byId.set(record.id, record);
+      if (!firstByTask.has(record.taskId)) firstByTask.set(record.taskId, record);
+      const taskDayKey = `${record.taskId}|${getHistoryDayKey(record.date)}`;
+      if (!byTaskDay.has(taskDayKey)) byTaskDay.set(taskDayKey, record);
     }
 
-    const startTime = start.getTime();
-    const endTime = end.getTime();
+    return { byId, firstByTask, byTaskDay };
+  }, [history]);
 
-    return sortedHistory.filter(h => {
-      const d = new Date(h.date).getTime();
-      return d >= startTime && d <= endTime;
-    });
-  }, [sortedHistory, period, config?.cycleConfig?.lastCycleStartDate]);
+  const expandedIdSet = useMemo(() => new Set(expandedIds), [expandedIds]);
 
-  const filteredHistory = useMemo(() => {
-    const query = sessionQuery.trim().toLocaleLowerCase('es-ES');
-    if (!query) return filteredHistoryByDate;
-    return filteredHistoryByDate.filter(record => {
-      const task = tasks.find(item => item.id === record.taskId);
-      const label = task?.text || record.taskSnapshotText || '';
-      return label.toLocaleLowerCase('es-ES').includes(query);
-    });
-  }, [filteredHistoryByDate, sessionQuery, tasks]);
-
-  const simpleExecs = useMemo(() => {
-    return filteredHistory.filter(h => {
-      const task = tasks.find(t => t.id === h.taskId);
-      if (!task) return true;
-      if (task.type !== 'Tarea' && task.type !== 'Proyecto') return false;
-
-      // Ocultar del nivel superior si tiene un padre y ese padre tiene un registro el mismo día
-      if (task.parentId) {
-        const parent = tasks.find(candidate => candidate.id === task.parentId);
-        const parentHasLogSameDay = parent?.type !== 'Proyecto' && filteredHistory.some(ph =>
-          ph.taskId === task.parentId && isSameDay(h.date, ph.date)
-        );
-        if (parentHasLogSameDay) return false;
-      }
-      return true;
-    });
-  }, [filteredHistory, tasks]);
-
-  const recurringExecs = useMemo(() => {
-    return filteredHistory.filter(h => {
-      const task = tasks.find(t => t.id === h.taskId);
-      if (!task) return false;
-      if (task.type !== 'Hábito' && task.type !== 'Rutina') return false;
-
-      // Ocultar del nivel superior si tiene un padre (ej. rutina) y ese padre tiene un registro el mismo día
-      if (task.parentId) {
-        const parentHasLogSameDay = filteredHistory.some(ph =>
-          ph.taskId === task.parentId && isSameDay(h.date, ph.date)
-        );
-        if (parentHasLogSameDay) return false;
-      }
-      return true;
-    });
-  }, [filteredHistory, tasks]);
-
-  const pulseExecs = useMemo(() => {
-    return filteredHistory.filter(h => {
-      if (h.pulseOutcome === 'safe-day') return false;
-      const task = tasks.find(t => t.id === h.taskId);
-      if (!task) return false;
-      if (task.type !== 'Pulso') return false;
-      return true;
-    });
-  }, [filteredHistory, tasks]);
+  const resetVisibleCounts = () => {
+    setVisibleCounts(getInitialVisibleCounts());
+  };
 
   const toLocalInputFormat = (isoString?: string) => {
     if (!isoString) return '';
@@ -241,7 +194,10 @@ export default function CompletadasView({
     setRetroDuration(duration);
     setRetroTaskId(task?.id || '');
     setRetroMarkCompleted(task?.type !== 'Rutina');
-    if (task) setSessionQuery(task.text);
+    if (task) {
+      setSessionQuery(task.text);
+      resetVisibleCounts();
+    }
     setShowAddForm(true);
   };
 
@@ -287,8 +243,8 @@ export default function CompletadasView({
           finalStartISO = new Date(new Date(finalEndISO).getTime() - editDuration * 3600000).toISOString();
         }
 
-        const currentRecord = history.find(record => record.id === id);
-        const currentTask = currentRecord ? tasks.find(task => task.id === currentRecord.taskId) : undefined;
+        const currentRecord = historyIndexes.byId.get(id);
+        const currentTask = currentRecord ? taskById.get(currentRecord.taskId) : undefined;
         const isRecurringCompletion = currentRecord?.isCompletion === true
           && (currentTask?.type === 'Hábito' || currentTask?.type === 'Rutina');
         const duplicate = isRecurringCompletion && history.some(record => (
@@ -319,7 +275,7 @@ export default function CompletadasView({
   };
 
   const handleDeleteLog = (h: HistoryRecord) => {
-    const task = tasks.find(t => t.id === h.taskId);
+    const task = taskById.get(h.taskId);
     if (task) {
       if (h.isCompletion !== false) {
         if (task.type === 'Tarea' || task.type === 'Proyecto') {
@@ -332,7 +288,7 @@ export default function CompletadasView({
 
           // If it's a routine, also revert its child habits to today
           if (task.type === 'Rutina') {
-            const childHabits = tasks.filter(t => t.parentId === task.id && t.type === 'Hábito');
+            const childHabits = (childrenByParentId.get(task.id) || []).filter(t => t.type === 'Hábito');
             childHabits.forEach(ch => {
               onUpdateTask(ch.id, {
                 completed: false,
@@ -345,9 +301,9 @@ export default function CompletadasView({
 
       // Sumar de vuelta la duración al log de la rutina padre si existe
       if (task.type === 'Hábito' && task.parentId) {
-        const parentT = tasks.find(p => p.id === task.parentId);
+        const parentT = taskById.get(task.parentId);
         if (parentT && parentT.type === 'Rutina') {
-          const parentLog = history.find(hl => hl.taskId === parentT.id && isSameDay(hl.date, h.date));
+          const parentLog = historyIndexes.byTaskDay.get(`${parentT.id}|${getHistoryDayKey(h.date)}`);
           if (parentLog && parentLog.duration !== undefined) {
             const addedDur = h.duration || 0;
             const newParentDur = parseFloat((parentLog.duration + addedDur).toFixed(2));
@@ -366,7 +322,12 @@ export default function CompletadasView({
     );
   };
 
-  const renderHistoryList = (list: HistoryRecord[], emptyMsg: string, isRecurringList: boolean) => {
+  const renderHistoryList = (
+    list: HistoryRecord[],
+    emptyMsg: string,
+    isRecurringList: boolean,
+    section: HistorySection,
+  ) => {
     if (list.length === 0) {
       return (
         <div className="py-12 text-center flex flex-col items-center justify-center text-text-dim border border-dashed border-border-line/30 bg-transparent text-left">
@@ -376,12 +337,15 @@ export default function CompletadasView({
       );
     }
 
+    const visibleList = getVisibleHistoryRecords(list, period, visibleCounts[section]);
+    const remainingCount = list.length - visibleList.length;
+
     return (
       <div className="flex flex-col text-left">
-        {list.map(h => {
-          const task = tasks.find(t => t.id === h.taskId);
+        {visibleList.map(h => {
+          const task = taskById.get(h.taskId);
           const isEditing = editingId === h.id;
-          const isExpanded = expandedIds.includes(h.id);
+          const isExpanded = expandedIdSet.has(h.id);
 
           const displayCategory = task?.category || '';
           const areaConfig = config?.areas?.[displayCategory];
@@ -391,7 +355,7 @@ export default function CompletadasView({
           const formattedDate = evDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
           const formattedTime = evDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-          const childTasks = task ? tasks.filter(t => t.parentId === task.id) : [];
+          const childTasks = task ? childrenByParentId.get(task.id) || [] : [];
           const isProjectClosure = task?.type === 'Proyecto' && h.isCompletion === true && (h.duration || 0) === 0;
           const isPartialRecurringClosure = h.isCompletion === true
             && (task?.type === 'Hábito' || task?.type === 'Rutina')
@@ -602,9 +566,9 @@ export default function CompletadasView({
                   </div>
 
                   {childTasks.map(child => {
-                    let childLog = history.find(subH => subH.taskId === child.id && isSameDay(subH.date, h.date));
+                    let childLog = historyIndexes.byTaskDay.get(`${child.id}|${getHistoryDayKey(h.date)}`);
                     if (!childLog && (child.type === 'Tarea' || child.type === 'Pulso')) {
-                      childLog = history.find(subH => subH.taskId === child.id);
+                      childLog = historyIndexes.firstByTask.get(child.id);
                     }
 
                     const isChildEditing = editingId === childLog?.id;
@@ -892,6 +856,20 @@ export default function CompletadasView({
             </div>
           );
         })}
+        {remainingCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setVisibleCounts(current => ({
+                ...current,
+                [section]: current[section] + HISTORY_PAGE_SIZE,
+              }));
+            }}
+            className="mt-4 self-center border-0 bg-transparent px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-primary hover:underline cursor-pointer"
+          >
+            Cargar más ({remainingCount})
+          </button>
+        )}
       </div>
     );
   };
@@ -910,7 +888,10 @@ export default function CompletadasView({
         <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
           <select
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => {
+              setPeriod(e.target.value as HistoryPeriod);
+              resetVisibleCounts();
+            }}
             className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
           >
             <option value="todas">Todo el Historial</option>
@@ -936,12 +917,18 @@ export default function CompletadasView({
             <input
               type="search"
               value={sessionQuery}
-              onChange={event => setSessionQuery(event.target.value)}
+              onChange={event => {
+                setSessionQuery(event.target.value);
+                resetVisibleCounts();
+              }}
               placeholder="Buscar sesiones o elemento…"
               className="w-full pl-10 pr-9 py-2.5 text-xs bg-base text-text-main border border-border-line rounded-full outline-none focus:border-[#a2b29f]"
             />
             {sessionQuery && (
-              <button type="button" onClick={() => setSessionQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer" title="Limpiar búsqueda">
+              <button type="button" onClick={() => {
+                setSessionQuery('');
+                resetVisibleCounts();
+              }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-dim hover:text-text-main bg-transparent border-0 cursor-pointer" title="Limpiar búsqueda">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1084,7 +1071,7 @@ export default function CompletadasView({
                     const startIso = new Date(retroStart).toISOString();
                     const endIso = new Date(retroEnd).toISOString();
                     if (retroMarkCompleted) {
-                      const t = tasks.find(x => x.id === retroTaskId);
+                      const t = taskById.get(retroTaskId);
                       if (t) {
                         onToggleTask(t, Number(retroDuration), startIso, endIso);
                       }
@@ -1109,6 +1096,7 @@ export default function CompletadasView({
                     setRetroEnd('');
                     setRetroDuration(0);
                     setSessionQuery('');
+                    resetVisibleCounts();
                     setShowAddForm(false);
                   }
                 }}
@@ -1133,14 +1121,14 @@ export default function CompletadasView({
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Proyectos y Tareas
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
-                {simpleExecs.length.toString().padStart(2, '0')}
+                {historyGroups.simple.length.toString().padStart(2, '0')}
               </span>
             </h3>
             <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
               {showSimple ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showSimple && renderHistoryList(simpleExecs, "Sin sesiones de tareas o proyectos.", false)}
+          {showSimple && renderHistoryList(historyGroups.simple, "Sin sesiones de tareas o proyectos.", false, 'simple')}
         </div>
 
         {/* RECURRING ITEMS (HABITS/ROUTINES) */}
@@ -1152,14 +1140,14 @@ export default function CompletadasView({
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Hábitos y Rutinas
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
-                {recurringExecs.length.toString().padStart(2, '0')}
+                {historyGroups.recurring.length.toString().padStart(2, '0')}
               </span>
             </h3>
             <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
               {showRecurring ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showRecurring && renderHistoryList(recurringExecs, "Sin hábitos o rutinas registradas.", true)}
+          {showRecurring && renderHistoryList(historyGroups.recurring, "Sin hábitos o rutinas registradas.", true, 'recurring')}
         </div>
 
         {/* PULSES */}
@@ -1171,14 +1159,14 @@ export default function CompletadasView({
             <h3 className="text-xs font-mono font-bold tracking-widest text-primary uppercase flex items-center gap-2">
               Pulsos
               <span className="text-[11px] font-mono text-text-dim bg-base-dim px-2 py-0.2 border border-border-line/50 font-normal">
-                {pulseExecs.length.toString().padStart(2, '0')}
+                {historyGroups.pulses.length.toString().padStart(2, '0')}
               </span>
             </h3>
             <span className="text-[10px] font-mono text-text-dim uppercase flex items-center gap-1 group-hover:text-text-main transition-colors">
               {showPulses ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </span>
           </div>
-          {showPulses && renderHistoryList(pulseExecs, "Sin pulsos registrados.", false)}
+          {showPulses && renderHistoryList(historyGroups.pulses, "Sin pulsos registrados.", false, 'pulses')}
         </div>
 
       </div>

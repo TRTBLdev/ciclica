@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Calendar, BarChart3, CheckCircle2, BookOpen, X, Download } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, IntentionScale, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
@@ -185,7 +185,10 @@ export default function BitacoraView({
     };
   };
 
-  const cycleStats = getCycleStats();
+  const cycleStats = useMemo(
+    () => getCycleStats(),
+    [config?.cycleConfig?.flowLogs],
+  );
 
   const handleAddHistoricalCycle = (e: React.FormEvent) => {
     e.preventDefault();

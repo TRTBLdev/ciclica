@@ -9,6 +9,8 @@ import { normalizePulsePolarity } from '../domain/trackingProgress';
 import { getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
 import { getProjectScheduleLabel } from '../domain/projectPresentation';
 import { getProjectForTask } from '../domain/workTracking';
+import { resolveDurationForSave } from '../domain/durationEstimate';
+import DurationEstimateField from './DurationEstimateField';
 
 const WEEKDAYS = [
   { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mié' },
@@ -57,7 +59,8 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [quotaTarget, setQuotaTarget] = useState(initialData?.quotaTarget || 3);
   const [quotaPeriodUnit, setQuotaPeriodUnit] = useState<QuotaPeriodUnit>(initialData?.quotaPeriodUnit || 'semanas');
   const [objetivoPorCiclo, setObjetivoPorCiclo] = useState(initialData?.objetivoPorCiclo || 1);
-  const [duracion, setDuracion] = useState<number>(initialData?.duracion || 0);
+  const [editedDuracion, setEditedDuracion] = useState<number | null>(null);
+  const duracion = editedDuracion ?? initialData?.duracion ?? 0;
   const [dependencyId, setDependencyId] = useState(initialData?.dependencyId || '');
   const [allocationType, setAllocationType] = useState<'fixed' | 'growth' | 'mixed'>(initialData?.allocationType || 'growth');
   
@@ -135,7 +138,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       data.hora = hora;
     }
     if (type === 'Tarea' || type === 'Rutina' || type === 'Hábito') {
-      data.duracion = duracion;
+      data.duracion = resolveDurationForSave(initialData?.duracion, editedDuracion);
     }
 
     if (type === 'Rutina') {
@@ -459,19 +462,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
         {/* Duración (Tarea/Hábito) */}
         {(type === 'Tarea' || type === 'Hábito') && (
-          <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
-            Duración estimada
-            <div className="relative">
-            <input 
-              type="number" step="0.25" min="0" 
-              className={cn(fieldClass, 'pr-8 font-medium')}
-              value={duracion || ''}
-              onChange={e => setDuracion(Number(e.target.value))}
-              placeholder="0.0"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-text-dim">h</span>
-            </div>
-          </label>
+          <DurationEstimateField
+            idPrefix={`duration-${initialData?.id || 'new'}`}
+            value={duracion}
+            onChange={setEditedDuracion}
+          />
         )}
 
         {/* Asignación Energética (Tarea/Proyecto) */}
