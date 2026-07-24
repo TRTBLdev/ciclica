@@ -141,6 +141,8 @@ export interface HistoryRecord {
 }
 
 export type ProgressSnapshotKind = 'routine-appearance' | 'routine-cycle' | 'habit-period';
+export type RecurringResultStatus = 'complete' | 'partial' | 'missed';
+export type RecurringResolutionSource = 'manual' | 'period-end';
 
 export interface ProgressSnapshot {
   id: string;
@@ -153,6 +155,12 @@ export interface ProgressSnapshot {
   targetPercent?: number;
   progressPercent: number;
   wasCompleted?: boolean;
+  /** Local date on which the recurring period was closed or expired. */
+  resolvedAt?: string;
+  /** Final outcome. Legacy snapshots derive it from progressPercent/wasCompleted. */
+  resultStatus?: RecurringResultStatus;
+  /** Whether the result came from an explicit action or period rollover. */
+  resolutionSource?: RecurringResolutionSource;
   createdAt: string;
 }
 

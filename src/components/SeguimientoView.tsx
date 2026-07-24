@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
-import { formatDateOnly, getNominalDays, getRoutineCycleProgress, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
+import { DateRange, formatDateOnly, getNominalDays, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
 import {
-  completedHistoryForDate,
   getPulseState,
   getPulseOccurrenceCount,
   getRecentDates,
   hasPulseSafeDayConfirmation,
-  getRoutineAppearanceSnapshot,
   getTaskTrackingSummary,
   normalizePulsePolarity,
   TrackingCellState,
 } from '../domain/trackingProgress';
-import { isAppearanceScheduledOnDate } from '../domain/appearance';
+import { getAppearanceFrequency, getAppearanceMode, getAppearanceUnit, getStandaloneQuotaCount, isAppearanceScheduledOnDate } from '../domain/appearance';
+import {
+  getHabitResultsInRange,
+  getRoutineCycleProgress,
+  getSnapshotResolvedAt,
+  getSnapshotResultStatus,
+  hasPositiveActivityOnDate,
+} from '../domain/occurrenceResults';
 import {
   getDescendantTaskIds,
   getHistoryDateKey,
@@ -43,27 +48,18 @@ interface GroupedTrackingItems {
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function buildRoutineGroups(tasks: AppTask[], predicate: (task: AppTask) => boolean): GroupedTrackingItems {
-  const routines = tasks.filter(task => task.type === 'Rutina' && isRoutineConfigured(task));
-  const eligibleHabits = tasks.filter(task => task.type === 'Hábito' && predicate(task));
+  const routines = tasks.filter(task => task.type === 'Rutina' && isRoutineConfigured(task) && predicate(task));
+  const habits = tasks.filter(task => task.type === 'Hábito');
   const groups = routines.map(routine => ({
     routine,
-    habits: eligibleHabits.filter(habit => habit.parentId === routine.id),
-  })).filter(group => predicate(group.routine) || group.habits.length > 0);
+    habits: habits.filter(habit => habit.parentId === routine.id),
+  }));
   const groupedHabitIds = new Set(groups.flatMap(group => group.habits.map(habit => habit.id)));
 
   return {
     routines: groups,
-    standaloneHabits: eligibleHabits.filter(habit => !groupedHabitIds.has(habit.id)),
+    standaloneHabits: habits.filter(habit => !habit.parentId && predicate(habit) && !groupedHabitIds.has(habit.id)),
   };
-}
-
-function plannedDatesInMonth(task: AppTask, year: number, month: number) {
-  const total = new Date(year, month + 1, 0).getDate();
-  let count = 0;
-  for (let day = 1; day <= total; day += 1) {
-    if (isTaskScheduledOnDate(task, new Date(year, month, day))) count += 1;
-  }
-  return count;
 }
 
 function formatShortDate(value?: string) {
@@ -78,16 +74,21 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
   const days = getRecentDates(30, today);
   const pulses = tasks.filter(task => task.type === 'Pulso');
   const trackable = tasks.filter(task => task.type === 'Hábito' || (task.type === 'Rutina' && isRoutineConfigured(task)));
-  const frequent = buildRoutineGroups(trackable, task => getNominalDays(task.frecuencia, task.frecuenciaUnidad) < 7);
-  const monthly = buildRoutineGroups(trackable, task => getNominalDays(task.frecuencia, task.frecuenciaUnidad) >= 7);
+  const frequent = buildRoutineGroups(trackable, task => (
+    getAppearanceMode(task) === 'quota'
+    || getNominalDays(getAppearanceFrequency(task), getAppearanceUnit(task)) < 7
+  ));
+  const monthly = buildRoutineGroups(trackable, task => (
+    getAppearanceMode(task) !== 'quota'
+    && getNominalDays(getAppearanceFrequency(task), getAppearanceUnit(task)) >= 7
+  ));
   const year = today.getFullYear();
   const [expandedRoutines, setExpandedRoutines] = useState<Set<string>>(() => new Set());
-  const toggleRoutine = (section: 'frequent' | 'monthly', routineId: string) => {
-    const key = `${section}:${routineId}`;
+  const toggleRoutine = (routineId: string) => {
     setExpandedRoutines(previous => {
       const next = new Set(previous);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(routineId)) next.delete(routineId);
+      else next.add(routineId);
       return next;
     });
   };
@@ -151,23 +152,23 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                 tasks={tasks}
                 history={history}
                 snapshots={progressSnapshots}
-                expanded={expandedRoutines.has(`frequent:${group.routine.id}`)}
-                onToggle={() => toggleRoutine('frequent', group.routine.id)}
+                expanded={expandedRoutines.has(group.routine.id)}
+                onToggle={() => toggleRoutine(group.routine.id)}
               /></React.Fragment>
             ))}
             {frequent.standaloneHabits.map(habit => (
-              <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} days={days} history={history} /></React.Fragment>
+              <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} days={days} history={history} snapshots={progressSnapshots} /></React.Fragment>
             ))}
           </div>
         )}
-        <Legend labels={[['complete', 'Completo'], ['executed', 'Fuera de agenda'], ['partial', 'Parcial'], ['absent', 'Ausente'], ['unscheduled', 'No programado']]} />
+        <ResultLegend />
       </section>
 
       <section>
         <h2 className="text-title mb-1">Resumen mensual · {year}</h2>
-        <p className="text-xs text-text-dim mb-5">Cierres reales frente a apariciones nominales. Las sesiones parciales del timer no cuentan.</p>
+        <p className="text-xs text-text-dim mb-5">Promedio de apariciones y ciclos cerrados o vencidos en cada mes. El punto indica actividad sin convertirla en cierre.</p>
         {!hasMonthly ? <Empty text="No hay hábitos o rutinas con frecuencia semanal o mayor." /> : (
-          <div className="overflow-x-auto border border-border-line/50">
+          <section className="overflow-x-auto border border-border-line/50" aria-label="Resultados mensuales">
             <table className="w-full min-w-[980px] border-collapse text-xs">
               <thead>
                 <tr className="border-b border-border-line bg-base-dim/20">
@@ -184,12 +185,10 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                       history={history}
                       snapshots={progressSnapshots}
                       year={year}
-                      expandable={group.habits.length > 0}
-                      expanded={expandedRoutines.has(`monthly:${group.routine.id}`)}
-                      onToggle={() => toggleRoutine('monthly', group.routine.id)}
+                      activityTaskIds={group.habits.map(habit => habit.id)}
                     />
-                    {expandedRoutines.has(`monthly:${group.routine.id}`) && group.habits.map(habit => (
-                      <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} scheduleTask={group.routine} history={history} snapshots={progressSnapshots} year={year} nested /></React.Fragment>
+                    {group.habits.map(habit => (
+                      <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} nested /></React.Fragment>
                     ))}
                   </React.Fragment>
                 ))}
@@ -198,7 +197,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                 ))}
               </tbody>
             </table>
-          </div>
+          </section>
         )}
       </section>
     </main>
@@ -418,140 +417,224 @@ function FrequentRoutineGroup({
   onToggle: () => void;
 }) {
   const { routine, habits } = group;
-  const cycleProgress = getRoutineCycleProgress(routine, tasks, snapshots);
+  const cycleProgress = getRoutineCycleProgress(routine, tasks, history, snapshots);
   const summary = getTaskTrackingSummary(routine, history, snapshots);
+  const habitIds = habits.map(habit => habit.id);
   const row = (
     <TrackingRow
       label={(
-        <div className="min-w-0 pr-2">
-          <div className="flex items-center gap-2">
-            {habits.length > 0 && <span className="w-3 text-[11px] text-primary" aria-hidden="true">{expanded ? '−' : '+'}</span>}
-            <span className="truncate text-xs font-semibold text-text-main" title={routine.text}>{routine.text}</span>
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <div className="h-1 flex-1 max-w-16 overflow-hidden rounded-full bg-base-dim/70">
-              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${cycleProgress}%` }} />
-            </div>
-            <span className="text-[9px] font-mono uppercase tracking-wider text-primary">Ciclo {cycleProgress}% · {summary.dueCount ? `${summary.compliancePercent}% cumplimiento` : 'sin hitos'}</span>
-          </div>
-        </div>
+        <header className="min-w-0 pr-2">
+          <strong className="flex items-center gap-2 truncate text-xs text-text-main" title={routine.text}>
+            {habits.length > 0 && <b className="w-3 text-[11px] font-normal text-primary" aria-hidden="true">{expanded ? '−' : '+'}</b>}
+            {routine.text}
+          </strong>
+          <small className="mt-1 block font-mono text-[9px] uppercase tracking-wider text-primary">
+            Ciclo {cycleProgress}% · {summary.lastActivityDate ? `últ. ${formatShortDate(summary.lastActivityDate)}` : 'sin actividad'}
+          </small>
+        </header>
       )}
       days={days}
-      renderCell={date => <RoutineAppearanceCell routine={routine} date={date} snapshots={snapshots} />}
+      renderCell={date => (
+        <RoutineCycleCell
+          routine={routine}
+          habitIds={habitIds}
+          date={date}
+          history={history}
+          snapshots={snapshots}
+        />
+      )}
     />
   );
 
   return (
-    <div className="border-b border-border-line/35 pb-2">
+    <section className="border-b border-border-line/35 pb-2">
       {habits.length > 0 ? (
         <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full text-left bg-transparent border-0 p-0 cursor-pointer hover:bg-base-dim/20 transition-colors">
           {row}
         </button>
       ) : row}
-      {expanded && habits.map(habit => <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} scheduleTask={routine} days={days} history={history} nested /></React.Fragment>)}
-    </div>
+      {expanded && habits.map(habit => <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} scheduleTask={routine} days={days} history={history} snapshots={snapshots} nested /></React.Fragment>)}
+    </section>
   );
 }
 
-function RoutineAppearanceCell({ routine, date, snapshots }: { routine: AppTask; date: Date; snapshots: ProgressSnapshot[] }) {
-  if (!isTaskScheduledOnDate(routine, date)) return <Cell state="unscheduled" title={`${formatDateOnly(date)}: no programado`} />;
-  const snapshot = getRoutineAppearanceSnapshot(snapshots, routine.id, date);
-  if (!snapshot) return <Cell state="absent" title={`${formatDateOnly(date)}: sin registro de aparición`} />;
-  const target = Math.max(1, snapshot.targetPercent || 100);
-  const state: TrackingCellState = snapshot.progressPercent >= target ? 'complete' : 'partial';
-  return <Cell state={state} title={`${formatDateOnly(date)}: ${snapshot.progressPercent}% / meta ${target}%`} />;
+function RoutineCycleCell({
+  routine, habitIds, date, history, snapshots,
+}: {
+  routine: AppTask;
+  habitIds: string[];
+  date: Date;
+  history: HistoryRecord[];
+  snapshots: ProgressSnapshot[];
+}) {
+  const dateKey = formatDateOnly(date);
+  const snapshot = snapshots.find(candidate => candidate.kind === 'routine-cycle'
+    && candidate.taskId === routine.id
+    && getSnapshotResolvedAt(candidate) === dateKey);
+  const scheduled = isTaskScheduledOnDate(routine, date);
+  const activity = hasPositiveActivityOnDate(habitIds, history, date);
+  if (!snapshot) {
+    return <ResultCell state={scheduled ? 'planned' : 'empty'} activity={activity} label={`${dateKey}: ${scheduled ? 'oportunidad programada' : 'sin programación'}${activity ? ', con actividad' : ''}`} />;
+  }
+  const status = getSnapshotResultStatus(snapshot);
+  const state: ResultCellState = status === 'complete'
+    ? scheduled ? 'complete-planned' : 'complete-extra'
+    : status === 'partial'
+      ? scheduled ? 'partial-planned' : 'partial-extra'
+      : 'missed';
+  return <ResultCell state={state} activity={activity} label={`${dateKey}: rutina ${status === 'complete' ? 'completa' : status === 'partial' ? `parcial, ${snapshot.progressPercent}%` : 'no completada'}`} />;
 }
 
 function HabitTrackingRow({
-  habit, scheduleTask, days, history, nested = false,
+  habit, scheduleTask, days, history, snapshots, nested = false,
 }: {
   habit: AppTask;
   scheduleTask?: AppTask;
   days: Date[];
   history: HistoryRecord[];
+  snapshots: ProgressSnapshot[];
   nested?: boolean;
 }) {
+  const quota = getAppearanceMode(habit) === 'quota';
+  const quotaLabel = quota
+    ? ` · ${getStandaloneQuotaCount(habit, history)}/${Math.max(1, habit.quotaTarget || 1)}`
+    : '';
   return (
     <TrackingRow
-      label={<span className={cn('block truncate text-xs text-text-main', nested && 'pl-5 text-text-dim')} title={habit.text}>{nested && '↳ '}{habit.text}</span>}
+      label={<p className={cn('m-0 truncate text-xs text-text-main', nested && 'pl-5 text-text-dim')} title={habit.text}>{nested && '↳ '}{habit.text}{quotaLabel}</p>}
       days={days}
       renderCell={date => {
+        const dateKey = formatDateOnly(date);
         const scheduled = isTaskScheduledOnDate(scheduleTask || habit, date);
-        const completed = completedHistoryForDate(history, habit.id, date) > 0;
-        const state: TrackingCellState = completed
-          ? scheduled ? 'complete' : 'executed'
-          : scheduled ? 'absent' : 'unscheduled';
-        return <Cell state={state} title={`${formatDateOnly(date)}: ${completed ? scheduled ? 'completo' : 'ejecutado fuera de agenda' : scheduled ? 'ausente' : 'no programado'}`} />;
+        const result = getDailyHabitResult(habit, history, snapshots, dateKey);
+        const activity = hasPositiveActivityOnDate([habit.id], history, date);
+        if (!result) {
+          const isToday = dateKey === formatDateOnly(new Date());
+          const state: ResultCellState = quota
+            ? 'empty'
+            : scheduled ? 'planned' : 'empty';
+          const status = quota
+            ? 'sin cierre de cuota'
+            : scheduled ? isToday ? 'pendiente' : 'aparición programada' : 'sin agenda';
+          return <ResultCell state={state} activity={activity} label={`${dateKey}: ${status}${activity ? ', con actividad' : ''}`} />;
+        }
+        const state: ResultCellState = result.status === 'complete'
+          ? scheduled ? 'complete-planned' : 'complete-extra'
+          : result.status === 'partial'
+            ? scheduled ? 'partial-planned' : 'partial-extra'
+            : 'missed';
+        return <ResultCell state={state} activity={activity} label={`${dateKey}: ${result.status === 'complete' ? scheduled ? 'completo en fecha' : 'completo fuera de fecha' : result.status === 'partial' ? `${scheduled ? 'parcial en fecha' : 'parcial fuera de fecha'}, ${result.progressPercent}%` : 'no completado'}${activity ? ', con actividad' : ''}`} />;
       }}
     />
   );
 }
 
 function MonthlyTaskRow({
-  task, scheduleTask, history, snapshots, year, expandable = false, expanded = false, nested = false, onToggle,
+  task, history, snapshots, year, activityTaskIds, nested = false,
 }: {
   task: AppTask;
-  scheduleTask?: AppTask;
   history: HistoryRecord[];
   snapshots: ProgressSnapshot[];
   year: number;
-  expandable?: boolean;
-  expanded?: boolean;
+  activityTaskIds?: string[];
   nested?: boolean;
-  onToggle?: () => void;
 }) {
   const summary = getTaskTrackingSummary(task, history, snapshots);
   const isRoutine = task.type === 'Rutina';
+  const yearResults = getResolvedResults(task, history, snapshots, {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  });
+  const annualAverage = yearResults.length
+    ? Math.round(yearResults.reduce((sum, result) => sum + result.progressPercent, 0) / yearResults.length)
+    : undefined;
   const scheduleMeta = summary.pendingDate
     ? `Pendiente ${formatShortDate(summary.pendingDate)}`
     : `${isRoutine ? 'Avance' : 'Últ.'} ${formatShortDate(summary.lastActivityDate)} · Próx. ${formatShortDate(summary.nextDate)}`;
   const stickyBackground = isRoutine ? 'bg-base-dim/15' : 'bg-base';
   const label = (
-    <>
-      <span className="flex items-center gap-2 max-w-[200px]">
-        {expandable && <span className="w-3 text-primary" aria-hidden="true">{expanded ? '−' : '+'}</span>}
-        <span className={cn('truncate', nested && 'pl-4 text-text-dim')} title={task.text}>{nested && '↳ '}{task.text}</span>
-      </span>
-      <span className="text-[9px] font-mono uppercase text-text-dim">{isRoutine ? 'Rutina' : 'Hábito'}</span>
-      <span className={cn('block mt-0.5 max-w-[210px] truncate text-[8px] font-mono', summary.pendingDate ? 'text-red-600' : 'text-text-dim')} title={scheduleMeta}>{scheduleMeta}</span>
-    </>
+    <header className={cn('max-w-[210px]', nested && 'pl-4 text-text-dim')}>
+      <strong className="block truncate font-normal" title={task.text}>{nested && '↳ '}{task.text}</strong>
+      <small className="block text-[9px] font-mono uppercase text-text-dim">{isRoutine ? 'Rutina' : 'Hábito'}</small>
+      <small className={cn('mt-0.5 block truncate text-[8px] font-mono', summary.pendingDate ? 'text-red-600' : 'text-text-dim')} title={scheduleMeta}>{scheduleMeta}</small>
+    </header>
   );
 
   return (
     <tr className={cn('border-b border-border-line/40 last:border-0', isRoutine && 'bg-base-dim/15')}>
       <th className={cn('sticky left-0 z-10 w-[230px] min-w-[230px] px-3 py-2 text-left font-normal', stickyBackground)}>
-        {expandable ? <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full text-left bg-transparent border-0 p-0 cursor-pointer">{label}</button> : label}
+        {label}
       </th>
-      <td className={cn('sticky left-[230px] z-[9] w-[86px] min-w-[86px] px-2 py-2 text-center font-mono text-primary', stickyBackground)}>{summary.dueCount ? `${summary.compliancePercent}%` : '—'}</td>
-      {MONTHS.map((_, month) => <React.Fragment key={month}><MonthlyResultCell task={task} scheduleTask={scheduleTask} history={history} snapshots={snapshots} year={year} month={month} /></React.Fragment>)}
+      <td className={cn('sticky left-[230px] z-[9] w-[86px] min-w-[86px] px-2 py-2 text-center font-mono text-primary', stickyBackground)}>{annualAverage === undefined ? '—' : `${annualAverage}%`}</td>
+      {MONTHS.map((_, month) => <React.Fragment key={month}><MonthlyResultCell task={task} history={history} snapshots={snapshots} year={year} month={month} activityTaskIds={activityTaskIds} /></React.Fragment>)}
     </tr>
   );
 }
 
 function MonthlyResultCell({
-  task, scheduleTask, history, snapshots, year, month,
+  task, history, snapshots, year, month, activityTaskIds,
 }: {
   task: AppTask;
-  scheduleTask?: AppTask;
   history: HistoryRecord[];
   snapshots: ProgressSnapshot[];
   year: number;
   month: number;
+  activityTaskIds?: string[];
 }) {
-  const expected = plannedDatesInMonth(scheduleTask || task, year, month);
-  if (task.type === 'Hábito') {
-    const actual = history.filter(record => record.taskId === task.id && record.isCompletion && new Date(record.date).getFullYear() === year && new Date(record.date).getMonth() === month).length;
-    if (!expected && !actual) return <td className="px-2 py-3 text-center text-text-dim/30">—</td>;
-    return <td className="p-0"><MonthlyCell actual={actual} expected={expected} detail={!expected && actual ? 'fuera de agenda' : undefined} /></td>;
-  }
-  if (!expected) return <td className="px-2 py-3 text-center text-text-dim/30">—</td>;
-  const records = snapshots.filter(snapshot => snapshot.taskId === task.id
-    && snapshot.kind === 'routine-appearance'
-    && new Date(`${snapshot.periodStart}T00:00:00`).getFullYear() === year
-    && new Date(`${snapshot.periodStart}T00:00:00`).getMonth() === month);
-  const actual = records.filter(snapshot => snapshot.progressPercent >= Math.max(1, snapshot.targetPercent || 100)).length;
-  const average = records.length ? Math.round(records.reduce((sum, snapshot) => sum + snapshot.progressPercent, 0) / records.length) : 0;
-  return <td className="p-0"><MonthlyCell actual={actual} expected={expected} detail={records.length ? `${average}% prom.` : undefined} /></td>;
+  const start = formatDateOnly(new Date(year, month, 1));
+  const end = formatDateOnly(new Date(year, month + 1, 0));
+  const records = getResolvedResults(task, history, snapshots, { start, end });
+  const average = records.length
+    ? Math.round(records.reduce((sum, record) => sum + record.progressPercent, 0) / records.length)
+    : undefined;
+  const ids = activityTaskIds?.length ? activityTaskIds : [task.id];
+  const activity = history.some(record => ids.includes(record.taskId)
+    && (record.duration || 0) > 0
+    && getHistoryDateKey(record) >= start
+    && getHistoryDateKey(record) <= end);
+  const label = `${MONTHS[month]} ${year}: ${average === undefined ? 'sin resultado' : `${average}% promedio de ${records.length} ${records.length === 1 ? 'resultado' : 'resultados'}`}${activity ? ', con actividad' : ''}`;
+  return <td className="p-0"><MonthlyOutcomeCell percentage={average} activity={activity} label={label} /></td>;
+}
+
+type ResultCellState =
+  | 'empty'
+  | 'planned'
+  | 'complete-planned'
+  | 'complete-extra'
+  | 'partial-planned'
+  | 'partial-extra'
+  | 'missed';
+
+interface ResolvedResult {
+  progressPercent: number;
+  status: 'complete' | 'partial' | 'missed';
+}
+
+function getDailyHabitResult(
+  habit: AppTask,
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[],
+  date: string,
+): ResolvedResult | undefined {
+  return getHabitResultsInRange(habit, history, snapshots, { start: date, end: date })[0];
+}
+
+function getResolvedResults(
+  task: AppTask,
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[],
+  range: DateRange,
+): ResolvedResult[] {
+  if (task.type === 'Hábito') return getHabitResultsInRange(task, history, snapshots, range);
+  return snapshots
+    .filter(snapshot => snapshot.kind === 'routine-cycle'
+      && snapshot.taskId === task.id
+      && getSnapshotResolvedAt(snapshot) >= range.start
+      && getSnapshotResolvedAt(snapshot) <= range.end)
+    .map(snapshot => ({
+      progressPercent: Math.max(0, Math.min(100, snapshot.progressPercent)),
+      status: getSnapshotResultStatus(snapshot),
+    }));
 }
 
 function TrackingHeader({ days }: { days: Date[] }) {
@@ -571,8 +654,70 @@ function Cell({ state, title, value }: { state: TrackingCellState; title: string
   return <div title={title} className={cn('w-5 h-5 border flex items-center justify-center text-[8px] font-mono', state === 'complete' && 'bg-emerald-600 border-emerald-600 text-white', state === 'executed' && 'bg-primary border-primary text-white', state === 'partial' && 'bg-amber-400/60 border-amber-500/50 text-text-main', state === 'failed' && 'bg-red-500/30 border-red-500/60 text-red-800', state === 'exceeded' && 'bg-red-700 border-red-700 text-white', state === 'absent' && 'bg-red-500/10 border-red-500/30', state === 'unconfirmed' && 'bg-transparent border-border-line/60', state === 'unscheduled' && 'bg-transparent border-border-line/30')}>{value}</div>;
 }
 
-function MonthlyCell({ actual, expected, detail }: { actual: number; expected: number; detail?: string }) {
-  return <div className={cn('px-1 py-2 text-center font-mono', actual >= expected ? 'text-emerald-600' : actual > 0 ? 'text-amber-600' : 'text-text-dim')}><span>{actual}/{expected}</span>{detail && <span className="block text-[8px] text-text-dim mt-0.5">{detail}</span>}</div>;
+function ResultCell({
+  state, activity = false, label,
+}: {
+  state: ResultCellState;
+  activity?: boolean;
+  label: string;
+}) {
+  return (
+    <output
+      aria-label={label}
+      title={label}
+      data-result={state}
+      data-activity={activity ? 'true' : 'false'}
+      className="tracking-result-cell"
+    />
+  );
+}
+
+function MonthlyOutcomeCell({
+  percentage, activity, label,
+}: {
+  percentage?: number;
+  activity: boolean;
+  label: string;
+}) {
+  return (
+    <output
+      aria-label={label}
+      title={label}
+      data-activity={activity ? 'true' : 'false'}
+      className={cn(
+        'tracking-month-cell',
+        percentage === 100 ? 'text-emerald-700' : percentage === 0 ? 'text-red-700' : 'text-primary',
+      )}
+    >
+      {percentage === undefined ? '—' : `${percentage}%`}
+    </output>
+  );
+}
+
+function ResultLegend() {
+  const entries: [ResultCellState, string][] = [
+    ['empty', 'Sin agenda'],
+    ['planned', 'Pendiente'],
+    ['complete-planned', 'Completo · en fecha'],
+    ['complete-extra', 'Completo · fuera de fecha'],
+    ['partial-planned', 'Parcial · en fecha'],
+    ['partial-extra', 'Parcial · fuera de fecha'],
+    ['missed', 'No completado'],
+  ];
+  return (
+    <ul className="mt-4 flex list-none flex-wrap gap-4 p-0 text-[9px] font-mono uppercase text-text-dim" aria-label="Leyenda de hábitos y rutinas">
+      {entries.map(([state, label]) => (
+        <li key={state} className="flex items-center gap-1.5">
+          <ResultCell state={state} label={label} />
+          {label}
+        </li>
+      ))}
+      <li className="flex items-center gap-1.5">
+        <ResultCell state="empty" activity label="Actividad guardada" />
+        Actividad guardada
+      </li>
+    </ul>
+  );
 }
 
 function Legend({ labels }: { labels: [TrackingCellState, string][] }) {

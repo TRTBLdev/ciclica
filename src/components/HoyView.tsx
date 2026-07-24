@@ -484,7 +484,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
           {/* Validating/celebratory messages */}
           {totalSoporteReal > 0 && totalSoporteReal <= soporteBudget && (
             <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-1 uppercase tracking-wider">
-              🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital. ¡Base sostenida!
+              🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital.
             </div>
           )}
           {totalSoporteReal > soporteBudget && (
@@ -870,32 +870,32 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Sin elementos flexibles.</p>
                 ) : (
                   <ul className="m-0 list-none space-y-3 p-0">
-                  {getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
-                    <li
-                      key={t.id} 
-                      draggable={sortFlexiblesBy === 'manual'}
-                      onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(e, t.id, untimedTasks)}
-                      className={cn(sortFlexiblesBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
-                    >
-                      <TaskItem
-                        task={t}
-                        config={config}
-                        allTasks={tasks}
-                        history={history}
-                        onToggle={onToggleTask}
-                        onDelete={() => onDeleteTask(t.id)}
-                        onUpdate={onUpdateTask}
-                        onAddTask={onAddTask}
-                        onDeleteTask={onDeleteTask}
-                        activeTimer={activeTimer}
-                        onStartTimer={onStartTimer}
-                        onNavigate={onNavigate}
-                        context="today"
-                      />
-                    </li>
-                  ))}
+                    {getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
+                      <li
+                        key={t.id}
+                        draggable={sortFlexiblesBy === 'manual'}
+                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleDrop(e, t.id, untimedTasks)}
+                        className={cn(sortFlexiblesBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
+                      >
+                        <TaskItem
+                          task={t}
+                          config={config}
+                          allTasks={tasks}
+                          history={history}
+                          onToggle={onToggleTask}
+                          onDelete={() => onDeleteTask(t.id)}
+                          onUpdate={onUpdateTask}
+                          onAddTask={onAddTask}
+                          onDeleteTask={onDeleteTask}
+                          activeTimer={activeTimer}
+                          onStartTimer={onStartTimer}
+                          onNavigate={onNavigate}
+                          context="today"
+                        />
+                      </li>
+                    ))}
                   </ul>
                 )}
               </section>
@@ -937,32 +937,32 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Backlog vacío. Buen trabajo.</p>
                 ) : (
                   <ul className="m-0 list-none space-y-3 p-0">
-                  {getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
-                    <li
-                      key={t.id}
-                      draggable={sortBacklogBy === 'manual'}
-                      onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(e, t.id, backlogTasks)}
-                      className={cn(sortBacklogBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
-                    >
-                      <TaskItem
-                        task={t}
-                        config={config}
-                        allTasks={tasks}
-                        history={history}
-                        onToggle={onToggleTask}
-                        onDelete={() => onDeleteTask(t.id)}
-                        onUpdate={onUpdateTask}
-                        onAddTask={onAddTask}
-                        onDeleteTask={onDeleteTask}
-                        activeTimer={activeTimer}
-                        onStartTimer={onStartTimer}
-                        onNavigate={onNavigate}
-                        context="backlog"
-                      />
-                    </li>
-                  ))}
+                    {getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
+                      <li
+                        key={t.id}
+                        draggable={sortBacklogBy === 'manual'}
+                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleDrop(e, t.id, backlogTasks)}
+                        className={cn(sortBacklogBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
+                      >
+                        <TaskItem
+                          task={t}
+                          config={config}
+                          allTasks={tasks}
+                          history={history}
+                          onToggle={onToggleTask}
+                          onDelete={() => onDeleteTask(t.id)}
+                          onUpdate={onUpdateTask}
+                          onAddTask={onAddTask}
+                          onDeleteTask={onDeleteTask}
+                          activeTimer={activeTimer}
+                          onStartTimer={onStartTimer}
+                          onNavigate={onNavigate}
+                          context="backlog"
+                        />
+                      </li>
+                    ))}
                   </ul>
                 )}
               </section>
@@ -1169,8 +1169,8 @@ function TimelineRenderer({
       const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
 
       const validColors = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
-      const brumaClass = validColors.includes(activeSeparatorColor || '') 
-        ? `bg-gradient-to-r from-${activeSeparatorColor}-500/5 to-transparent` 
+      const brumaClass = validColors.includes(activeSeparatorColor || '')
+        ? `bg-gradient-to-r from-${activeSeparatorColor}-500/5 to-transparent`
         : '';
 
       renderedItems.push(

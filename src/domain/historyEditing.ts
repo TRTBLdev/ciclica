@@ -1,10 +1,15 @@
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
 import {
-  getRoutineCycleProgressFromHistory,
   getRoutineCycleRangeForTask,
   isVerifiedHabitCompletion,
 } from './appearance';
 import { getHistoryDateKey } from './workTracking';
+import {
+  createHabitResultSnapshot,
+  getHabitOccurrenceRange,
+  getRoutineCycleProgress,
+  getSnapshotResolvedAt,
+} from './occurrenceResults';
 
 function getParentRoutine(task: AppTask | undefined, tasks: AppTask[]): AppTask | undefined {
   if (task?.type === 'Rutina') return task;
@@ -39,48 +44,53 @@ export function reconcileSnapshotsAfterHistoryEdit(
   const task = tasks.find(candidate => candidate.id === original.taskId);
   const routine = getParentRoutine(task, tasks);
 
+  if (task?.type !== 'Hábito') return snapshots;
+  const affectedDates = new Set([getHistoryDateKey(original), getHistoryDateKey(updated)]);
+  let next = snapshots.filter(snapshot => !(snapshot.kind === 'habit-period'
+    && snapshot.taskId === task.id
+    && snapshot.resolutionSource !== 'period-end'
+    && affectedDates.has(getSnapshotResolvedAt(snapshot))));
+
+  affectedDates.forEach(date => {
+    const completion = nextHistory.find(record => getHistoryDateKey(record) === date && isVerifiedHabitCompletion(task, record));
+    if (!completion) return;
+    const range = getHabitOccurrenceRange(task, tasks, date);
+    next = [...next, {
+      ...createHabitResultSnapshot(
+        task,
+        range,
+        completion.completionPercent ?? 100,
+        date,
+        'manual',
+      ),
+      id: `progress_edit_${task.id}_${date}`,
+      createdAt: completion.createdAt,
+    }];
+  });
+
   if (routine) {
     const affectedCycleStarts = new Set([
       getRoutineCycleRangeForTask(routine, getHistoryDateKey(original)).start,
       getRoutineCycleRangeForTask(routine, getHistoryDateKey(updated)).start,
     ]);
-    return snapshots.map(snapshot => {
-      if (snapshot.taskId !== routine.id) return snapshot;
-      const cycle = getRoutineCycleRangeForTask(routine, snapshot.periodStart);
-      if (!affectedCycleStarts.has(cycle.start)) return snapshot;
-      const progress = getRoutineCycleProgressFromHistory(routine, tasks, nextHistory, snapshot.periodStart);
+    next = next.map(snapshot => {
+      if (snapshot.kind !== 'routine-cycle'
+        || snapshot.taskId !== routine.id
+        || !affectedCycleStarts.has(snapshot.periodStart)) return snapshot;
+      const progress = getRoutineCycleProgress(routine, tasks, nextHistory, next, snapshot.periodStart);
+      const resultStatus = progress >= 100
+        ? 'complete'
+        : progress > 0 || snapshot.resolutionSource === 'manual'
+          ? 'partial'
+          : 'missed';
       return {
         ...snapshot,
         progressPercent: progress,
-        wasCompleted: snapshot.kind === 'routine-cycle'
-          ? progress === 100
-          : progress >= Math.max(1, snapshot.targetPercent || 100),
+        resultStatus,
+        wasCompleted: resultStatus !== 'missed',
       };
     });
   }
-
-  if (task?.type !== 'Hábito') return snapshots;
-  const affectedDates = new Set([getHistoryDateKey(original), getHistoryDateKey(updated)]);
-  let next = snapshots.filter(snapshot => !(snapshot.kind === 'habit-period'
-    && snapshot.taskId === task.id
-    && affectedDates.has(snapshot.periodStart)));
-
-  affectedDates.forEach(date => {
-    const completion = nextHistory.find(record => getHistoryDateKey(record) === date && isVerifiedHabitCompletion(task, record));
-    if (!completion) return;
-    next = [...next, {
-      id: `progress_edit_${task.id}_${date}`,
-      userId: task.userId,
-      kind: 'habit-period',
-      taskId: task.id,
-      taskSnapshotText: task.text,
-      periodStart: date,
-      periodEnd: date,
-      progressPercent: completion.completionPercent ?? 100,
-      wasCompleted: true,
-      createdAt: completion.createdAt,
-    }];
-  });
 
   return next;
 }

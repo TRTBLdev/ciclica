@@ -166,7 +166,7 @@ const completion = (taskId: string, appearance: string) => record({
     expect(wasChildHabitCompletedInAppearance(routine, habitC, history, '2026-07-20')).toBe(true);
   });
 
-  it('does not turn progress sessions or incomplete checklists into quota closures', () => {
+  it('counts explicit partial closures but not progress sessions toward the quota', () => {
     const checklistHabit = { ...habitA, checklist: [
       { id: 'step_1', text: 'Paso uno', done: true },
       { id: 'step_2', text: 'Paso dos', done: false },
@@ -174,7 +174,7 @@ const completion = (taskId: string, appearance: string) => record({
     const progressSession = completion(checklistHabit.id, '2026-07-20');
     progressSession.isCompletion = false;
     const unverifiedClosure = completion(checklistHabit.id, '2026-07-20');
-    expect(getChildHabitCycleCount(routine, checklistHabit, [progressSession, unverifiedClosure], '2026-07-20')).toBe(0);
+    expect(getChildHabitCycleCount(routine, checklistHabit, [progressSession, unverifiedClosure], '2026-07-20')).toBe(1);
     expect(getChildHabitCycleCount(routine, checklistHabit, [
       { ...unverifiedClosure, completionPercent: 100 },
     ], '2026-07-20')).toBe(1);

@@ -3,9 +3,16 @@ import { createDefaultConfig, createDemoTasks } from '../data/defaults';
 import { getDataKeys, getLocal, setLocal } from '../data/storage';
 import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { migrateDatabase } from '../data/migration';
-import { formatDateOnly, getCalendarCycleRange, getRoutineAppearanceTarget, isRoutineConfigured, isTaskScheduledOnDate, parseDateOnly } from '../domain/recurrenceProgress';
-import { getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask } from '../domain/appearance';
+import { formatDateOnly, getCalendarCycleRange, isRoutineConfigured, parseDateOnly } from '../domain/recurrenceProgress';
 import { applyRecurringHistoryContext, reconcileSnapshotsAfterHistoryEdit } from '../domain/historyEditing';
+import {
+  createHabitResultSnapshot,
+  getAutomaticHabitProgress,
+  getExpiredHabitOccurrenceRanges,
+  getHabitOccurrenceRange,
+  getHabitResultsInRange,
+  getRoutineCycleProgress,
+} from '../domain/occurrenceResults';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
@@ -67,8 +74,54 @@ export function useData(userId: string) {
     const yesterday = new Date();
     yesterday.setHours(0, 0, 0, 0);
     yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = formatDateOnly(yesterday);
     const additions: ProgressSnapshot[] = [];
-    const existing = new Set(progressSnapshots.map(snapshot => `${snapshot.kind}:${snapshot.taskId}:${snapshot.periodStart}:${snapshot.periodEnd}`));
+    const changes: { id: string; updates: Partial<AppTask> }[] = [];
+    const existing = new Set(progressSnapshots.map(snapshot => (
+      `${snapshot.kind}:${snapshot.taskId}:${snapshot.periodStart}:${snapshot.periodEnd}:${snapshot.resolvedAt || snapshot.periodEnd}`
+    )));
+    const addSnapshot = (snapshot: Omit<ProgressSnapshot, 'id'>, id: string) => {
+      const key = `${snapshot.kind}:${snapshot.taskId}:${snapshot.periodStart}:${snapshot.periodEnd}:${snapshot.resolvedAt || snapshot.periodEnd}`;
+      if (existing.has(key)) return;
+      additions.push({ id, ...snapshot });
+      existing.add(key);
+    };
+
+    tasks
+      .filter(task => task.type === 'Hábito' && !task.parentId && task.appearanceMode !== 'quota' && !task.quotaTarget)
+      .forEach(habit => {
+        const ranges = getExpiredHabitOccurrenceRanges(habit, tasks, yesterday);
+        ranges.forEach((range, index) => {
+          if (progressSnapshots.some(snapshot => snapshot.kind === 'habit-period'
+            && snapshot.taskId === habit.id
+            && snapshot.periodStart === range.start
+            && snapshot.periodEnd === range.end)) return;
+          const checklistBelongsToRange = habit.checklistCycleStart === range.start
+            || (!habit.checklistCycleStart
+              && !!habit.checklist?.some(item => item.done)
+              && index === ranges.length - 1);
+          const progress = habit.checklist?.length && !checklistBelongsToRange
+            ? 0
+            : getAutomaticHabitProgress(habit, history, range);
+          addSnapshot(
+            createHabitResultSnapshot(habit, range, progress, range.end, 'period-end'),
+            `progress_roll_${habit.id}_${range.start}_${range.end}`,
+          );
+        });
+
+        if (habit.checklistCycleStart && habit.checklistCycleStart < calendarDay) {
+          const currentRange = getHabitOccurrenceRange(habit, tasks, calendarDay);
+          if (habit.checklistCycleStart !== currentRange.start) {
+            changes.push({
+              id: habit.id,
+              updates: {
+                checklistCycleStart: undefined,
+                checklist: habit.checklist?.map(item => ({ ...item, done: false })),
+              },
+            });
+          }
+        }
+      });
 
     tasks.filter(isRoutineConfigured).forEach(routine => {
       const anchor = parseDateOnly(routine.routineCycleAnchorDate || new Date());
@@ -76,32 +129,62 @@ export function useData(userId: string) {
       let safety = 0;
       while (cursor <= yesterday && safety < 7300) {
         const dateKey = formatDateOnly(cursor);
-        if (isTaskScheduledOnDate(routine, cursor)) {
-          const key = `routine-appearance:${routine.id}:${dateKey}:${dateKey}`;
-          if (!existing.has(key)) {
-            const progress = getRoutineCycleProgressFromHistory(routine, tasks, history, cursor);
-            additions.push({
-              id: `progress_roll_${routine.id}_${dateKey}_appearance`, userId: effectiveUserId,
-              kind: 'routine-appearance', taskId: routine.id, taskSnapshotText: routine.text,
-              periodStart: dateKey, periodEnd: dateKey,
-              targetPercent: getRoutineAppearanceTarget(routine, cursor), progressPercent: progress,
-              wasCompleted: progress >= getRoutineAppearanceTarget(routine, cursor), createdAt: new Date().toISOString()
-            });
-            existing.add(key);
-          }
-        }
         const cycle = getCalendarCycleRange(routine.routineCycleFrequency, routine.routineCycleUnit, cursor);
         if (cycle.end === dateKey) {
-          const key = `routine-cycle:${routine.id}:${cycle.start}:${cycle.end}`;
-          if (!existing.has(key)) {
-            const progress = getRoutineCycleProgressFromHistory(routine, tasks, history, cursor);
-            additions.push({
-              id: `progress_roll_${routine.id}_${cycle.end}_cycle`, userId: effectiveUserId,
-              kind: 'routine-cycle', taskId: routine.id, taskSnapshotText: routine.text,
-              periodStart: cycle.start, periodEnd: cycle.end, progressPercent: progress,
-              wasCompleted: progress === 100, createdAt: new Date().toISOString()
-            });
-            existing.add(key);
+          const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
+          habits.forEach(habit => {
+            const target = Math.max(1, habit.objetivoPorCiclo || 1);
+            const cycleSnapshots = [...progressSnapshots, ...additions];
+            const closed = getHabitResultsInRange(habit, history, cycleSnapshots, cycle)
+              .filter(result => result.status !== 'missed').length;
+            const checklistBelongsToCycle = habit.checklistCycleStart === cycle.start
+              || (!habit.checklistCycleStart && !!habit.checklist?.some(item => item.done));
+            const progress = habit.checklist?.length && !checklistBelongsToCycle
+              ? 0
+              : getAutomaticHabitProgress(habit, history, cycle);
+            if (closed < target && progress > 0) {
+              addSnapshot(
+                createHabitResultSnapshot(habit, cycle, progress, cycle.end, 'period-end'),
+                `progress_roll_${routine.id}_${habit.id}_${cycle.end}`,
+              );
+            }
+            if (habit.checklistCycleStart === cycle.start && cycle.end <= yesterdayKey) {
+              changes.push({
+                id: habit.id,
+                updates: {
+                  checklistCycleStart: undefined,
+                  checklist: habit.checklist?.map(item => ({ ...item, done: false })),
+                },
+              });
+            }
+          });
+
+          const alreadyClosed = progressSnapshots.some(snapshot => snapshot.kind === 'routine-cycle'
+            && snapshot.taskId === routine.id
+            && snapshot.periodStart === cycle.start
+            && snapshot.periodEnd === cycle.end);
+          if (!alreadyClosed) {
+            const progress = getRoutineCycleProgress(
+              routine,
+              tasks,
+              history,
+              [...progressSnapshots, ...additions],
+              cycle.end,
+            );
+            addSnapshot({
+              userId: effectiveUserId,
+              kind: 'routine-cycle',
+              taskId: routine.id,
+              taskSnapshotText: routine.text,
+              periodStart: cycle.start,
+              periodEnd: cycle.end,
+              resolvedAt: cycle.end,
+              progressPercent: progress,
+              resultStatus: progress >= 100 ? 'complete' : progress > 0 ? 'partial' : 'missed',
+              resolutionSource: 'period-end',
+              wasCompleted: progress > 0,
+              createdAt: `${cycle.end}T23:59:59`,
+            }, `progress_roll_${routine.id}_${cycle.end}_cycle`);
           }
         }
         cursor.setDate(cursor.getDate() + 1);
@@ -109,41 +192,25 @@ export function useData(userId: string) {
       }
     });
 
-    if (additions.length) {
+    if (additions.length > 0) {
       setProgressSnapshots(prev => {
         const next = [...prev, ...additions];
         setLocal(getDataKeys(effectiveUserId).progressSnapshots, next);
         return next;
       });
     }
-  }, [calendarDay, loading, snapshotRollDay, tasks, history, progressSnapshots, effectiveUserId]);
-
-  useEffect(() => {
-    if (loading || !tasks.length) return;
-    const changes: { id: string; updates: Partial<AppTask> }[] = [];
-    tasks.filter(task => task.type === 'Hábito' && !!task.parentId).forEach(habit => {
-      const routine = tasks.find(task => task.id === habit.parentId && task.type === 'Rutina');
-      if (!routine) return;
-      const cycleStart = getRoutineCycleRangeForTask(routine, calendarDay).start;
-      if (!habit.checklistCycleStart && habit.checklist?.some(item => item.done)) {
-        changes.push({ id: habit.id, updates: { checklistCycleStart: cycleStart } });
-      } else if (habit.checklistCycleStart && habit.checklistCycleStart !== cycleStart) {
-        changes.push({
-          id: habit.id,
-          updates: { checklistCycleStart: cycleStart, checklist: habit.checklist?.map(item => ({ ...item, done: false })) },
+    if (changes.length > 0) {
+      const uniqueChanges = new Map(changes.map(change => [change.id, change]));
+      setTasks(previous => {
+        const next = previous.map(task => {
+          const change = uniqueChanges.get(task.id);
+          return change ? { ...task, ...change.updates, updatedAt: new Date().toISOString() } : task;
         });
-      }
-    });
-    if (!changes.length) return;
-    setTasks(previous => {
-      const next = previous.map(task => {
-        const change = changes.find(candidate => candidate.id === task.id);
-        return change ? { ...task, ...change.updates, updatedAt: new Date().toISOString() } : task;
+        setLocal(getDataKeys(effectiveUserId).tasks, next);
+        return next;
       });
-      setLocal(getDataKeys(effectiveUserId).tasks, next);
-      return next;
-    });
-  }, [calendarDay, effectiveUserId, loading, tasks]);
+    }
+  }, [calendarDay, loading, snapshotRollDay, tasks, history, progressSnapshots, effectiveUserId]);
 
   const updateConfig = async (updates: Partial<Config>) => {
     setConfig(prev => {

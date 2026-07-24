@@ -41,6 +41,21 @@ const original: HistoryRecord = {
 
 const snapshots: ProgressSnapshot[] = [
   {
+    id: 'habit-result',
+    userId: 'user',
+    kind: 'habit-period',
+    taskId: habit.id,
+    taskSnapshotText: habit.text,
+    periodStart: '2026-07-20',
+    periodEnd: '2026-07-26',
+    resolvedAt: '2026-07-20',
+    progressPercent: 100,
+    resultStatus: 'complete',
+    resolutionSource: 'manual',
+    wasCompleted: true,
+    createdAt: original.createdAt,
+  },
+  {
     id: 'old-cycle',
     userId: 'user',
     kind: 'routine-cycle',
@@ -85,7 +100,11 @@ describe('history editing', () => {
     expect(moved.routineAppearanceDate).toBe('2026-07-28');
     expect(moved.routineCycleStart).toBe('2026-07-27');
     expect(reconciled.find(snapshot => snapshot.id === 'old-cycle')?.progressPercent).toBe(0);
+    expect(reconciled.find(snapshot => snapshot.id === 'old-cycle')?.resultStatus).toBe('missed');
     expect(reconciled.find(snapshot => snapshot.id === 'new-cycle')?.progressPercent).toBe(100);
+    expect(reconciled.find(snapshot => snapshot.id === 'new-cycle')?.resultStatus).toBe('complete');
+    expect(reconciled.find(snapshot => snapshot.taskId === habit.id)?.resolvedAt).toBe('2026-07-28');
+    expect(reconciled.find(snapshot => snapshot.taskId === habit.id)?.periodStart).toBe('2026-07-27');
     expect(routine.appearanceWeekdays).toEqual([1]);
   });
 });

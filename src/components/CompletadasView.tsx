@@ -18,6 +18,7 @@ import {
 import { cn, isSameDay, getAreaColorClasses } from '../lib/utils';
 import { useToast } from './ToastProvider';
 import CategoryBadge from './ui/CategoryBadge';
+import { isSameRecurringClosureSlot } from '../domain/occurrenceResults';
 
 const getNextPlannedDate = (plannedDateStr: string | undefined, freq: number, unit: string) => {
   const dateStr = plannedDateStr || new Date().toISOString();
@@ -294,7 +295,8 @@ export default function CompletadasView({
           record.id !== id
           && record.taskId === currentRecord!.taskId
           && record.isCompletion === true
-          && isSameDay(record.date, finalEndISO)
+          && currentTask
+          && isSameRecurringClosureSlot(currentTask, tasks, record.date, finalEndISO)
         ));
         if (duplicate) {
           showToast("Ya existe una finalización de este elemento en ese día", "error");
@@ -391,6 +393,10 @@ export default function CompletadasView({
 
           const childTasks = task ? tasks.filter(t => t.parentId === task.id) : [];
           const isProjectClosure = task?.type === 'Proyecto' && h.isCompletion === true && (h.duration || 0) === 0;
+          const isPartialRecurringClosure = h.isCompletion === true
+            && (task?.type === 'Hábito' || task?.type === 'Rutina')
+            && h.completionPercent !== undefined
+            && h.completionPercent < 100;
           const hasChildren = !isProjectClosure && childTasks.length > 0;
 
           return (
@@ -513,6 +519,10 @@ export default function CompletadasView({
                           <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-border-line/30 text-text-dim bg-base-dim/40 rounded-full select-none" title="Esta sesión registra tiempo de progreso, pero el ítem no se marcó como completado en el planificador">
                             ⏱️ Progreso
                           </span>
+                        ) : isPartialRecurringClosure ? (
+                          <small className="select-none border border-[var(--color-primary)]/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary" title="La aparición se cerró conservando el avance actual">
+                            Cierre parcial · {h.completionPercent}%
+                          </small>
                         ) : (
                           <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 border border-[var(--color-primary)]/30 text-primary bg-[var(--color-primary)]/10 rounded-full select-none" title="Esta sesión completó o reprogramó el ítem en el planificador">
                             ✓ Completado

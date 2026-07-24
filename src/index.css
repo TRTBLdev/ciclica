@@ -226,3 +226,81 @@ body {
 .absolute.glass-matte {
   background-color: var(--color-base) !important;
 }
+
+/* Recurring results: schedule is the base, outcome is the fill. */
+.tracking-result-cell {
+  position: relative;
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border-line) 45%, transparent);
+  background: transparent;
+}
+
+.tracking-result-cell[data-result='planned'] {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.tracking-result-cell[data-result='complete-planned'] {
+  border-color: #3f8f68;
+  background: #3f8f68;
+}
+
+.tracking-result-cell[data-result='complete-extra'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.tracking-result-cell[data-result='partial-planned'],
+.tracking-result-cell[data-result='partial-extra'] {
+  border-color: #3f8f68;
+}
+
+.tracking-result-cell[data-result='partial-planned'] {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.tracking-result-cell[data-result='partial-extra'] {
+  border-color: var(--color-primary);
+}
+
+.tracking-result-cell[data-result='partial-planned']::before,
+.tracking-result-cell[data-result='partial-extra']::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  background: #3f8f68;
+}
+
+.tracking-result-cell[data-result='partial-extra']::before {
+  background: var(--color-primary);
+}
+
+.tracking-result-cell[data-result='missed'] {
+  border-color: color-mix(in srgb, #9f2f2d 38%, transparent);
+  background: color-mix(in srgb, #f3c5c2 34%, transparent);
+}
+
+.tracking-result-cell[data-activity='true']::after,
+.tracking-month-cell[data-activity='true']::after {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border: 1px solid var(--color-base);
+  background: #956400;
+  content: '';
+}
+
+.tracking-month-cell {
+  position: relative;
+  display: block;
+  min-height: 2rem;
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+  font-family: var(--font-mono);
+}

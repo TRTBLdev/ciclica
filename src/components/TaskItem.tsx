@@ -7,6 +7,7 @@ import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { isRoutineReadyToClose } from '../domain/occurrenceResults';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import CompactDate from './ui/CompactDate';
 import TemporalIndicator, { temporalToneClassName } from './ui/TemporalIndicator';
@@ -329,7 +330,8 @@ export default function TaskItem({
   const childTargetReached = !!parentRoutine && childCycleCount >= childCycleTarget;
   const occurrenceIsAvailable = !parentRoutine || !childCompletedThisAppearance;
   const routineProgress = task.type === 'Rutina' ? getRoutineCycleProgressFromHistory(task, allTasks, history || []) : 0;
-  const canToggleRoutine = task.type === 'Rutina' && routineProgress === 100;
+  const canToggleRoutine = task.type === 'Rutina'
+    && isRoutineReadyToClose(task, allTasks, history || [], []);
   const isCompletedVisual = parentRoutine ? childCompletedThisAppearance : task.completed;
   const isActionComplete = isCompletedVisual || childTargetReached;
   const lastCompletionDate = (history || [])

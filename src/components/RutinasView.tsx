@@ -12,8 +12,9 @@ import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { isRoutineConfigured } from '../domain/recurrenceProgress';
-import { getAppearanceDate, getItemTemporalIndicators, getRoutineCycleProgressFromHistory, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
+import { getAppearanceDate, getItemTemporalIndicators, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
 import TemporalIndicator from './ui/TemporalIndicator';
+import { getRoutineCycleProgress, isRoutineReadyToClose } from '../domain/occurrenceResults';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -553,7 +554,12 @@ export default function RutinasView({
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
                 const subtasks = sortTasks(rawSubtasks, sortBy);
                 const configured = isRoutineConfigured(routine);
-                const routineProgress = configured ? getRoutineCycleProgressFromHistory(routine, tasks, history || []) : null;
+                const routineProgress = configured
+                  ? getRoutineCycleProgress(routine, tasks, history || [], progressSnapshots)
+                  : null;
+                const routineReady = configured
+                  ? isRoutineReadyToClose(routine, tasks, history || [], progressSnapshots)
+                  : false;
                 const opportunityCount = configured ? getRoutineOpportunityDates(routine).length : 0;
                 const cycleClosed = configured ? isRoutineCycleClosed(routine, progressSnapshots) : false;
                 const cycleFrequency = routine.routineCycleFrequency || 1;
@@ -733,7 +739,7 @@ export default function RutinasView({
                       </div>
                     </div>
 
-                    {configured && routineProgress === 100 && !cycleClosed && (
+                    {configured && routineReady && !cycleClosed && (
                       <button
                         type="button"
                         onClick={() => onToggleTask(routine)}

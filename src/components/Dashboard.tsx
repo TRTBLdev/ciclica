@@ -10,9 +10,15 @@ import { isPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/tr
 import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
-import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
 import { resolveCompletionDuration } from '../domain/workTracking';
 import { canCloseProject, getProjectPresentation } from '../domain/projectPresentation';
+import {
+  createHabitResultSnapshot,
+  getHabitOccurrenceRange,
+  getRoutineCycleProgress,
+  isRoutineReadyToClose,
+} from '../domain/occurrenceResults';
 
 const HoyView = lazy(() => import('./HoyView'));
 const SintoniaView = lazy(() => import('./SintoniaView'));
@@ -197,21 +203,24 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
 
     if (task.type === 'Rutina') {
-      if (getRoutineCycleProgressFromHistory(task, tasks, history, now) < 100 || isRoutineCycleClosed(task, progressSnapshots, now)) return;
+      if (!isRoutineReadyToClose(task, tasks, history, progressSnapshots, now) || isRoutineCycleClosed(task, progressSnapshots, now)) return;
       const cycle = getRoutineCycleRangeForTask(task, now);
+      const progress = getRoutineCycleProgress(task, tasks, history, progressSnapshots, now);
       const lockKey = `routine:${task.id}:${cycle.start}`;
       if (completionLocksRef.current.has(lockKey)) return;
       completionLocksRef.current.add(lockKey);
       try {
         await addHistory({
           userId: user.uid, taskId: task.id, date: now.toISOString(), duration: 0,
-          createdAt: now.toISOString(), isCompletion: true,
+          createdAt: now.toISOString(), isCompletion: true, completionPercent: progress,
           routineId: task.id, routineCycleStart: cycle.start, routineAppearanceDate: todayKey,
         });
         await addProgressSnapshots([{
           userId: user.uid, kind: 'routine-cycle', taskId: task.id, taskSnapshotText: task.text,
-          periodStart: cycle.start, periodEnd: cycle.end, progressPercent: 100,
-          wasCompleted: true, createdAt: now.toISOString(),
+          periodStart: cycle.start, periodEnd: cycle.end, resolvedAt: todayKey,
+          progressPercent: progress,
+          resultStatus: progress >= 100 ? 'complete' : 'partial',
+          resolutionSource: 'manual', wasCompleted: true, createdAt: now.toISOString(),
         }]);
       } finally {
         completionLocksRef.current.delete(lockKey);
@@ -221,8 +230,21 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
     if (parentRoutine && (
       wasChildHabitCompletedInAppearance(parentRoutine, task, history, occurrenceKey)
-      || getChildHabitCycleCount(parentRoutine, task, history, occurrenceKey) >= Math.max(1, task.objetivoPorCiclo || 1)
+      || getChildHabitCycleCount(parentRoutine, task, history, occurrenceKey, progressSnapshots) >= Math.max(1, task.objetivoPorCiclo || 1)
     )) return;
+    const habitOccurrence = task.type === 'Hábito'
+      ? getHabitOccurrenceRange(task, tasks, occurrenceKey)
+      : undefined;
+    if (
+      task.type === 'Hábito'
+      && !parentRoutine
+      && getAppearanceMode(task) !== 'quota'
+      && habitOccurrence
+      && progressSnapshots.some(snapshot => snapshot.kind === 'habit-period'
+        && snapshot.taskId === task.id
+        && snapshot.periodStart === habitOccurrence.start
+        && snapshot.periodEnd === habitOccurrence.end)
+    ) return;
     const habitLockKey = task.type === 'Hábito' ? `habit:${task.id}:${occurrenceKey}` : undefined;
     if (habitLockKey && completionLocksRef.current.has(habitLockKey)) return;
     if (habitLockKey) completionLocksRef.current.add(habitLockKey);
@@ -231,14 +253,6 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
     const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
     const snapshotsToAdd: Omit<ProgressSnapshot, 'id'>[] = [];
-
-    if (task.type === 'Hábito' && isCompleted && task.checklist?.length) {
-      const percent = getChecklistProgress(task);
-      if (percent < 100) {
-        window.alert(`Completa el checklist antes de cerrar esta aparición. Ahora está al ${percent}%.`);
-        return;
-      }
-    }
 
     let effectiveDuration = overrideDuration;
     let effectiveStartTime = overrideStartTime;
@@ -286,20 +300,24 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
 
       if (t.type === 'Hábito') {
         if (isComp) {
-          if (!t.parentId && getAppearanceMode(t) !== 'quota') {
-            snapshotsToAdd.push({
-              userId: user.uid, kind: 'habit-period', taskId: t.id, taskSnapshotText: t.text,
-              periodStart: occurrenceDate, periodEnd: occurrenceDate,
-              progressPercent: t.checklist?.length ? getChecklistProgress(t) : 100,
-              wasCompleted: true, createdAt: sessionEnd,
-            });
-          }
+          const range = getHabitOccurrenceRange(t, tasks, occurrenceDate);
+          snapshotsToAdd.push({
+            ...createHabitResultSnapshot(
+              t,
+              range,
+              t.checklist?.length ? getChecklistProgress(t) : 100,
+              occurrenceDate,
+              'manual',
+            ),
+            userId: user.uid,
+            createdAt: sessionEnd,
+          });
           tasksToUpdate.push({
             id: t.id,
             updates: {
               completed: false,
               checklist: t.checklist?.map(item => ({ ...item, done: false })),
-              checklistCycleStart: t.parentId ? parentRoutine ? getRoutineCycleRangeForTask(parentRoutine, occurrenceDate).start : undefined : undefined,
+              checklistCycleStart: undefined,
               lastExecutedAt: sessionEnd,
             }
           });
@@ -347,6 +365,14 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const handleUpdateTask = async (taskId: string, updates: Partial<AppTask>) => {
     // Intercept Pulso daily count increments/decrements to manage history logs
     const task = tasks.find(t => t.id === taskId);
+    const effectiveUpdates = task?.type === 'Hábito'
+      && updates.checklist?.some(item => item.done)
+      && !task.checklistCycleStart
+      ? {
+        ...updates,
+        checklistCycleStart: getHabitOccurrenceRange(task, tasks, new Date()).start,
+      }
+      : updates;
     if (task && task.type === 'Pulso' && 'currentCount' in updates) {
       const todayLogs = history.filter(h => h.taskId === task.id && isSameDay(h.date, new Date().toISOString()));
       const occurrenceLogs = todayLogs.filter(record => !isPulseSafeDayConfirmation(record));
@@ -374,7 +400,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         }
       }
     }
-    await updateTask(taskId, updates);
+    await updateTask(taskId, effectiveUpdates);
   };
 
   const handleTogglePulseSafeDay = async (taskId: string) => {

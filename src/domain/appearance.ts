@@ -1,6 +1,10 @@
 import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit } from '../types';
 import { DateRange, formatDateOnly, getCalendarCycleRange, getIsoWeekday, parseDateOnly } from './recurrenceProgress';
 import { getProjectForTask } from './workTracking';
+import {
+  getHabitResultsInRange,
+  getRoutineCycleProgress as getResolvedRoutineCycleProgress,
+} from './occurrenceResults';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -78,9 +82,7 @@ export function getQuotaRange(task: AppTask, at: string | Date = new Date()): Da
 }
 
 export function isVerifiedHabitCompletion(task: AppTask, record: HistoryRecord): boolean {
-  if (record.taskId !== task.id || record.isCompletion !== true) return false;
-  if (!task.checklist?.length) return true;
-  return record.completionPercent === 100;
+  return record.taskId === task.id && record.isCompletion === true;
 }
 
 export function getStandaloneQuotaCount(task: AppTask, history: HistoryRecord[], at: string | Date = new Date()): number {
@@ -144,15 +146,19 @@ export function getChildHabitCycleCount(
   habit: AppTask,
   history: HistoryRecord[],
   at: string | Date = new Date(),
+  snapshots: ProgressSnapshot[] = [],
 ): number {
   const range = getRoutineCycleRangeForTask(routine, at);
-  const appearances = new Set(
+  if (snapshots.length) {
+    return getHabitResultsInRange(habit, history, snapshots, range)
+      .filter(result => result.status !== 'missed').length;
+  }
+  return new Set(
     history.filter(record => isVerifiedHabitCompletion(habit, record))
       .filter(record => recordBelongsToCycle(record, routine.id, range))
       .map(record => record.routineAppearanceDate || toDateKey(record.date))
       .filter((date): date is string => !!date),
-  );
-  return appearances.size;
+  ).size;
 }
 
 export function wasChildHabitCompletedInAppearance(
@@ -187,12 +193,23 @@ export function getRoutineCycleProgressFromHistory(
   tasks: AppTask[],
   history: HistoryRecord[],
   at: string | Date = new Date(),
+  snapshots: ProgressSnapshot[] = [],
 ): number {
+  if (snapshots.length) {
+    return getResolvedRoutineCycleProgress(routine, tasks, history, snapshots, at);
+  }
   const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
   if (!habits.length) return 0;
   const total = habits.reduce((sum, habit) => {
     const target = Math.max(1, habit.objetivoPorCiclo || 1);
-    return sum + Math.min(1, getChildHabitCycleCount(routine, habit, history, at) / target);
+    const range = getRoutineCycleRangeForTask(routine, at);
+    const scores = history
+      .filter(record => isVerifiedHabitCompletion(habit, record))
+      .filter(record => recordBelongsToCycle(record, routine.id, range))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, target)
+      .reduce((score, record) => score + Math.max(0, Math.min(100, record.completionPercent ?? 100)) / 100, 0);
+    return sum + Math.min(1, scores / target);
   }, 0);
   return Math.round((total / habits.length) * 100);
 }
@@ -236,8 +253,7 @@ export function isRoutineCycleClosed(
   return snapshots.some(snapshot => snapshot.kind === 'routine-cycle'
     && snapshot.taskId === routine.id
     && snapshot.periodStart === range.start
-    && snapshot.periodEnd === range.end
-    && snapshot.wasCompleted);
+    && snapshot.periodEnd === range.end);
 }
 
 export type TodayPlacement = 'timeline' | 'flexible' | 'backlog' | null;
