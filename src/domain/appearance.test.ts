@@ -69,6 +69,16 @@ describe('appearance schedules', () => {
     expect(isItemAppearingOnDate(habit, history, '2026-07-20')).toBe(false);
   });
 
+  it('shows a daily habit again on the local day after an evening completion', () => {
+    const habit = task({ id: 'habit_evening', type: 'Hábito', appearanceMode: 'interval', fechaAparicion: '2026-07-20' });
+    const localEvening = new Date(2026, 6, 24, 22, 37, 38, 843);
+    const history = [record({ taskId: habit.id, date: localEvening.toISOString() })];
+
+    expect(isItemAppearingOnDate(habit, history, '2026-07-24')).toBe(false);
+    expect(isItemAppearingOnDate(habit, history, '2026-07-25')).toBe(true);
+    expect(getTaskDateSummary(habit, history).lastActivityDate).toBe('2026-07-24');
+  });
+
   it('supports flexible standalone quotas with at most one completion per day', () => {
     const habit = task({ id: 'habit_1', type: 'Hábito', appearanceMode: 'quota', fechaAparicion: '2026-07-01', quotaTarget: 3, quotaPeriodUnit: 'semanas' });
     const history = [

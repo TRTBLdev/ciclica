@@ -194,6 +194,28 @@ describe('migrateDatabase', () => {
     logSpy.mockRestore();
   });
 
+  it('derives legacy routine metadata from the local event day without changing its timestamp', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const localEvening = new Date(2026, 6, 24, 22, 37, 38, 843);
+    const storedTimestamp = localEvening.toISOString();
+    const result = migrateDatabase({
+      config: { userId: 'local_user' },
+      tasks: [
+        { id: 'routine_1', userId: 'local_user', text: 'Rutina', type: 'Rutina', routineCycleFrequency: 1, routineCycleUnit: 'semanas' },
+        { id: 'habit_1', userId: 'local_user', text: 'Hábito', type: 'Hábito', parentId: 'routine_1', objetivoPorCiclo: 2 },
+      ],
+      history: [{ id: 'hist_evening', userId: 'local_user', taskId: 'habit_1', date: storedTimestamp, isCompletion: true }],
+    });
+
+    expect(result.history[0]).toMatchObject({
+      date: storedTimestamp,
+      routineId: 'routine_1',
+      routineCycleStart: '2026-07-20',
+      routineAppearanceDate: '2026-07-24',
+    });
+    logSpy.mockRestore();
+  });
+
   it('backfills project context for existing nested task records', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const result = migrateDatabase({

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AppTask, HistoryRecord } from '../types';
 import {
   getDescendantTaskIds,
+  getHistoryDateKey,
   getProjectForTask,
   getWorkDayState,
   getWorkedHoursForDate,
@@ -24,6 +25,15 @@ const record = (overrides: Partial<HistoryRecord>): HistoryRecord => ({
   date: '2026-07-20T12:00:00.000Z',
   createdAt: '2026-07-20T12:00:00.000Z',
   ...overrides,
+});
+
+describe('history date keys', () => {
+  it('uses the device-local day for event timestamps and preserves date-only values', () => {
+    const localEvening = new Date(2026, 6, 24, 22, 37, 38, 843);
+
+    expect(getHistoryDateKey(record({ date: localEvening.toISOString() }))).toBe('2026-07-24');
+    expect(getHistoryDateKey(record({ date: '2026-07-25' }))).toBe('2026-07-25');
+  });
 });
 
 describe('project ancestry', () => {

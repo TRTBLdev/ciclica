@@ -2,8 +2,16 @@ import React, { useState } from 'react';
 import { Settings, Download, Upload, LogOut, Trash2, Check } from 'lucide-react';
 import { Config } from '../types';
 import { cn } from '../lib/utils';
+import { formatDateOnly } from '../domain/recurrenceProgress';
 import { useToast } from './ToastProvider';
 import SeparatorForm from './SeparatorForm';
+
+type ExportDataType = 'all' | 'ciclos' | 'habitos' | 'tareas' | 'intenciones';
+
+export function getExportFilename(type: ExportDataType, at = new Date()): string {
+  const name = type === 'all' ? 'vault' : type;
+  return `ciclica_${name}_${formatDateOnly(at)}.json`;
+}
 
 interface Props {
   config: Config | null;
@@ -23,30 +31,26 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [editingSepIdx, setEditingSepIdx] = useState<number | null>(null);
 
-  const handleExportData = (type: 'all' | 'ciclos' | 'habitos' | 'tareas' | 'intenciones') => {
+  const handleExportData = (type: ExportDataType) => {
     let dataToExport: any = {};
-    let filename = `ciclica_vault_${new Date().toISOString().slice(0, 10)}.json`;
+    const filename = getExportFilename(type);
 
     if (type === 'all') {
       dataToExport = { tasks, history, progressSnapshots, config, intentions };
     } else if (type === 'ciclos') {
       dataToExport = { config: { cycleConfig: config?.cycleConfig } };
-      filename = `ciclica_ciclos_${new Date().toISOString().slice(0, 10)}.json`;
     } else if (type === 'habitos') {
       const habitTasks = tasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
       const habitIds = habitTasks.map(t => t.id);
       const habitHistory = history.filter(h => habitIds.includes(h.taskId));
       dataToExport = { tasks: habitTasks, history: habitHistory, progressSnapshots: progressSnapshots.filter(snapshot => habitIds.includes(snapshot.taskId)) };
-      filename = `ciclica_habitos_${new Date().toISOString().slice(0, 10)}.json`;
     } else if (type === 'tareas') {
       const projTasks = tasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto' || t.type === 'Pulso');
       const projIds = projTasks.map(t => t.id);
       const projHistory = history.filter(h => projIds.includes(h.taskId));
       dataToExport = { tasks: projTasks, history: projHistory, config: { areas: config?.areas } };
-      filename = `ciclica_tareas_${new Date().toISOString().slice(0, 10)}.json`;
     } else if (type === 'intenciones') {
       dataToExport = { intentions };
-      filename = `ciclica_intenciones_${new Date().toISOString().slice(0, 10)}.json`;
     }
 
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });

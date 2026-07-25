@@ -12,7 +12,7 @@ import { formatDateOnly } from '../domain/recurrenceProgress';
 import CompactDate from './ui/CompactDate';
 import TemporalIndicator, { temporalToneClassName } from './ui/TemporalIndicator';
 import LinkedText from './ui/LinkedText';
-import { getProjectForTask, getProjectTaskIds } from '../domain/workTracking';
+import { getHistoryDateKey, getProjectForTask, getProjectTaskIds } from '../domain/workTracking';
 import ProjectCard from './ProjectCard';
 import { getInheritedProjectContext, getProjectPresentation } from '../domain/projectPresentation';
 import ItemDetails from './ItemDetails';
@@ -336,9 +336,9 @@ export default function TaskItem({
   const isActionComplete = isCompletedVisual || childTargetReached;
   const lastCompletionDate = (history || [])
     .filter(record => task.type === 'Hábito' ? isVerifiedHabitCompletion(task, record) : record.taskId === task.id && record.isCompletion === true)
-    .map(record => record.date.slice(0, 10))
+    .map(getHistoryDateKey)
     .sort()
-    .at(-1) || task.lastExecutedAt?.slice(0, 10);
+    .at(-1) || (task.lastExecutedAt ? formatDateOnly(new Date(task.lastExecutedAt)) : undefined);
   const nextSearchDate = lastCompletionDate === todayKey
     ? formatDateOnly(new Date(new Date().setDate(new Date().getDate() + 1)))
     : todayKey;
@@ -359,7 +359,7 @@ export default function TaskItem({
     : 0;
   const taskDateSummary = getTaskDateSummary(task, history || []);
   const trackedHoursToday = (history || [])
-    .filter(record => record.taskId === task.id && formatDateOnly(new Date(record.date)) === todayKey)
+    .filter(record => record.taskId === task.id && getHistoryDateKey(record) === todayKey)
     .reduce((sum, record) => sum + (record.duration || 0), 0);
   
   const getTrackedDuration = () => {
@@ -375,14 +375,14 @@ export default function TaskItem({
       for (const cid of childrenIds) {
         const cRecs = history.filter(h => h.taskId === cid && h.duration);
         if (cRecs.length > 0) {
-          const uniqueDays = new Set(cRecs.map(h => h.date.substring(0, 10))).size;
+          const uniqueDays = new Set(cRecs.map(getHistoryDateKey)).size;
           const cTotal = cRecs.reduce((acc, h) => acc + (h.duration || 0), 0);
           totalAvg += (cTotal / uniqueDays);
         }
       }
       const selfRecs = history.filter(h => h.taskId === task.id && h.duration);
       if (selfRecs.length > 0) {
-         const uniqueDays = new Set(selfRecs.map(h => h.date.substring(0, 10))).size;
+         const uniqueDays = new Set(selfRecs.map(getHistoryDateKey)).size;
          const sTotal = selfRecs.reduce((acc, h) => acc + (h.duration || 0), 0);
          totalAvg += (sTotal / uniqueDays);
       }
@@ -394,7 +394,7 @@ export default function TaskItem({
     const total = records.reduce((acc, h) => acc + (h.duration || 0), 0);
     
     if (task.type === 'Hábito') {
-      const uniqueDays = new Set(records.map(h => h.date.substring(0, 10))).size;
+      const uniqueDays = new Set(records.map(getHistoryDateKey)).size;
       return uniqueDays > 0 ? total / uniqueDays : 0;
     }
     

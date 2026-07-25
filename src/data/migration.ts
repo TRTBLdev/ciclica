@@ -4,6 +4,7 @@ import { getFrequencyInDays } from './taskScheduling';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
 import { getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { attachHistoryContext } from '../domain/historyContext';
+import { getHistoryDateKey } from '../domain/workTracking';
 
 interface RawDatabase {
   tasks?: unknown;
@@ -221,7 +222,7 @@ export function migrateDatabase(rawData: RawDatabase): { tasks: AppTask[]; histo
     const habit = tasks.find(task => task.id === record.taskId && task.type === 'Hábito' && !!task.parentId);
     const routine = habit ? tasks.find(task => task.id === habit.parentId && task.type === 'Rutina') : undefined;
     if (!routine) return attachHistoryContext(record, tasks);
-    const appearanceDate = record.date.slice(0, 10);
+    const appearanceDate = getHistoryDateKey(record);
     const cycle = getCalendarCycleRange(routine.routineCycleFrequency || 1, routine.routineCycleUnit || 'semanas', appearanceDate);
     return attachHistoryContext({
       ...record,

@@ -1,6 +1,6 @@
 import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit, TaskType } from '../types';
 import { DateRange, formatDateOnly, getCalendarCycleRange, getIsoWeekday, parseDateOnly } from './recurrenceProgress';
-import { getProjectForTask } from './workTracking';
+import { getHistoryDateKey, getProjectForTask } from './workTracking';
 import {
   getHabitResultsInRange,
   getRoutineCycleProgress as getResolvedRoutineCycleProgress,
@@ -103,8 +103,8 @@ export function getStandaloneQuotaCount(task: AppTask, history: HistoryRecord[],
   const range = getQuotaRange(task, at);
   const days = new Set(
     history.filter(record => isVerifiedHabitCompletion(task, record))
-      .map(record => toDateKey(record.date))
-      .filter((date): date is string => !!date && date >= range.start && date <= range.end),
+      .map(getHistoryDateKey)
+      .filter(date => date >= range.start && date <= range.end),
   );
   return days.size;
 }
@@ -117,13 +117,13 @@ export function isItemAppearingOnDate(
   if (task.completed || task.type === 'Pulso') return false;
   if (task.type === 'Hábito' && task.parentId) return false;
   const dateKey = formatDateOnly(parseDateOnly(at));
-  if (task.type === 'Hábito' && history.some(record => isVerifiedHabitCompletion(task, record) && toDateKey(record.date) === dateKey)) return false;
+  if (task.type === 'Hábito' && history.some(record => isVerifiedHabitCompletion(task, record) && getHistoryDateKey(record) === dateKey)) return false;
   if (getAppearanceMode(task) === 'quota') {
     const start = getAppearanceDate(task);
     if (start && dateKey < start) return false;
     const target = Math.max(1, task.quotaTarget || 1);
     return getStandaloneQuotaCount(task, history, at) < target
-      && !history.some(record => isVerifiedHabitCompletion(task, record) && toDateKey(record.date) === dateKey);
+      && !history.some(record => isVerifiedHabitCompletion(task, record) && getHistoryDateKey(record) === dateKey);
   }
   return isAppearanceScheduledOnDate(task, at);
 }
@@ -151,8 +151,8 @@ export function getRoutineCycleRangeForTask(routine: AppTask, at: string | Date 
 function recordBelongsToCycle(record: HistoryRecord, routineId: string, range: DateRange): boolean {
   if (record.routineId && record.routineId !== routineId) return false;
   if (record.routineCycleStart) return record.routineCycleStart === range.start;
-  const date = toDateKey(record.date);
-  return !!date && date >= range.start && date <= range.end;
+  const date = getHistoryDateKey(record);
+  return date >= range.start && date <= range.end;
 }
 
 export function getChildHabitCycleCount(
@@ -170,8 +170,7 @@ export function getChildHabitCycleCount(
   return new Set(
     history.filter(record => isVerifiedHabitCompletion(habit, record))
       .filter(record => recordBelongsToCycle(record, routine.id, range))
-      .map(record => record.routineAppearanceDate || toDateKey(record.date))
-      .filter((date): date is string => !!date),
+      .map(record => record.routineAppearanceDate || getHistoryDateKey(record)),
   ).size;
 }
 
@@ -184,7 +183,7 @@ export function wasChildHabitCompletedInAppearance(
   const key = formatDateOnly(parseDateOnly(appearanceDate));
   return history.filter(record => isVerifiedHabitCompletion(habit, record)).some(record => {
     if (record.routineId && record.routineId !== routine.id) return false;
-    return (record.routineAppearanceDate || toDateKey(record.date)) === key;
+    return (record.routineAppearanceDate || getHistoryDateKey(record)) === key;
   });
 }
 
@@ -321,8 +320,8 @@ export function getTaskDateSummary(task: AppTask, history: HistoryRecord[]): Tas
     .filter(record => record.taskId === task.id)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return {
-    startDate: records.length ? toDateKey(records[0].date) : undefined,
-    lastActivityDate: records.length ? toDateKey(records.at(-1)!.date) : undefined,
+    startDate: records.length ? getHistoryDateKey(records[0]) : undefined,
+    lastActivityDate: records.length ? getHistoryDateKey(records.at(-1)!) : undefined,
   };
 }
 
@@ -528,7 +527,7 @@ export function getRoutineTemporalIndicators(
     .filter(record => record.taskId === routine.id || childIds.has(record.taskId))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   if (!relevantHistory.length) return [];
-  const lastActivityDate = toDateKey(relevantHistory.at(-1)!.date)!;
+  const lastActivityDate = getHistoryDateKey(relevantHistory.at(-1)!);
   const overdueDays = getOverdueDaysAfterExpectedAppearance(routine, lastActivityDate, history, at);
   return [
     {
@@ -614,8 +613,8 @@ export function getProjectDateSummary(
     .filter((entry): entry is { task: AppTask; date: string } => !!entry.date)
     .sort((a, b) => a.date.localeCompare(b.date));
   return {
-    startDate: records.length ? toDateKey(records[0].date) : undefined,
-    lastActivityDate: records.length ? toDateKey(records.at(-1)!.date) : undefined,
+    startDate: records.length ? getHistoryDateKey(records[0]) : undefined,
+    lastActivityDate: records.length ? getHistoryDateKey(records.at(-1)!) : undefined,
     nextTask: candidates[0]?.task,
     nextTaskDate: candidates[0]?.date,
     deadline: getDeadlineDate(project),
