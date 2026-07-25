@@ -6,7 +6,7 @@ import { Reorder } from 'motion/react';
 import LinkedText from './ui/LinkedText';
 import { formatDateOnly, getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
-import { getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
+import { canConfigureOwnAppearance, getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
 import { getProjectScheduleLabel } from '../domain/projectPresentation';
 import { getProjectForTask } from '../domain/workTracking';
 import { resolveDurationForSave } from '../domain/durationEstimate';
@@ -38,6 +38,20 @@ interface Props {
   onSave: (data: Partial<AppTask>) => void;
   onCancel: () => void;
   onEditProject?: (projectId: string) => void;
+}
+
+export function getAppearanceValidationError(
+  configuresOwnAppearance: boolean,
+  appearanceMode: AppearanceMode | '',
+  appearanceDate: string,
+  appearanceWeekdays: number[],
+): string {
+  if (!configuresOwnAppearance) return '';
+  if (appearanceMode && !appearanceDate) return 'Indica la fecha inicial de la aparición.';
+  if (appearanceMode === 'weekdays' && appearanceWeekdays.length === 0) {
+    return 'Selecciona al menos un día específico.';
+  }
+  return '';
 }
 
 export default function UniversalItemForm({ initialData, defaultType = 'Tarea', defaultText = '', config, allTasks, onSave, onCancel, onEditProject }: Props) {
@@ -85,23 +99,27 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     setEditingChecklistItemId(null);
   };
 
-  const parentTaskHere = parentId ? allTasks.find(t => t.id === parentId) : null;
-  const isRutinaParent = parentTaskHere && parentTaskHere.type === 'Rutina';
+  const parentTaskHere = parentId ? allTasks.find(t => t.id === parentId) : undefined;
+  const parentRoutineHere = parentTaskHere?.type === 'Rutina' ? parentTaskHere : undefined;
+  const isRutinaParent = !!parentRoutineHere;
   const inheritedProjectHere = type === 'Tarea' && parentId ? getProjectForTask(parentId, allTasks) : null;
   const inheritsProjectContext = !!inheritedProjectHere;
+  const configuresOwnAppearance = canConfigureOwnAppearance(type, parentId || undefined, allTasks);
   const isActualSubtask = !!(parentTaskHere && parentTaskHere.type !== 'Proyecto');
-  const parentRoutineCapacity = isRutinaParent ? getMinimumRoutineOpportunityCount(parentTaskHere) : undefined;
+  const parentRoutineCapacity = parentRoutineHere ? getMinimumRoutineOpportunityCount(parentRoutineHere) : undefined;
 
   const handleSave = () => {
     if (!text.trim()) return;
     setValidationError('');
 
-    if (appearanceMode && !fechaAparicion) {
-      setValidationError('Indica la fecha inicial de la aparición.');
-      return;
-    }
-    if (appearanceMode === 'weekdays' && appearanceWeekdays.length === 0) {
-      setValidationError('Selecciona al menos un día específico.');
+    const appearanceError = getAppearanceValidationError(
+      configuresOwnAppearance,
+      appearanceMode,
+      fechaAparicion,
+      appearanceWeekdays,
+    );
+    if (appearanceError) {
+      setValidationError(appearanceError);
       return;
     }
 
@@ -148,7 +166,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
     }
 
     if (type !== 'Pulso') {
-      const childHabit = type === 'Hábito' && !!parentId;
+      const childHabit = type === 'Hábito' && isRutinaParent;
       if (childHabit) {
         data.objetivoPorCiclo = Math.max(1, objetivoPorCiclo);
         data.appearanceMode = undefined;
@@ -247,7 +265,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </label>
         )}
 
-        {((type === 'Tarea' && !inheritsProjectContext) || type === 'Proyecto' || type === 'Rutina' || (type === 'Hábito' && !isRutinaParent)) && (
+        {configuresOwnAppearance && (
           <fieldset className="contents">
             <legend className="col-span-full w-full border-t border-border-line/60 pt-4 text-[10px] font-mono uppercase tracking-[0.18em] text-text-dim">
               Aparición en Hoy
@@ -312,15 +330,39 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </fieldset>
         )}
 
-        {type === 'Hábito' && isRutinaParent && (
-          <label className="col-span-full flex max-w-md flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
-            Objetivo en el ciclo de la rutina
-            <div className="flex items-center gap-2 normal-case tracking-normal">
-              <input type="number" min={1} className={cn(numberClass, 'w-20')} value={objetivoPorCiclo} onChange={event => setObjetivoPorCiclo(Math.max(1, Number(event.target.value)))} />
-              <span className="text-xs">veces</span>
-              {parentRoutineCapacity !== undefined && <span className="text-[10px] font-mono text-text-dim">Máximo seguro: {parentRoutineCapacity}</span>}
-            </div>
-          </label>
+        {type === 'Hábito' && parentRoutineHere && (
+          <>
+            <section className="col-span-full border-l border-border-line/70 pl-4 text-left" aria-labelledby={`inherited-routine-${initialData?.id || 'new'}`}>
+              <header className="mb-3">
+                <p id={`inherited-routine-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-dim">
+                  Programación heredada de la rutina
+                </p>
+              </header>
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 text-xs">
+                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Rutina</dt>
+                <dd className="text-text-main">{parentRoutineHere.text}</dd>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Aparición</dt>
+                <dd className="text-text-main">{getProjectScheduleLabel(parentRoutineHere)}</dd>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Fecha inicial</dt>
+                <dd className="font-mono text-text-main">{getAppearanceDate(parentRoutineHere) || 'Sin fecha configurada'}</dd>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Hora</dt>
+                <dd className="font-mono text-text-main">{parentRoutineHere.hora || 'Sin hora'}</dd>
+              </dl>
+              <small className="mt-3 block text-[10px] text-text-dim">
+                Para cambiar esta programación, edita la rutina.
+              </small>
+            </section>
+            <fieldset className="col-span-full flex max-w-md flex-col gap-1.5 border-0 p-0">
+              <legend className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+                Objetivo en el ciclo de la rutina
+              </legend>
+              <label className="flex items-center gap-2 normal-case tracking-normal">
+                <input type="number" min={1} className={cn(numberClass, 'w-20')} value={objetivoPorCiclo} onChange={event => setObjetivoPorCiclo(Math.max(1, Number(event.target.value)))} />
+                <small className="text-xs">veces</small>
+                {parentRoutineCapacity !== undefined && <small className="text-[10px] font-mono text-text-dim">Máximo seguro: {parentRoutineCapacity}</small>}
+              </label>
+            </fieldset>
+          </>
         )}
 
         {type === 'Rutina' && (

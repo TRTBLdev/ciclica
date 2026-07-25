@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
 import {
+  canConfigureOwnAppearance,
   canTrackTask,
   formatCompactCalendarDate,
   getChildHabitQuotaStatus,
@@ -37,6 +38,23 @@ const record = (overrides: Partial<HistoryRecord>): HistoryRecord => ({
 });
 
 describe('appearance schedules', () => {
+  it('configures appearance only for items that do not inherit a container schedule', () => {
+    const project = task({ id: 'project', type: 'Proyecto' });
+    const routine = task({ id: 'routine', type: 'Rutina' });
+    const projectTask = task({ id: 'project-task', parentId: project.id });
+    const childHabit = task({ id: 'child-habit', type: 'Hábito', parentId: routine.id });
+    const standaloneHabit = task({ id: 'standalone-habit', type: 'Hábito' });
+    const pulse = task({ id: 'pulse', type: 'Pulso' });
+    const tasks = [project, routine, projectTask, childHabit, standaloneHabit, pulse];
+
+    expect(canConfigureOwnAppearance(project.type, project.parentId, tasks)).toBe(true);
+    expect(canConfigureOwnAppearance(routine.type, routine.parentId, tasks)).toBe(true);
+    expect(canConfigureOwnAppearance(projectTask.type, projectTask.parentId, tasks)).toBe(false);
+    expect(canConfigureOwnAppearance(childHabit.type, childHabit.parentId, tasks)).toBe(false);
+    expect(canConfigureOwnAppearance(standaloneHabit.type, standaloneHabit.parentId, tasks)).toBe(true);
+    expect(canConfigureOwnAppearance(pulse.type, pulse.parentId, tasks)).toBe(false);
+  });
+
   it('shows a repeated task only on its concrete appearance dates', () => {
     const repeated = task({ appearanceMode: 'interval', fechaAparicion: '2026-07-20', appearanceFrequency: 3, appearanceFrequencyUnit: 'días' });
     expect(isAppearanceScheduledOnDate(repeated, '2026-07-20')).toBe(true);

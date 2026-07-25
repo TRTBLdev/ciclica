@@ -1,4 +1,4 @@
-import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit } from '../types';
+import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit, TaskType } from '../types';
 import { DateRange, formatDateOnly, getCalendarCycleRange, getIsoWeekday, parseDateOnly } from './recurrenceProgress';
 import { getProjectForTask } from './workTracking';
 import {
@@ -38,6 +38,20 @@ export function getAppearanceMode(task: AppTask): AppTask['appearanceMode'] {
   if (task.appearanceWeekdays?.length) return 'weekdays';
   if (task.type === 'Rutina' || task.type === 'Hábito' || task.frecuencia || task.appearanceFrequency) return 'interval';
   return getAppearanceDate(task) ? (task.type === 'Tarea' ? 'persistent' : 'once') : undefined;
+}
+
+export function canConfigureOwnAppearance(
+  type: TaskType,
+  parentId: string | undefined,
+  tasks: AppTask[],
+): boolean {
+  if (type === 'Pulso') return false;
+  if (!parentId) return true;
+
+  const parent = tasks.find(task => task.id === parentId);
+  if (type === 'Hábito' && parent?.type === 'Rutina') return false;
+  if (type === 'Tarea' && getProjectForTask(parentId, tasks)) return false;
+  return true;
 }
 
 function lastDayOfMonth(year: number, monthIndex: number): number {
