@@ -530,7 +530,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       </section>
 
       {/* Pertenece a / Asociar a Rutina o Proyecto (Tarea/Hábito) */}
-      {(type === 'Tarea' || type === 'Hábito') && !isRutinaParent && (
+      {(type === 'Tarea' || type === 'Hábito') && (
         <section className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
           <label htmlFor={`parent-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-wider text-text-dim">
             {type === 'Hábito' ? 'Rutina asociada:' : 'Proyecto asociado:'}

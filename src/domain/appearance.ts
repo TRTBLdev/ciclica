@@ -533,7 +533,7 @@ export function getRoutineTemporalIndicators(
     {
       kind: 'activity',
       text: `Últ. ${elapsedText(lastActivityDate, at)}`,
-      title: `Última actividad de la rutina o sus hábitos: ${formatRelativeCalendarDate(lastActivityDate, at)}`,
+      title: `Última actividad (rutina o hábitos): ${formatRelativeCalendarDate(lastActivityDate, at)}`,
       tone: activityToneFromOverdueDays(overdueDays),
     },
   ];

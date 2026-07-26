@@ -58,6 +58,9 @@ describe('inherited appearance in UniversalItemForm', () => {
     expect(markup).toContain('07:30');
     expect(markup).toContain('Objetivo en el ciclo de la rutina');
     expect(markup).toContain('value="8"');
+    expect(markup).toContain('Rutina asociada:');
+    expect(markup).toContain(`id="parent-${habit.id}"`);
+    expect(markup).toContain(`<option value="${routine.id}" selected="">${routine.text}</option>`);
     expect(markup).not.toContain('type="date"');
 
     const inheritedTextIndex = markup.indexOf('Programación heredada de la rutina');

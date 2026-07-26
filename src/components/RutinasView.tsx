@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ProgressSnapshot } from '../types';
 import { isPulseSafeDayConfirmation } from '../domain/trackingProgress';
 import TaskItem from './TaskItem';
@@ -11,10 +11,12 @@ import { cn, isSameDay } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { isRoutineConfigured } from '../domain/recurrenceProgress';
+import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
 import { getAppearanceDate, getItemTemporalIndicators, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
 import TemporalIndicator from './ui/TemporalIndicator';
 import { getRoutineCycleProgress, isRoutineReadyToClose } from '../domain/occurrenceResults';
+import { buildHabitDurationSummaryIndex, getRoutineDurationSummary } from '../domain/habitDuration';
+import { ActivityDurationAverage, DurationComparison, SECONDARY_METRIC_TYPOGRAPHY_CLASS } from './DurationSummaryMetric';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -35,15 +37,15 @@ interface Props {
   onStartTimer?: (taskId: string) => void;
 }
 
-export default function RutinasView({ 
-  config, 
-  tasks, 
-  history, 
+export default function RutinasView({
+  config,
+  tasks,
+  history,
   progressSnapshots,
-  onToggleTask, 
-  onDeleteTask, 
-  onUpdateTask, 
-  onAddTask, 
+  onToggleTask,
+  onDeleteTask,
+  onUpdateTask,
+  onAddTask,
   focusTaskId,
   activeTimer,
   onStartTimer
@@ -92,6 +94,11 @@ export default function RutinasView({
   const [filterType, setFilterType] = useState('Todas');
   const [openMenuRoutineId, setOpenMenuRoutineId] = useState<string | null>(null);
   const [menuRoutineUpwards, setMenuRoutineUpwards] = useState(false);
+  const todayKey = formatDateOnly(new Date());
+  const habitDurationSummaries = useMemo(
+    () => buildHabitDurationSummaryIndex(tasks, history || [], progressSnapshots, todayKey),
+    [tasks, history, progressSnapshots, todayKey],
+  );
 
   const sortTasks = (taskList: AppTask[], criterion: string) => {
     const isCompletedVisual = (t: AppTask) => t.completed;
@@ -553,6 +560,7 @@ export default function RutinasView({
 
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
                 const subtasks = sortTasks(rawSubtasks, sortBy);
+                const routineDurationSummary = getRoutineDurationSummary(subtasks, habitDurationSummaries);
                 const configured = isRoutineConfigured(routine);
                 const routineProgress = configured
                   ? getRoutineCycleProgress(routine, tasks, history || [], progressSnapshots)
@@ -567,10 +575,24 @@ export default function RutinasView({
                   ? routine.routineCycleUnit === 'días' ? 'día' : routine.routineCycleUnit === 'semanas' ? 'semana' : 'mes'
                   : routine.routineCycleUnit;
                 const routineTemporalIndicators = getItemTemporalIndicators(routine, tasks, history || []);
-                const routineMetadata = limitCardMetadata<React.ReactNode>([
-                  ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
-                  <span>{routineProgress || 0}% · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}</span>,
-                ]);
+                const hasRoutineDuration = routineDurationSummary.currentActualHours > 0
+                  || routineDurationSummary.estimatedHours > 0;
+                const routineMetadata = [
+                  ...(hasRoutineDuration ? [
+                    <DurationComparison
+                      key="duration-comparison"
+                      actualHours={routineDurationSummary.currentActualHours}
+                      estimatedHours={routineDurationSummary.estimatedHours}
+                      className="shrink-0 whitespace-nowrap"
+                    />,
+                  ] : []),
+                  ...limitCardMetadata<React.ReactNode>([
+                    ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
+                    <output className={cn(SECONDARY_METRIC_TYPOGRAPHY_CLASS, 'h-5 whitespace-nowrap')}>
+                      {routineProgress || 0}% · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}
+                    </output>,
+                  ], hasRoutineDuration ? 2 : 3),
+                ];
 
                 if (editingRoutineId === routine.id) {
                   return (
@@ -757,9 +779,20 @@ export default function RutinasView({
 
                     {isExpanded && (
                       <section className="relative mt-4 flex flex-col gap-2 pl-4 animate-in fade-in duration-200" aria-label={`Hábitos de ${routine.text}`}>
-                        {routineTemporalIndicators.length > 0 && (
+                        <ActivityDurationAverage
+                          lastActivity={routineTemporalIndicators.find(indicator => indicator.kind === 'activity')?.title}
+                          averageHours={routineDurationSummary.combinedAverageHours}
+                          count={routineDurationSummary.contributingHabitCount}
+                          singularSample="hábito con ciclos completos"
+                          pluralSample="hábitos con ciclos completos"
+                          averageLabel="Duración promedio (hábitos)"
+                          className="m-0 font-mono text-[10px] text-text-dim"
+                        />
+                        {routineTemporalIndicators.some(indicator => indicator.kind !== 'activity') && (
                           <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 font-mono text-[10px] text-text-dim">
-                            {routineTemporalIndicators.map(indicator => <li key={indicator.kind}>{indicator.title}</li>)}
+                            {routineTemporalIndicators
+                              .filter(indicator => indicator.kind !== 'activity')
+                              .map(indicator => <li key={indicator.kind}>{indicator.title}</li>)}
                           </ul>
                         )}
                         <section className="z-10 mb-2 mt-1 flex w-full flex-col gap-1 pr-2" aria-label={`Añadir hábito a ${routine.text}`}>
@@ -812,6 +845,7 @@ export default function RutinasView({
                                 activeTimer={activeTimer}
                                 onStartTimer={onStartTimer}
                                 context="routine"
+                                durationSummary={habitDurationSummaries.get(sub.id)}
                               />
                             </li>
                           ))}
@@ -870,6 +904,7 @@ export default function RutinasView({
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     context="routine"
+                    durationSummary={habitDurationSummaries.get(habit.id)}
                   />
                 ))}
               </div>

@@ -15,6 +15,12 @@ import { getPulseLogValue, getPulseOccurrenceCount, hasPulseSafeDayConfirmation,
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
+import {
+  buildHabitDurationSummaryIndex,
+  buildRoutineDurationSummaryIndex,
+  HabitDurationSummary,
+  RoutineDurationSummary,
+} from '../domain/habitDuration';
 
 interface Props {
   config: Config | null;
@@ -59,6 +65,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
+  const habitDurationSummaries = React.useMemo(
+    () => buildHabitDurationSummaryIndex(tasks, history, progressSnapshots, currentDay),
+    [tasks, history, progressSnapshots, currentDay],
+  );
+  const routineDurationSummaries = React.useMemo(
+    () => buildRoutineDurationSummaryIndex(tasks, habitDurationSummaries),
+    [tasks, habitDurationSummaries],
+  );
 
   React.useEffect(() => {
     const timer = window.setInterval(() => {
@@ -829,6 +843,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                     history={history}
                     onUpdateConfig={onUpdateConfig}
                     onNavigate={onNavigate}
+                    habitDurationSummaries={habitDurationSummaries}
+                    routineDurationSummaries={routineDurationSummaries}
                   />
                 )}
               </div>
@@ -898,6 +914,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
                           context="today"
+                          durationSummary={habitDurationSummaries.get(t.id)}
+                          routineDurationSummary={routineDurationSummaries.get(t.id)}
                         />
                       </li>
                     ))}
@@ -965,6 +983,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
                           context="backlog"
+                          durationSummary={habitDurationSummaries.get(t.id)}
+                          routineDurationSummary={routineDurationSummaries.get(t.id)}
                         />
                       </li>
                     ))}
@@ -992,7 +1012,9 @@ function TimelineRenderer({
   onStartTimer,
   history = [],
   onUpdateConfig,
-  onNavigate
+  onNavigate,
+  habitDurationSummaries,
+  routineDurationSummaries,
 }: {
   items: any[],
   config: Config | null,
@@ -1005,7 +1027,9 @@ function TimelineRenderer({
   onStartTimer?: (taskId: string) => void,
   history?: HistoryRecord[],
   onUpdateConfig?: (c: Partial<Config>) => void,
-  onNavigate?: (view: string, taskId?: string) => void
+  onNavigate?: (view: string, taskId?: string) => void,
+  habitDurationSummaries: Map<string, HabitDurationSummary>,
+  routineDurationSummaries: Map<string, RoutineDurationSummary>,
 }) {
   let lastEndTimeMins: number | null = null;
   let activeSeparatorColor: string | null = null;
@@ -1197,6 +1221,8 @@ function TimelineRenderer({
                 onStartTimer={onStartTimer}
                 onNavigate={onNavigate}
                 context="today"
+                durationSummary={habitDurationSummaries.get(t.id)}
+                routineDurationSummary={routineDurationSummaries.get(t.id)}
               />
             </div>
           </div>

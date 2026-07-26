@@ -12,6 +12,7 @@ import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
 import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
 import { resolveCompletionDuration } from '../domain/workTracking';
+import { resolveHabitChecklistCycleUpdate } from '../domain/habitParentChange';
 import { canCloseProject, getProjectPresentation } from '../domain/projectPresentation';
 import {
   createHabitResultSnapshot,
@@ -365,13 +366,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const handleUpdateTask = async (taskId: string, updates: Partial<AppTask>) => {
     // Intercept Pulso daily count increments/decrements to manage history logs
     const task = tasks.find(t => t.id === taskId);
-    const effectiveUpdates = task?.type === 'Hábito'
-      && updates.checklist?.some(item => item.done)
-      && !task.checklistCycleStart
-      ? {
-        ...updates,
-        checklistCycleStart: getHabitOccurrenceRange(task, tasks, new Date()).start,
-      }
+    const effectiveUpdates = task
+      ? resolveHabitChecklistCycleUpdate(task, updates, tasks)
       : updates;
     if (task && task.type === 'Pulso' && 'currentCount' in updates) {
       const todayLogs = history.filter(h => h.taskId === task.id && isSameDay(h.date, new Date().toISOString()));

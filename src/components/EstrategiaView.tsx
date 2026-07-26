@@ -110,6 +110,7 @@ export default function EstrategiaView({
               config={config}
               tasks={tasks}
               history={history}
+              progressSnapshots={progressSnapshots}
               intentions={intentions}
               onUpdateConfig={onUpdateConfig}
               onToggleTask={onToggleTask}

@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { Shapes, Plus, Edit2, Trash2, Tag, Save, X, ArrowRight, Folder, CheckSquare, Repeat, Circle, ChevronLeft, ArrowUpRight, LayoutGrid, Layers, Target, ChevronUp, ChevronDown } from 'lucide-react';
-import { Config, AreaConfig, AppTask, HistoryRecord, Intention } from '../types';
+import { Config, AreaConfig, AppTask, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { cn, getAreaColorClasses, getAreaBorderClasses, getAreaTextClasses, APP_COLORS } from '../lib/utils';
 import { calculateItemProgress, getActiveAreaCommitments, getIntentionItemLabel, INTENTION_SCALE_LABELS, summarizeIntentionProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
+import { buildHabitDurationSummaryIndex, buildRoutineDurationSummaryIndex } from '../domain/habitDuration';
+import { formatDateOnly } from '../domain/recurrenceProgress';
 
 interface Props {
   config: Config | null;
   tasks: AppTask[];
   history?: HistoryRecord[];
+  progressSnapshots: ProgressSnapshot[];
   intentions?: Intention[];
   onUpdateConfig: (c: Partial<Config>) => void;
   onToggleTask: (task: AppTask) => void;
@@ -20,7 +23,7 @@ interface Props {
   focusTaskId?: string | null;
 }
 
-export default function AreasView({ config, tasks, history, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
+export default function AreasView({ config, tasks, history, progressSnapshots, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const areas = config?.areas || {};
 
@@ -42,6 +45,7 @@ export default function AreasView({ config, tasks, history, intentions = [], onU
         tasks={tasks}
         config={config}
         history={history}
+        progressSnapshots={progressSnapshots}
         intentions={intentions}
         areas={areas}
         onBack={() => setSelectedArea(null)}
@@ -314,6 +318,7 @@ function AreaDetail({
   tasks, 
   config,
   history,
+  progressSnapshots,
   intentions = [],
   areas, 
   onBack, 
@@ -329,6 +334,7 @@ function AreaDetail({
   tasks: AppTask[], 
   config: Config | null,
   history?: HistoryRecord[],
+  progressSnapshots: ProgressSnapshot[],
   intentions?: Intention[],
   areas: Record<string, string | AreaConfig>, 
   onBack: () => void, 
@@ -355,6 +361,15 @@ function AreaDetail({
   const [expandHabits, setExpandHabits] = useState(false);
   const [expandTasks, setExpandTasks] = useState(false);
   const [expandCommitments, setExpandCommitments] = useState(true);
+  const todayKey = formatDateOnly(new Date());
+  const habitDurationSummaries = React.useMemo(
+    () => buildHabitDurationSummaryIndex(tasks, history || [], progressSnapshots, todayKey),
+    [tasks, history, progressSnapshots, todayKey],
+  );
+  const routineDurationSummaries = React.useMemo(
+    () => buildRoutineDurationSummaryIndex(tasks, habitDurationSummaries),
+    [tasks, habitDurationSummaries],
+  );
 
   const routinesInArea = tasks.filter(t => t.type === 'Rutina' && t.category === areaName);
   const projectsInArea = tasks.filter(t => t.type === 'Proyecto' && t.category === areaName);
@@ -687,6 +702,7 @@ function AreaDetail({
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
                           onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
+                          routineDurationSummary={routineDurationSummaries.get(r.id)}
                         />
                         
                         {/* Nested Child Habits */}
@@ -704,6 +720,7 @@ function AreaDetail({
                                 onUpdate={onUpdateTask}
                                 onAddTask={onAddTask}
                                 onDeleteTask={onDeleteTask}
+                                durationSummary={habitDurationSummaries.get(h.id)}
                               />
                             ))}
                           </div>
@@ -751,6 +768,7 @@ function AreaDetail({
                        onAddTask={onAddTask}
                        onDeleteTask={onDeleteTask}
                        onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', hab.id) : undefined}
+                       durationSummary={habitDurationSummaries.get(hab.id)}
                      />
                   ))
                 )}
