@@ -326,7 +326,12 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             <span className="text-text-dim/30 font-mono text-[10px]">|</span>
 
             {/* Quick manual selector */}
+            <label htmlFor="manual-cycle-phase" className="sr-only">
+              Ajustar fase actual manualmente
+            </label>
             <select
+              id="manual-cycle-phase"
+              name="manualCyclePhase"
               className="appearance-none bg-transparent text-[10px] font-mono text-[#a2b29f] hover:text-text-main cursor-pointer outline-none transition-colors border-b border-transparent hover:border-[#a2b29f]"
               value={config?.cycleConfig?.currentManualPhase || 'none'}
               onChange={(e) => {
