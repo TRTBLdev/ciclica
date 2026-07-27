@@ -11,6 +11,57 @@ describe('project card hours', () => {
     expect(formatProjectHours(1.5)).toBe('1,5 h');
   });
 
+  it('renders project progress across the full card width with an explicit track', () => {
+    const project: AppTask = {
+      id: 'project',
+      userId: 'local_user',
+      text: 'Proyecto editorial',
+      type: 'Proyecto',
+      createdAt: '2026-07-20T12:00:00.000Z',
+      completed: false,
+    };
+    const presentation: ProjectPresentation = {
+      descendants: [],
+      pendingTasks: [],
+      completedTasks: [],
+      pendingCount: 0,
+      completedCount: 5,
+      totalCount: 5,
+      progress: 100,
+      openEstimate: 0,
+      totalEstimate: 0,
+      trackedHours: 0,
+      energy: { support: 0, investment: 0, total: 0 },
+      scheduleLabel: 'Sin programación',
+    };
+    const renderCard = (progress: number, expanded: boolean) => renderToStaticMarkup(React.createElement(
+      ProjectCard,
+      {
+        project,
+        presentation: { ...presentation, progress },
+        config: null,
+        variant: 'strategy',
+        expanded,
+        onToggleExpanded: () => undefined,
+        onToggleProject: () => undefined,
+      },
+    ));
+
+    const collapsedMarkup = renderCard(100, false);
+    const expandedMarkup = renderCard(40, true);
+
+    for (const markup of [collapsedMarkup, expandedMarkup]) {
+      expect(markup).toContain('w-full');
+      expect(markup).toContain('appearance-none');
+      expect(markup).toContain('[&amp;::-webkit-progress-bar]:bg-border-line/40');
+      expect(markup).toContain('[&amp;::-webkit-progress-value]:bg-emerald-600');
+      expect(markup).toContain('[&amp;::-moz-progress-bar]:bg-emerald-600');
+      expect(markup).not.toContain('max-w-xs');
+    }
+    expect(collapsedMarkup).toContain('value="100"');
+    expect(expandedMarkup).toContain('value="40"');
+  });
+
   it('indents expanded content without drawing an internal rail', () => {
     const project: AppTask = {
       id: 'project',

@@ -250,7 +250,7 @@ export default function ProjectCard({
                 max={100}
                 value={presentation.progress}
                 aria-label={`Progreso del proyecto: ${presentation.progress}%`}
-                className="mt-3 block h-0.5 w-full max-w-xs overflow-hidden accent-emerald-600"
+                className="mt-3 block h-0.5 w-full appearance-none overflow-hidden accent-emerald-600 [&::-webkit-progress-bar]:bg-border-line/40 [&::-webkit-progress-value]:bg-emerald-600 [&::-moz-progress-bar]:bg-emerald-600"
               />
             </>
           ) : (

@@ -50,7 +50,7 @@ export function ActivityDurationAverage({
   count,
   singularSample = 'ciclo completo',
   pluralSample = 'ciclos completos',
-  averageLabel = 'Promedio por ciclo completo',
+  averageLabel = 'Promedio/ciclo',
   className,
 }: ActivityDurationAverageProps) {
   const averageText = averageHours === null
