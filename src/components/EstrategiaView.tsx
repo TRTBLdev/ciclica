@@ -50,7 +50,11 @@ export default function EstrategiaView({
       } else {
         const targetTask = tasks.find(t => t.id === focusTaskId);
         if (targetTask) {
-          if (targetTask.type === 'Rutina' || (targetTask.parentId && tasks.find(p => p.id === targetTask.parentId)?.type === 'Rutina')) {
+          if (
+            targetTask.type === 'Rutina' ||
+            targetTask.type === 'Hábito' ||
+            (targetTask.parentId && tasks.find(p => p.id === targetTask.parentId)?.type === 'Rutina')
+          ) {
             setActiveTab('rutinas');
           } else {
             setActiveTab('proyectos');

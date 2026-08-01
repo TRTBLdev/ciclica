@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Calendar, BarChart3, CheckCircle2, BookOpen, X, Download } from 'lucide-react';
+import { CalendarDays, BarChart3, CheckCircle2, BookOpen, Compass, X, Download } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, IntentionScale, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
-import CalendarioSemanalView from './CalendarioSemanalView';
+import AgendaView from './AgendaView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
 import PlanificarView from './PlanificarView';
@@ -37,6 +37,7 @@ interface Props {
   onUpdateHistory: (id: string, updates: Partial<HistoryRecord>) => void;
   onDeleteHistory: (id: string) => void;
   onAddHistory: (record: Omit<HistoryRecord, 'id'>) => void;
+  onNavigate?: (view: string, taskId?: string) => void;
 }
 
 export default function BitacoraView({
@@ -57,11 +58,12 @@ export default function BitacoraView({
   onUpdateHistory,
   onDeleteHistory,
   onAddHistory,
+  onNavigate,
 }: Props) {
   const { showToast } = useToast();
   // Tabs: 'planificar' | 'balance' | 'historial' | 'archivo'
-  const [activeTab, setActiveTab] = useState<'planificar' | 'balance' | 'seguimiento' | 'historial' | 'archivo'>('planificar');
-  const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('phase');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'intenciones' | 'balance' | 'seguimiento' | 'historial' | 'archivo'>('agenda');
+  const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('cycle');
   const [cursorDate, setCursorDate] = useState<Date>(new Date());
 
   // Cycles archive states
@@ -337,7 +339,7 @@ export default function BitacoraView({
 
   const handlePrevPeriod = () => {
     if (activeScale === 'free') return; // Rango libre no tiene prev/next definido aún
-    if (activeTab === 'planificar' && isPrevPeriodInPast()) {
+    if (activeTab === 'intenciones' && isPrevPeriodInPast()) {
       return; // Bloqueado
     }
     const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
@@ -369,17 +371,18 @@ export default function BitacoraView({
             <BookOpen className="w-6 h-6 text-text-main" /> Bitácora
           </h1>
           <p className="text-sm text-text-dim md:text-right leading-relaxed max-w-xl">
-            Planifica tus intenciones, evalúa tu balance y consulta tu historial de ciclos, hábitos y tareas.
+            Compón tu semana, define intenciones, evalúa tu balance y consulta tu historial.
           </p>
         </div>
 
         {/* Top Tabs */}
         <div className="flex flex-wrap gap-6 font-sans text-xs uppercase tracking-widest font-light bg-transparent">
           {[
-            { id: 'planificar', label: 'Planificar', icon: <Calendar className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-            { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'agenda', label: 'Agenda', icon: <CalendarDays className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'intenciones', label: 'Intenciones', icon: <Compass className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'seguimiento', label: 'Seguimiento', icon: <CheckCircle2 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-            { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
+            { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
           ].map(t => {
             const isActive = activeTab === t.id;
             return (
@@ -387,8 +390,8 @@ export default function BitacoraView({
                 key={t.id}
                 onClick={() => {
                   setActiveTab(t.id as any);
-                  if (t.id === 'planificar' && activeScale === 'free') {
-                    setActiveScale('phase');
+                  if (t.id === 'intenciones' && activeScale === 'free') {
+                    setActiveScale('cycle');
                   }
                 }}
                 className={cn(
@@ -407,13 +410,13 @@ export default function BitacoraView({
       </div>
 
         {/* Sub-Header: Scale Selector & Period Navigator */}
-        {(activeTab === 'planificar' || activeTab === 'balance') && (
+        {(activeTab === 'intenciones' || activeTab === 'balance') && (
           <div className="flex flex-col items-center gap-4 py-6 border-b border-border-line/20 px-6 md:px-10">
             {/* Unified Scale Selector as separate pills */}
             <div className="flex flex-wrap justify-center gap-2">
-              {(['phase', 'cycle', 'quarter', 'year', 'free'] as const).map(s => {
-                if (s === 'free' && activeTab === 'planificar') return null;
-                const labels: Record<string, string> = { phase: 'Semana', cycle: 'Mes', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
+              {(['cycle', 'quarter', 'year', 'free'] as const).map(s => {
+                if (s === 'free' && activeTab === 'intenciones') return null;
+                const labels: Record<string, string> = { cycle: 'Mes', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
                 const isActive = activeScale === s;
                 return (
                   <button
@@ -437,7 +440,7 @@ export default function BitacoraView({
               <div className="flex items-center justify-center gap-4 w-full max-w-lg">
                 <button 
                   onClick={handlePrevPeriod} 
-                  disabled={activeTab === 'planificar' && isPrevPeriodInPast()}
+                  disabled={activeTab === 'intenciones' && isPrevPeriodInPast()}
                   className="p-2 hover:text-text-main text-text-dim transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border-0 bg-transparent"
                 >
                   ◀
@@ -452,7 +455,7 @@ export default function BitacoraView({
                     onChange={(e) => {
                       if (e.target.value) {
                          const newDate = parseLocalDate(e.target.value);
-                         if (activeTab === 'planificar') {
+                         if (activeTab === 'intenciones') {
                            const today = new Date();
                            today.setHours(0, 0, 0, 0);
                            const newPeriod = getCurrentPeriod(activeScale, config, newDate);
@@ -477,7 +480,21 @@ export default function BitacoraView({
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">
 
-        {activeTab === 'planificar' && activeScale !== 'free' && (
+        {activeTab === 'agenda' && (
+          <div className="animate-in fade-in duration-200 w-full">
+            <AgendaView
+              config={config}
+              tasks={tasks}
+              history={history}
+              onUpdateTask={onUpdateTask}
+              onAddTask={onAddTask}
+              onDeleteTask={onDeleteTask}
+              onNavigate={onNavigate}
+            />
+          </div>
+        )}
+
+        {activeTab === 'intenciones' && activeScale !== 'free' && (
           <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto text-left">
             <PlanificarView
               scale={activeScale}

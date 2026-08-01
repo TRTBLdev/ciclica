@@ -6,9 +6,10 @@ interface AllocationBadgeProps {
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
   title?: string;
+  iconOnly?: boolean;
 }
 
-export default function AllocationBadge({ allocation, className, onClick, title }: AllocationBadgeProps) {
+export default function AllocationBadge({ allocation, className, onClick, title, iconOnly = false }: AllocationBadgeProps) {
   if (!allocation) return null;
 
   const getAllocationIcon = (a: string) => {
@@ -33,20 +34,23 @@ export default function AllocationBadge({ allocation, className, onClick, title 
     }
   };
 
+  const label = getAllocationLabel(allocation);
+
   return (
     <small
       className={cn(
-        "inline-flex items-center justify-center h-5 px-2 gap-1 text-[9px] font-mono uppercase tracking-wider rounded-full leading-none whitespace-nowrap bg-slate-500/10 text-slate-700",
+        "inline-flex items-center justify-center h-4 font-mono uppercase tracking-wider leading-none whitespace-nowrap bg-slate-500/10 text-slate-700",
+        iconOnly ? "w-4 p-0 rounded-sm" : "px-1.5 gap-1 text-[8px] rounded-full",
         onClick && "cursor-pointer hover:opacity-80 transition-opacity",
         className
       )}
       onClick={onClick}
-      title={title}
+      title={title || label}
     >
       <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
         {getAllocationIcon(allocation)}
       </svg>
-      {getAllocationLabel(allocation)}
+      {!iconOnly && label}
     </small>
   );
 }

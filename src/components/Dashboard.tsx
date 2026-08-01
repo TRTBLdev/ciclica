@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { useData } from '../hooks/useData';
-import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings, Plus, Zap } from 'lucide-react';
+import { Target, Compass, Layers, Calendar, Loader, Shapes, LogOut, CheckCircle2, Repeat, BarChart3, Download, Upload, BookOpen, HelpCircle, Settings, Plus, Zap, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Omnibar from './Omnibar';
 import Onboarding from './Onboarding';
 import { calculateBiologicalPhase } from '../domain/cycle';
@@ -34,14 +34,40 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [showIntentionForm, setShowIntentionForm] = useState(false);
   const [showOmnibar, setShowOmnibar] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('ciclica_sidebar_collapsed') === 'true';
+  });
   const completionLocksRef = useRef(new Set<string>());
+
+  // Auto-collapse when desktop window is split/half screen (< 1024px)
+  useEffect(() => {
+    const handleResize = () => {
+      const isDesktop = window.innerWidth >= 768;
+      const isSplitScreen = window.innerWidth < 1024;
+      if (isDesktop && isSplitScreen) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('ciclica_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   const handleNavigate = (view: string, taskId?: string) => {
     let targetView: typeof currentView = 'hoy';
     if (view === 'hoy' || view === 'foco') targetView = 'hoy';
     else if (view === 'sintonia' || view === 'brujula' || view === 'syllabus') targetView = 'sintonia';
     else if (view === 'estrategia' || view === 'areas' || view === 'proyectos' || view === 'rutinas') targetView = 'estrategia';
-    else if (view === 'bitacora' || view === 'calendario' || view === 'reportes' || view === 'completadas') targetView = 'bitacora';
+    else if (view === 'bitacora' || view === 'calendario' || view === 'reportes' || view === 'completadas' || view === 'agenda') targetView = 'bitacora';
     else if (view === 'configuracion' || view === 'ajustes') targetView = 'configuracion';
 
     setCurrentView(targetView);
@@ -250,114 +276,114 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     if (habitLockKey && completionLocksRef.current.has(habitLockKey)) return;
     if (habitLockKey) completionLocksRef.current.add(habitLockKey);
     try {
-    const isCompleted = task.type === 'Hábito' ? true : !task.completed;
-    const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
-    const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
-    const snapshotsToAdd: Omit<ProgressSnapshot, 'id'>[] = [];
+      const isCompleted = task.type === 'Hábito' ? true : !task.completed;
+      const tasksToUpdate: { id: string; updates: Partial<AppTask> }[] = [];
+      const historyToAdd: Omit<HistoryRecord, 'id'>[] = [];
+      const snapshotsToAdd: Omit<ProgressSnapshot, 'id'>[] = [];
 
-    let effectiveDuration = overrideDuration;
-    let effectiveStartTime = overrideStartTime;
-    let effectiveEndTime = overrideEndTime;
-    const closesActiveTimer = isCompleted && activeTimer?.taskId === task.id && overrideDuration === undefined;
-    if (closesActiveTimer && activeTimer) {
-      let totalSecs = activeTimer.elapsedSeconds;
-      if (activeTimer.isRunning) {
-        totalSecs += Math.floor((now.getTime() - new Date(activeTimer.startTime).getTime()) / 1000);
-      }
-      effectiveDuration = Math.max(0.01, parseFloat((totalSecs / 3600).toFixed(2)));
-      effectiveStartTime = activeTimer.sessionStart || activeTimer.startTime;
-      effectiveEndTime = now.toISOString();
-    }
-
-    const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
-      const sessionEnd = endT || new Date().toISOString();
-      const duration = resolveCompletionDuration(t, history, sessionEnd, dur);
-      const sessionStart = startT || new Date(new Date(sessionEnd).getTime() - duration * 3600000).toISOString();
-      const occurrenceDate = formatDateOnly(new Date(sessionEnd));
-
-      if (isComp) {
-        const historyRecord: Omit<HistoryRecord, 'id'> = {
-          userId: user.uid,
-          taskId: t.id,
-          date: sessionEnd,
-          duration,
-          createdAt: new Date().toISOString(),
-          startTime: sessionStart,
-          endTime: sessionEnd,
-          isCompletion: true,
-          completionPercent: t.type === 'Hábito' && t.checklist?.length ? getChecklistProgress(t) : 100,
-        };
-        if (t.type === 'Hábito' && t.parentId) {
-          const routine = tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina');
-          if (routine) {
-            const cycle = getRoutineCycleRangeForTask(routine, occurrenceDate);
-            historyRecord.routineId = routine.id;
-            historyRecord.routineCycleStart = cycle.start;
-            historyRecord.routineAppearanceDate = formatDateOnly(new Date(sessionEnd));
-          }
+      let effectiveDuration = overrideDuration;
+      let effectiveStartTime = overrideStartTime;
+      let effectiveEndTime = overrideEndTime;
+      const closesActiveTimer = isCompleted && activeTimer?.taskId === task.id && overrideDuration === undefined;
+      if (closesActiveTimer && activeTimer) {
+        let totalSecs = activeTimer.elapsedSeconds;
+        if (activeTimer.isRunning) {
+          totalSecs += Math.floor((now.getTime() - new Date(activeTimer.startTime).getTime()) / 1000);
         }
-        historyToAdd.push(historyRecord);
+        effectiveDuration = Math.max(0.01, parseFloat((totalSecs / 3600).toFixed(2)));
+        effectiveStartTime = activeTimer.sessionStart || activeTimer.startTime;
+        effectiveEndTime = now.toISOString();
       }
 
-      if (t.type === 'Hábito') {
+      const processToggle = (t: AppTask, isComp: boolean, dur?: number, startT?: string, endT?: string) => {
+        const sessionEnd = endT || new Date().toISOString();
+        const duration = resolveCompletionDuration(t, history, sessionEnd, dur);
+        const sessionStart = startT || new Date(new Date(sessionEnd).getTime() - duration * 3600000).toISOString();
+        const occurrenceDate = formatDateOnly(new Date(sessionEnd));
+
         if (isComp) {
-          const range = getHabitOccurrenceRange(t, tasks, occurrenceDate);
-          snapshotsToAdd.push({
-            ...createHabitResultSnapshot(
-              t,
-              range,
-              t.checklist?.length ? getChecklistProgress(t) : 100,
-              occurrenceDate,
-              'manual',
-            ),
+          const historyRecord: Omit<HistoryRecord, 'id'> = {
             userId: user.uid,
-            createdAt: sessionEnd,
-          });
+            taskId: t.id,
+            date: sessionEnd,
+            duration,
+            createdAt: new Date().toISOString(),
+            startTime: sessionStart,
+            endTime: sessionEnd,
+            isCompletion: true,
+            completionPercent: t.type === 'Hábito' && t.checklist?.length ? getChecklistProgress(t) : 100,
+          };
+          if (t.type === 'Hábito' && t.parentId) {
+            const routine = tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina');
+            if (routine) {
+              const cycle = getRoutineCycleRangeForTask(routine, occurrenceDate);
+              historyRecord.routineId = routine.id;
+              historyRecord.routineCycleStart = cycle.start;
+              historyRecord.routineAppearanceDate = formatDateOnly(new Date(sessionEnd));
+            }
+          }
+          historyToAdd.push(historyRecord);
+        }
+
+        if (t.type === 'Hábito') {
+          if (isComp) {
+            const range = getHabitOccurrenceRange(t, tasks, occurrenceDate);
+            snapshotsToAdd.push({
+              ...createHabitResultSnapshot(
+                t,
+                range,
+                t.checklist?.length ? getChecklistProgress(t) : 100,
+                occurrenceDate,
+                'manual',
+              ),
+              userId: user.uid,
+              createdAt: sessionEnd,
+            });
+            tasksToUpdate.push({
+              id: t.id,
+              updates: {
+                completed: false,
+                checklist: t.checklist?.map(item => ({ ...item, done: false })),
+                checklistCycleStart: undefined,
+                lastExecutedAt: sessionEnd,
+              }
+            });
+          }
+        } else if (t.type !== 'Pulso') {
           tasksToUpdate.push({
             id: t.id,
-            updates: {
-              completed: false,
-              checklist: t.checklist?.map(item => ({ ...item, done: false })),
-              checklistCycleStart: undefined,
-              lastExecutedAt: sessionEnd,
-            }
+            updates: { completed: isComp, view: isComp ? '' : t.view, lastExecutedAt: isComp ? new Date().toISOString() : '' }
           });
-        }
-      } else if (t.type !== 'Pulso') {
-        tasksToUpdate.push({
-          id: t.id,
-          updates: { completed: isComp, view: isComp ? '' : t.view, lastExecutedAt: isComp ? new Date().toISOString() : '' }
-        });
 
-        if (isComp && t.parentId) {
-          const parent = tasks.find(p => p.id === t.parentId);
-          if (parent && parent.type !== 'Proyecto' && parent.type !== 'Rutina') {
-            const siblings = tasks.filter(s => s.parentId === parent.id);
-            const allSiblingsDone = siblings.every(s => {
-              if (s.id === t.id) return true;
-              const updated = tasksToUpdate.find(up => up.id === s.id);
-              return updated ? !!updated.updates.completed : s.completed;
-            });
-            if (allSiblingsDone && !parent.completed) {
-              processToggle(parent, true);
+          if (isComp && t.parentId) {
+            const parent = tasks.find(p => p.id === t.parentId);
+            if (parent && parent.type !== 'Proyecto' && parent.type !== 'Rutina') {
+              const siblings = tasks.filter(s => s.parentId === parent.id);
+              const allSiblingsDone = siblings.every(s => {
+                if (s.id === t.id) return true;
+                const updated = tasksToUpdate.find(up => up.id === s.id);
+                return updated ? !!updated.updates.completed : s.completed;
+              });
+              if (allSiblingsDone && !parent.completed) {
+                processToggle(parent, true);
+              }
             }
           }
         }
+      };
+
+      processToggle(task, isCompleted, effectiveDuration, effectiveStartTime, effectiveEndTime);
+
+      if (tasksToUpdate.length > 0) {
+        await updateTasks(tasksToUpdate);
       }
-    };
-
-    processToggle(task, isCompleted, effectiveDuration, effectiveStartTime, effectiveEndTime);
-
-    if (tasksToUpdate.length > 0) {
-      await updateTasks(tasksToUpdate);
-    }
-    if (historyToAdd.length > 0) {
-      await addHistoryRecords(historyToAdd);
-    }
-    if (snapshotsToAdd.length > 0) {
-      await addProgressSnapshots(snapshotsToAdd);
-    }
-    if (closesActiveTimer) setActiveTimer(null);
+      if (historyToAdd.length > 0) {
+        await addHistoryRecords(historyToAdd);
+      }
+      if (snapshotsToAdd.length > 0) {
+        await addProgressSnapshots(snapshotsToAdd);
+      }
+      if (closesActiveTimer) setActiveTimer(null);
     } finally {
       if (habitLockKey) completionLocksRef.current.delete(habitLockKey);
     }
@@ -435,76 +461,122 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         config?.theme === 'kyoto-dusk' ? "theme-kyoto-dusk bg-[#181512] text-[#f3eae1]" : "bg-[#fbf9f4] text-[#2d2d2d]"
       )}>
         {/* Navigation Sidebar */}
-        <div className="hidden md:flex w-[200px] flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-colors duration-500">
-          <div className="p-6 border-b border-border-line flex flex-col gap-2 transition-colors duration-500">
-            <div>
-              <h1 className="text-title mb-1">CICLICA</h1>
-              <p className="text-xs text-[#5d5d5d] tracking-wide whitespace-nowrap">
-                Gestión Operativa v4.0.0-beta.1
-              </p>
-            </div>
+        <div
+          className={cn(
+            "hidden md:flex flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-all duration-300 relative",
+            isSidebarCollapsed ? "w-[64px]" : "w-[200px]"
+          )}
+        >
+          <div
+            className={cn(
+              "p-4 border-b border-border-line flex flex-col gap-2 transition-all duration-300",
+              isSidebarCollapsed && "px-2 items-center"
+            )}
+          >
+            {!isSidebarCollapsed ? (
+              <>
+                <div>
+                  <h1 className="text-title mb-1">CICLICA</h1>
+                  <p className="text-xs text-[#5d5d5d] tracking-wide whitespace-nowrap">
+                    Gestión Operativa-beta.1
+                  </p>
+                </div>
 
-            {/* Minimal Theme Switcher */}
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                onClick={() => updateConfig({ theme: 'muji' })}
-                className={cn(
-                  "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
-                  config?.theme === 'muji' ? "bg-[#fbf9f4] border-[#2d2d2d] scale-110 shadow-sm" : "bg-[#fbf9f4] border-[#e4e2dd] hover:scale-105"
-                )}
-                title="Tema Muji Neutro"
-              />
-              <button
-                onClick={() => updateConfig({ theme: 'kyoto-dusk' })}
-                className={cn(
-                  "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
-                  config?.theme === 'kyoto-dusk' ? "bg-[#181512] border-[#d4af37] scale-110 shadow-sm" : "bg-[#181512] border-[#e4e2dd] hover:scale-105"
-                )}
-                title="Tema Kyoto Dusk (Premium)"
-              />
-              <span className="text-[9px] font-mono text-[#a2b29f] uppercase tracking-wider ml-1">
-                {config?.theme === 'kyoto-dusk' ? 'Kyoto Dusk' : 'Muji Neutro'}
-              </span>
-            </div>
+                {/* Minimal Theme Switcher & Sidebar Collapse Toggle */}
+                <div className="flex items-center justify-between gap-2 mt-2 w-full">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateConfig({ theme: 'muji' })}
+                      className={cn(
+                        "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
+                        config?.theme === 'muji' ? "bg-[#fbf9f4] border-[#2d2d2d] scale-110 shadow-sm" : "bg-[#fbf9f4] border-[#e4e2dd] hover:scale-105"
+                      )}
+                      title="Tema Muji Neutro"
+                    />
+                    <button
+                      onClick={() => updateConfig({ theme: 'kyoto-dusk' })}
+                      className={cn(
+                        "w-3.5 h-3.5 rounded-full border transition-all cursor-pointer",
+                        config?.theme === 'kyoto-dusk' ? "bg-[#181512] border-[#d4af37] scale-110 shadow-sm" : "bg-[#181512] border-[#e4e2dd] hover:scale-105"
+                      )}
+                      title="Tema Kyoto Dusk (Premium)"
+                    />
+                    <span className="text-[9px] font-mono text-[#a2b29f] uppercase tracking-wider ml-1">
+                      {config?.theme === 'kyoto-dusk' ? 'Kyoto Dusk' : 'Muji Neutro'}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={toggleSidebar}
+                    className="p-1 rounded-md hover:bg-border-line/40 text-text-dim hover:text-text-main transition-colors shrink-0"
+                    title="Colapsar menú (Desktop)"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 w-full py-1">
+                <span className="text-title font-light">C</span>
+                <button
+                  onClick={toggleSidebar}
+                  className="p-1.5 rounded-md hover:bg-border-line/40 text-text-dim hover:text-text-main transition-colors"
+                  title="Expandir menú (Desktop)"
+                >
+                  <PanelLeftOpen className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col flex-1 py-2 gap-0 overflow-y-auto no-scrollbar">
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={showOmnibar}
               icon={<Zap className={cn("w-4 h-4", activeTimer?.isRunning && !showOmnibar ? "text-accent" : "")} />}
               label="Acción"
               onClick={() => setShowOmnibar(!showOmnibar)}
               rightElement={
                 activeTimer?.isRunning && !showOmnibar && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm ml-auto mr-2" />
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-sm",
+                      isSidebarCollapsed ? "absolute top-2 right-2" : "ml-auto mr-2"
+                    )}
+                  />
                 )
               }
             />
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={currentView === 'hoy' && !showOmnibar}
               icon={<Target className="w-4 h-4" />}
               label="Foco"
               onClick={() => { setCurrentView('hoy'); setShowOmnibar(false); }}
             />
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={currentView === 'sintonia' && !showOmnibar}
               icon={<Compass className="w-4 h-4" />}
               label="Sintonía"
               onClick={() => { setCurrentView('sintonia'); setShowOmnibar(false); }}
             />
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={currentView === 'estrategia' && !showOmnibar}
               icon={<Layers className="w-4 h-4" />}
               label="Estrategia y Plan"
               onClick={() => { setCurrentView('estrategia'); setShowOmnibar(false); }}
             />
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={currentView === 'bitacora' && !showOmnibar}
               icon={<Calendar className="w-4 h-4" />}
               label="Bitácora"
               onClick={() => { setCurrentView('bitacora'); setShowOmnibar(false); }}
             />
             <NavButton
+              collapsed={isSidebarCollapsed}
               active={currentView === 'configuracion' && !showOmnibar}
               icon={<Settings className="w-4 h-4" />}
               label="Ajustes"
@@ -518,7 +590,12 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           {showOmnibar && (
             <>
               {/* Desktop Panel */}
-              <div className="hidden md:flex fixed top-[10vh] left-[200px] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200">
+              <div
+                className={cn(
+                  "hidden md:flex fixed top-[10vh] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200 transition-all duration-300",
+                  isSidebarCollapsed ? "left-[64px]" : "left-[200px]"
+                )}
+              >
                 <Omnibar
                   activeTimer={activeTimer}
                   tasks={tasks}
@@ -634,6 +711,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onUpdateHistory={updateHistory}
                   onDeleteHistory={deleteHistory}
                   onAddHistory={addHistory}
+                  onNavigate={handleNavigate}
                 />
               )}
               {currentView === 'configuracion' && (
@@ -744,18 +822,40 @@ function ViewLoader() {
   );
 }
 
-function NavButton({ active, icon, label, onClick, isMobile, rightElement }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void, isMobile?: boolean, rightElement?: React.ReactNode }) {
+function NavButton({
+  active,
+  icon,
+  label,
+  onClick,
+  isMobile,
+  collapsed,
+  rightElement
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  isMobile?: boolean;
+  collapsed?: boolean;
+  rightElement?: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}
+      title={collapsed ? label : undefined}
       className={cn(
-        "relative shrink-0 flex items-center justify-start gap-4 px-6 h-10 transition-colors text-left",
-        isMobile && "flex-row gap-1.5 justify-center px-3",
+        "relative shrink-0 flex items-center transition-colors text-left",
+        collapsed
+          ? "justify-center h-12 w-full px-0"
+          : "justify-start gap-4 px-6 h-10",
+        isMobile && "flex-row gap-1.5 justify-center px-3 h-10",
         active ? "text-text-main" : "text-text-dim hover:bg-[var(--color-border-line)]/30 hover:text-text-main"
       )}
     >
       {icon}
-      <span className={cn("text-sm font-light font-sans", isMobile && "text-[10px] tracking-wide uppercase", active && !isMobile && "font-normal", active && isMobile && "font-bold")}>{label}</span>
+      {!collapsed && (
+        <span className={cn("text-sm font-light font-sans", isMobile && "text-[10px] tracking-wide uppercase", active && !isMobile && "font-normal", active && isMobile && "font-bold")}>{label}</span>
+      )}
       {rightElement}
       {active && (
         isMobile ? (
