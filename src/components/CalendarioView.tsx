@@ -75,7 +75,7 @@ export default function CalendarioView({ config, tasks, history }: Props) {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="flex flex-col animate-in fade-in px-6 md:px-10 pt-10 pb-16 max-w-4xl mx-auto w-full">
+    <div className="flex flex-col animate-in fade-in px-6 md:px-10 pt-10 pb-16 max-w-4xl mx-auto xl:mx-0 w-full">
       <Header filter={filter} setFilter={setFilter} config={config} />
 
       {/* Leyenda de Colores */}

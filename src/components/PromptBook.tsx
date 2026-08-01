@@ -71,7 +71,7 @@ Procesa esta información y estrucúrala en un desglose recursivo limpio y legib
   const activePrompt = prompts.find(p => p.phase === activeTab);
 
   return (
-    <div className="animate-in fade-in flex flex-col gap-6 px-6 md:px-10 py-8 mx-auto w-full max-w-4xl text-left bg-transparent">
+    <div className="animate-in fade-in flex flex-col gap-6 px-6 md:px-10 py-8 mx-auto xl:mx-0 w-full max-w-4xl text-left bg-transparent">
       <div>
         <h2 className="text-title flex items-center gap-2">
           <BookOpen className="text-text-main w-6 h-6 stroke-[2]" /> Biblioteca Prompt-Book

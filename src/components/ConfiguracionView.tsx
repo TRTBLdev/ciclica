@@ -145,7 +145,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
          </p>
       </div>
 
-      <div className="flex-1 p-6 md:p-10 flex flex-col gap-10 max-w-3xl w-full mx-auto pb-24">
+      <div className="flex-1 p-6 md:p-10 flex flex-col gap-10 max-w-3xl w-full mx-auto xl:mx-0 pb-24">
         
         {/* SECTION 1: TEMA Y APARIENCIA */}
         <div className="border-b border-border-line/30 pb-10">

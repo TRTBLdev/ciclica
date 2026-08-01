@@ -175,7 +175,7 @@ export default function CalendarioSemanalView({ config, tasks, onUpdateTask, cur
   const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in max-w-7xl mx-auto w-full pt-4">
+    <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in max-w-7xl mx-auto xl:mx-0 w-full pt-4">
       {/* Header */}
       {!propWeekStart && (
         <div className="flex items-center justify-between mb-4 px-4 md:px-0">

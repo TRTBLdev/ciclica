@@ -495,7 +495,7 @@ export default function BitacoraView({
         )}
 
         {activeTab === 'intenciones' && activeScale !== 'free' && (
-          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto text-left">
+          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto xl:mx-0 text-left">
             <PlanificarView
               scale={activeScale}
               intentions={intentions}
@@ -551,7 +551,7 @@ export default function BitacoraView({
         )}
 
         {activeTab === 'archivo' && config?.cycleConfig?.menstruates !== false && (
-          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto w-full text-left space-y-6">
+          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto xl:mx-0 w-full text-left space-y-6">
             
             {/* Header + Stats of historical cycles */}
             {cycleStats ? (

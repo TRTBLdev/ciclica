@@ -91,7 +91,7 @@ export default function SintoniaView({ config, onUpdateConfig, onNavigate }: Pro
         </div>
       </div>
 
-      <div className="flex-1 p-6 md:p-10 max-w-4xl w-full mx-auto pb-24 text-left">
+      <div className="flex-1 p-6 md:p-10 max-w-4xl w-full mx-auto xl:mx-0 pb-24 text-left">
         {activeTab === 'sincronizacion' && (
           <div className="space-y-8 animate-in fade-in duration-200">
             {/* Flat Tabs Sincronización Selector */}

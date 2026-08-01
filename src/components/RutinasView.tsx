@@ -375,7 +375,7 @@ export default function RutinasView({
   };
 
   return (
-    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-6 px-6 md:px-10 max-w-4xl mx-auto w-full text-left bg-transparent relative z-10">
+    <div className="animate-in fade-in flex flex-col gap-8 pb-16 pt-6 px-6 md:px-10 max-w-4xl mx-auto xl:mx-0 xl:max-w-none w-full text-left bg-transparent relative z-10">
       {/* Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
 
@@ -530,8 +530,9 @@ export default function RutinasView({
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] xl:gap-8">
       {/* ROUTINES LIST */}
-      <div className="mb-6">
+      <div className="mb-6 min-w-0">
         <div
           onClick={() => setIsRoutinesOpen(!isRoutinesOpen)}
           className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
@@ -860,6 +861,7 @@ export default function RutinasView({
         )}
       </div>
 
+      <div className="min-w-0 xl:border-l xl:border-border-line/40 xl:pl-8">
       {/* STATS DE HABITOS SUELTOS */}
       <div className="mb-6">
         <div
@@ -1073,6 +1075,8 @@ export default function RutinasView({
             )}
           </div>
         )}
+      </div>
+      </div>
       </div>
     </div>
   );

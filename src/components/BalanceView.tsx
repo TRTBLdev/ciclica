@@ -129,7 +129,7 @@ export default function BalanceView({
     );
   };
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 md:p-10 text-left space-y-10 animate-in fade-in duration-200">
+    <div className="w-full max-w-4xl mx-auto xl:mx-0 p-6 md:p-10 text-left space-y-10 animate-in fade-in duration-200">
       
       {scale === 'phase' ? (
         <WeeklyGanttChart 

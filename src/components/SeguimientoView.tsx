@@ -106,7 +106,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
   const hasMonthly = monthly.routines.length > 0 || monthly.standaloneHabits.length > 0;
 
   return (
-    <main className="p-6 md:p-10 max-w-6xl mx-auto space-y-12 text-left">
+    <main className="p-6 md:p-10 max-w-6xl mx-auto xl:mx-0 space-y-12 text-left">
       <section>
         <h2 className="text-title mb-1">Pulsos</h2>
         <p className="text-xs text-text-dim mb-5">Cada registro cuenta como una ocurrencia durante los últimos 30 días. La polaridad define qué significa cumplir la meta.</p>

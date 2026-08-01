@@ -909,7 +909,7 @@ export default function CompletadasView({
   };
 
   return (
-    <main className="animate-in fade-in flex flex-col gap-6 px-5 md:px-8 xl:px-10 pt-8 pb-16 max-w-[1600px] mx-auto w-full text-left">
+    <main className="animate-in fade-in flex flex-col gap-6 px-5 md:px-8 xl:px-10 pt-8 pb-16 max-w-[1600px] mx-auto xl:mx-0 w-full text-left">
       <HistorySearchControls
         period={period}
         query={historyQuery}

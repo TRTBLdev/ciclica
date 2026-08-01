@@ -547,7 +547,7 @@ function AreaDetail({
       )}
 
       {/* RENDER HORIZONTAL COLLAPSIBLE LISTS (Accordion Style) */}
-      <div className="flex-1 p-6 md:p-10 flex flex-col gap-6 max-w-4xl w-full mx-auto text-left pb-16 bg-base">
+      <div className="flex-1 p-6 md:p-10 flex flex-col gap-6 max-w-4xl w-full mx-auto xl:mx-0 text-left pb-16 bg-base">
          <section className="border-b border-border-line/30 pb-6">
             <h3
               onClick={() => setExpandCommitments(!expandCommitments)}

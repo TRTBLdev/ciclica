@@ -7,7 +7,7 @@ interface Props {
 
 export default function SyllabusPhasesLesson({ onBack }: Props) {
   return (
-    <div className="animate-in fade-in flex flex-col w-full px-6 md:px-10 py-10 pb-16 max-w-3xl mx-auto text-left bg-transparent">
+    <div className="animate-in fade-in flex flex-col w-full px-6 md:px-10 py-10 pb-16 max-w-3xl mx-auto xl:mx-0 text-left bg-transparent">
       {/* HEADER SECTION */}
       <div className="relative flex flex-col border-b border-border-line pb-6 mb-8">
         <button

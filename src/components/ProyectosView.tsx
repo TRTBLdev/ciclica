@@ -475,7 +475,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   };
 
   return (
-    <div className="flex flex-col gap-6 pt-6 pb-16 px-6 md:px-10 max-w-4xl mx-auto w-full relative z-10">
+    <div className="flex flex-col gap-6 pt-6 pb-16 px-6 md:px-10 max-w-4xl mx-auto xl:mx-0 xl:max-w-none w-full relative z-10">
       
       {/* Toolbar instead of ViewHeader */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between w-full mb-2 gap-4 relative z-50">
@@ -652,8 +652,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] xl:gap-8">
       {/* Activos list */}
-      <div className="mb-6">
+      <div className="mb-6 min-w-0">
         <div 
           onClick={() => setIsProjectsOpen(!isProjectsOpen)}
           className="flex justify-between items-center pb-2 cursor-pointer select-none group border-b border-border-line/40"
@@ -683,6 +684,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         )}
       </div>
 
+      <div className="min-w-0 xl:border-l xl:border-border-line/40 xl:pl-8">
       {/* Tareas Simples list */}
       <div className="mb-6">
         <div 
@@ -791,6 +793,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             )}
           </div>
         )}
+      </div>
+      </div>
       </div>
 
     </div>
