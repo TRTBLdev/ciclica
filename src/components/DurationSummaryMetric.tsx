@@ -48,8 +48,8 @@ export function ActivityDurationAverage({
   lastActivity,
   averageHours,
   count,
-  singularSample = 'ciclo completo',
-  pluralSample = 'ciclos completos',
+  singularSample = 'ciclo',
+  pluralSample = 'ciclos',
   averageLabel = 'Promedio/ciclo',
   className,
 }: ActivityDurationAverageProps) {

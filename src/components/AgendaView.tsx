@@ -180,7 +180,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
 
   // Group separators by time range slots
   const timeSlots = useMemo(() => {
-    const times = Array.from(new Set(separators.map(s => s.hora))).sort();
+    const times = Array.from(new Set<string>(separators.map(s => s.hora))).sort();
     return times.map((t, idx) => {
       const nextTime = idx < times.length - 1 ? times[idx + 1] : '23:59';
       const sepsForTime = separators.filter(s => s.hora === t);
@@ -568,10 +568,6 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
             const isCurrentTimeSlot = currentMins >= slot.startMins && currentMins < slot.endMins;
             const taskSpans = isOpen ? computeSlotTaskSpans(slotIdx) : [];
 
-            // Calculate covered day indices by taskSpans
-            const coveredDays = new Set<number>();
-            taskSpans.forEach(s => s.days.forEach(d => coveredDays.add(d)));
-
             return (
               <div key={slotIdx} className="border-b border-border-line/25 last:border-b-0 w-full">
                 
@@ -640,35 +636,6 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
                       </div>
                     ))}
 
-                    {/* Render Empty or Non-applicable cells for uncovered days */}
-                    {weekDays.map((date, dayIdx) => {
-                      if (coveredDays.has(dayIdx)) return null;
-
-                      const isoWeekday = getIsoWeekday(date);
-                      const isToday = isSameDay(date, new Date());
-                      const activeSep = slot.separators.find(s => separatorAppliesToDay(s, isoWeekday));
-                      const applies = Boolean(activeSep);
-
-                      return (
-                        <div
-                          key={dayIdx}
-                          style={{
-                            gridColumnStart: dayIdx + 1,
-                            gridColumnEnd: 'span 1',
-                          }}
-                          className={cn(
-                            "min-h-[44px] flex items-center justify-center border border-dashed border-border-line/20 p-2",
-                            !applies ? "bg-base-dim/10 border-none" : isToday ? "bg-accent/5 border-accent/20" : ""
-                          )}
-                        >
-                          {!applies ? (
-                            <span className="text-[9px] text-text-dim/30 font-mono italic">—</span>
-                          ) : (
-                            <span className="text-[9px] text-text-dim/20 font-mono">·</span>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
                 )}
               </div>
