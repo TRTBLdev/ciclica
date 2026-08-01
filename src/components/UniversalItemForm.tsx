@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppTask, AppearanceMode, Config, TaskType, ChecklistItem, QuotaPeriodUnit, RecurrenceUnit } from '../types';
-import { ChevronDown, Plus, X } from 'lucide-react';
+import { ChevronDown, Plus, X, CheckCircle2, Circle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Reorder } from 'motion/react';
 import LinkedText from './ui/LinkedText';
@@ -659,10 +659,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       {/* Checklist (Tarea/Hábito) */}
       {(type === 'Tarea' || type === 'Hábito') && (
         <div className="flex w-full flex-col gap-2 border-t border-border-line/60 pt-4 text-left">
-          <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Checklist (Guía Operativa):</span>
-          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+          <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider font-bold">Checklist (Guía Operativa):</span>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             {checklist.length === 0 ? (
-              <span className="text-[10px] text-primary italic pl-2">Sin ítems</span>
+              <span className="text-[10px] text-text-dim italic pl-1 font-light">Sin ítems en el checklist</span>
             ) : (
               <Reorder.Group axis="y" values={checklist} onReorder={setChecklist} className="space-y-1.5">
                 {checklist.map(item => {
@@ -671,43 +671,60 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                     <Reorder.Item 
                       key={item.id} 
                       value={item} 
-                      className="flex min-h-10 items-center gap-2 border-b border-border-line/60 bg-transparent px-0 py-2 select-none cursor-grab active:cursor-grabbing"
+                      className="flex items-center justify-between gap-2 py-1 px-1 rounded hover:bg-base-dim/20 group/chk cursor-grab active:cursor-grabbing border-b border-border-line/30"
                     >
-                      <GripIcon />
-                      <div className="flex-1 min-w-0">
-                        {isEditing ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            className="w-full border-0 border-b border-text-main bg-transparent px-0 py-0.5 text-xs text-text-main outline-none"
-                            value={editingChecklistItemText}
-                            onChange={e => setEditingChecklistItemText(e.target.value)}
-                            onBlur={() => handleSaveChecklistItemText(item.id)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleSaveChecklistItemText(item.id);
-                              }
-                              if (e.key === 'Escape') setEditingChecklistItemId(null);
-                            }}
-                          />
-                        ) : (
-                          <span 
-                            onClick={() => {
-                              setEditingChecklistItemId(item.id);
-                              setEditingChecklistItemText(item.text);
-                            }}
-                            className={cn("text-xs text-text-main cursor-text block truncate", item.done && "line-through opacity-60")}
-                            title="Haz clic para editar"
-                          >
-                            <LinkedText text={item.text} />
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <GripIcon />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChecklist(prev => prev.map(i => i.id === item.id ? { ...i, done: !i.done } : i));
+                          }}
+                          className="focus:outline-none bg-transparent border-0 p-0 text-text-dim hover:text-accent cursor-pointer flex items-center justify-center shrink-0"
+                          title={item.done ? "Marcar como pendiente" : "Marcar como completado"}
+                        >
+                          {item.done ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-500 stroke-[2.25]" />
+                          ) : (
+                            <Circle className="w-4 h-4 text-text-dim/60 stroke-[2.25]" />
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          {isEditing ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              className="w-full bg-base border border-border-line rounded px-1.5 py-0.5 text-xs text-text-main focus:outline-none focus:border-[#a2b29f]"
+                              value={editingChecklistItemText}
+                              onChange={e => setEditingChecklistItemText(e.target.value)}
+                              onBlur={() => handleSaveChecklistItemText(item.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveChecklistItemText(item.id);
+                                }
+                                if (e.key === 'Escape') setEditingChecklistItemId(null);
+                              }}
+                            />
+                          ) : (
+                            <span 
+                              onClick={() => {
+                                setEditingChecklistItemId(item.id);
+                                setEditingChecklistItemText(item.text);
+                              }}
+                              className={cn("text-xs text-text-main cursor-text block truncate font-light", item.done && "line-through opacity-50")}
+                              title="Haz clic para editar"
+                            >
+                              <LinkedText text={item.text} />
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => setChecklist(checklist.filter(i => i.id !== item.id))}
-                        className="text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer text-xs shrink-0"
+                        className="text-text-dim hover:text-red-500 bg-transparent border-0 cursor-pointer text-xs shrink-0 opacity-0 group-hover/chk:opacity-100 transition-opacity px-1"
+                        title="Eliminar ítem"
                       >
                         ✕
                       </button>
