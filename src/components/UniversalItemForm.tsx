@@ -723,10 +723,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                       <button
                         type="button"
                         onClick={() => setChecklist(checklist.filter(i => i.id !== item.id))}
-                        className="text-text-dim hover:text-red-500 bg-transparent border-0 cursor-pointer text-xs shrink-0 opacity-0 group-hover/chk:opacity-100 transition-opacity px-1"
+                        className="text-text-dim/60 hover:text-red-500 active:text-red-600 bg-transparent border-0 cursor-pointer shrink-0 p-1 rounded hover:bg-base-dim/40 transition-colors flex items-center justify-center"
                         title="Eliminar ítem"
+                        aria-label="Eliminar ítem"
                       >
-                        ✕
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </Reorder.Item>
                   );
