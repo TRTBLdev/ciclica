@@ -38,7 +38,7 @@ export default function IntentionForm({
   onSave,
   onUpdate,
   onDelete,
-  initialScale = 'phase',
+  initialScale = 'cycle',
   isInline = false,
   scale: controlledScale,
   periodStart: controlledPeriodStart,

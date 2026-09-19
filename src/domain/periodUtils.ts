@@ -312,9 +312,6 @@ export function getYearRange(todayDate = new Date()) {
 }
 
 export function generatePeriodLabel(scale: IntentionScale, start: string, end: string, phaseName?: BiologicalPhase, qKey?: string): string {
-  if (scale === 'phase') {
-    return `Semana · ${formatRangeText(start, end)}`;
-  }
   if (scale === 'cycle') {
     return `Mes · ${formatRangeText(start, end)}`;
   }
@@ -340,11 +337,6 @@ export function generatePeriodLabel(scale: IntentionScale, start: string, end: s
 export function getCurrentPeriod(scale: IntentionScale | 'free', config: Config | null, todayDate = new Date()) {
   if (scale === 'free') {
     return { start: '', end: '', label: 'Todo el tiempo' };
-  }
-  if (scale === 'phase') {
-    const range = getCalendarWeekRange(todayDate);
-    const label = generatePeriodLabel('phase', range.start, range.end);
-    return { start: range.start, end: range.end, label };
   }
   if (scale === 'cycle') {
     const range = getCalendarMonthRange(todayDate);

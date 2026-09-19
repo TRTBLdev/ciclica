@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X, CalendarRange } from 'lucide-react';
 import { AppTask, Config, HistoryRecord, Separator } from '../types';
 import { cn, timeToMins, minsToTime, getEffectiveAllocation } from '../lib/utils';
 import { getAppearanceDate, isAppearanceScheduledOnDate } from '../domain/appearance';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
+import GanttChart from './GanttChart';
 
 interface Props {
   config: Config | null;
@@ -122,6 +123,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
   // UI state
   const [pendientesOpen, setPendientesOpen] = useState(true);
   const [backlogOpen, setBacklogOpen] = useState(false);
+  const [ganttOpen, setGanttOpen] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(() => {
     const today = new Date();
     const day = today.getDay();
@@ -132,6 +134,17 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
   const [openSlots, setOpenSlots] = useState<Record<number, boolean>>({});
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
+
+  const ganttPeriod = useMemo(() => {
+    const start = new Date(weekStart);
+    start.setDate(start.getDate() - 30);
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 90);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
+  }, [weekStart]);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -732,6 +745,39 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
                   {backlogTasks.map(task => renderTaskCard(task))}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Drawer: Timeline / Gantt */}
+        <div className="border-t border-border-line/30 bg-base">
+          <button
+            onClick={() => setGanttOpen(!ganttOpen)}
+            className="flex items-center justify-between w-full px-4 md:px-6 py-2.5 text-left hover:bg-base-dim/20 transition-colors border-0 cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              {ganttOpen ? <ChevronDown className="w-3.5 h-3.5 text-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-text-dim" />}
+              <CalendarRange className="w-3.5 h-3.5 text-text-dim" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-text-main font-bold">
+                Línea de Tiempo / Panorama (Gantt)
+              </span>
+            </div>
+            <span className="text-[9px] font-mono text-text-dim/60 hidden sm:inline">
+              (Proyección temporal y dependencias de proyectos y tareas)
+            </span>
+          </button>
+
+          {ganttOpen && (
+            <div className="px-4 md:px-6 py-4 border-t border-border-line/15 bg-base-dim/5 max-h-[500px] overflow-y-auto no-scrollbar">
+              <GanttChart
+                config={config}
+                tasks={tasks}
+                history={history}
+                onUpdateTask={onUpdateTask}
+                scale="cuarto"
+                periodStart={ganttPeriod.start}
+                periodEnd={ganttPeriod.end}
+              />
             </div>
           )}
         </div>

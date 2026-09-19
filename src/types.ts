@@ -174,7 +174,7 @@ export interface ProgressSnapshot {
 
 // --- Intention System (Fase 3) ---
 
-export type IntentionScale = 'phase' | 'cycle' | 'quarter' | 'year';
+export type IntentionScale = 'cycle' | 'quarter' | 'year';
 
 export interface IntentionItem {
   id: string;                    // 'ii_{timestamp}_{random7}'
@@ -187,8 +187,9 @@ export interface IntentionItem {
   // Para 'hours':
   targetHours?: number;          // Horas target para el período completo
   // Para 'consistency':
-  targetDays?: number;           // Días target en el período completo
-  // 'completion' no necesita campos extra — se lee completed del task/proyecto
+  targetDays?: number;           // Días target en el período completo (ej. 90)
+  targetPercent?: number;        // Porcentaje target de consistencia (ej. 80 para >=80%)
+  // 'completion' no necesita campos extra — se lee completed del task/proyecto o progreso de subtareas
 }
 
 export interface LinkedItem {

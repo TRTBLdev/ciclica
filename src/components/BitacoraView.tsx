@@ -1,15 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarDays, BarChart3, CheckCircle2, BookOpen, Compass, X, Download } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Intention, IntentionScale, ProgressSnapshot } from '../types';
+import { Config, AppTask, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
 import AgendaView from './AgendaView';
 import ReportesView from './ReportesView';
 import CompletadasView from './CompletadasView';
-import PlanificarView from './PlanificarView';
-import BalanceView from './BalanceView';
+import IntencionesPanelView from './IntencionesPanelView';
 import SeguimientoView from './SeguimientoView';
 import { useToast } from './ToastProvider';
-import { getCurrentPeriod, formatLocalDate } from '../domain/periodUtils';
 
 const parseLocalDate = (dateStr: string) => {
   const parts = dateStr.split('-');
@@ -61,10 +59,8 @@ export default function BitacoraView({
   onNavigate,
 }: Props) {
   const { showToast } = useToast();
-  // Tabs: 'planificar' | 'balance' | 'historial' | 'archivo'
-  const [activeTab, setActiveTab] = useState<'agenda' | 'intenciones' | 'balance' | 'seguimiento' | 'historial' | 'archivo'>('agenda');
-  const [activeScale, setActiveScale] = useState<IntentionScale | 'free'>('cycle');
-  const [cursorDate, setCursorDate] = useState<Date>(new Date());
+  // Tabs: 'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'
+  const [activeTab, setActiveTab] = useState<'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'>('agenda');
 
   // Cycles archive states
   const [showAddHist, setShowAddHist] = useState(false);
@@ -325,41 +321,6 @@ export default function BitacoraView({
     document.body.removeChild(link);
   };
 
-  const isPrevPeriodInPast = () => {
-    if (activeScale === 'free') return false;
-    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
-    const startObj = parseLocalDate(currentPeriod.start);
-    startObj.setDate(startObj.getDate() - 1);
-    const prevPeriod = getCurrentPeriod(activeScale, config, startObj);
-    const prevEnd = parseLocalDate(prevPeriod.end);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return prevEnd < today;
-  };
-
-  const handlePrevPeriod = () => {
-    if (activeScale === 'free') return; // Rango libre no tiene prev/next definido aún
-    if (activeTab === 'intenciones' && isPrevPeriodInPast()) {
-      return; // Bloqueado
-    }
-    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
-    const startObj = parseLocalDate(currentPeriod.start);
-    startObj.setDate(startObj.getDate() - 1);
-    setCursorDate(startObj);
-  };
-
-  const handleNextPeriod = () => {
-    if (activeScale === 'free') return;
-    const currentPeriod = getCurrentPeriod(activeScale, config, cursorDate);
-    const endObj = parseLocalDate(currentPeriod.end);
-    endObj.setDate(endObj.getDate() + 1);
-    setCursorDate(endObj);
-  };
-
-  const currentPeriod = activeScale === 'free' 
-    ? { start: '', end: '', label: 'Todo el tiempo' } // TODO: Implementar rango libre real
-    : getCurrentPeriod(activeScale, config, cursorDate);
-
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base text-left">
       {/* Upper Navigation Tabs Bar */}
@@ -382,7 +343,7 @@ export default function BitacoraView({
             { id: 'intenciones', label: 'Intenciones', icon: <Compass className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'seguimiento', label: 'Seguimiento', icon: <CheckCircle2 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'historial', label: 'Historial', icon: <BookOpen className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-            { id: 'balance', label: 'Balance', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'reportes', label: 'Reportes', icon: <BarChart3 className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
           ].map(t => {
             const isActive = activeTab === t.id;
             return (
@@ -390,9 +351,6 @@ export default function BitacoraView({
                 key={t.id}
                 onClick={() => {
                   setActiveTab(t.id as any);
-                  if (t.id === 'intenciones' && activeScale === 'free') {
-                    setActiveScale('cycle');
-                  }
                 }}
                 className={cn(
                   "flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
@@ -408,74 +366,6 @@ export default function BitacoraView({
           })}
         </div>
       </div>
-
-        {/* Sub-Header: Scale Selector & Period Navigator */}
-        {(activeTab === 'intenciones' || activeTab === 'balance') && (
-          <div className="flex flex-col items-center gap-4 py-6 border-b border-border-line/20 px-6 md:px-10">
-            {/* Unified Scale Selector as separate pills */}
-            <div className="flex flex-wrap justify-center gap-2">
-              {(['cycle', 'quarter', 'year', 'free'] as const).map(s => {
-                if (s === 'free' && activeTab === 'intenciones') return null;
-                const labels: Record<string, string> = { cycle: 'Mes', quarter: 'Cuarto', year: 'Año', free: 'Libre' };
-                const isActive = activeScale === s;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setActiveScale(s)}
-                    className={cn(
-                      "px-4 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all border cursor-pointer",
-                      isActive
-                        ? "bg-text-main text-[var(--base-bg)] border-text-main font-light"
-                        : "bg-base border-border-line text-text-dim hover:text-text-main"
-                    )}
-                  >
-                    {labels[s]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Centered Date Selector styled like the period label indicator */}
-            {activeScale !== 'free' && (
-              <div className="flex items-center justify-center gap-4 w-full max-w-lg">
-                <button 
-                  onClick={handlePrevPeriod} 
-                  disabled={activeTab === 'intenciones' && isPrevPeriodInPast()}
-                  className="p-2 hover:text-text-main text-text-dim transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border-0 bg-transparent"
-                >
-                  ◀
-                </button>
-                
-                <div className="flex-1 text-center font-sans text-xs uppercase tracking-widest text-text-main font-light relative group py-2.5 border-y border-border-line/30" title="Haz click para seleccionar una fecha específica">
-                  {currentPeriod.label}
-                  <input
-                    type="date"
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={formatLocalDate(cursorDate)}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                         const newDate = parseLocalDate(e.target.value);
-                         if (activeTab === 'intenciones') {
-                           const today = new Date();
-                           today.setHours(0, 0, 0, 0);
-                           const newPeriod = getCurrentPeriod(activeScale, config, newDate);
-                           if (parseLocalDate(newPeriod.end) < today) {
-                             showToast("No puedes planificar períodos pasados.", 'error');
-                             return;
-                           }
-                         }
-                         setCursorDate(newDate);
-                      }
-                    }}
-                  />
-                </div>
-                
-                <button onClick={handleNextPeriod} className="p-2 hover:text-text-main text-text-dim transition-colors cursor-pointer border-0 bg-transparent">▶</button>
-                <button onClick={() => setCursorDate(new Date())} className="text-[10px] font-sans uppercase tracking-widest text-text-dim hover:text-text-main transition-colors cursor-pointer border-0 bg-transparent pl-2">Hoy</button>
-              </div>
-            )}
-          </div>
-        )}
 
       {/* Render Active Sub-View */}
       <div className="flex-grow w-full">
@@ -494,17 +384,13 @@ export default function BitacoraView({
           </div>
         )}
 
-        {activeTab === 'intenciones' && activeScale !== 'free' && (
-          <div className="animate-in fade-in duration-200 p-6 md:p-10 max-w-4xl mx-auto xl:mx-0 text-left">
-            <PlanificarView
-              scale={activeScale}
-              intentions={intentions}
+        {activeTab === 'intenciones' && (
+          <div className="animate-in fade-in duration-200 p-6 md:p-8 lg:p-10 w-full text-left">
+            <IntencionesPanelView
+              config={config}
               tasks={tasks}
               history={history}
-              config={config}
-              periodStart={currentPeriod.start}
-              periodEnd={currentPeriod.end}
-              periodLabel={currentPeriod.label}
+              intentions={intentions}
               onAddIntention={onAddIntention}
               onUpdateIntention={onUpdateIntention}
               onDeleteIntention={onDeleteIntention}
@@ -513,16 +399,13 @@ export default function BitacoraView({
           </div>
         )}
 
-        {activeTab === 'balance' && (
+        {activeTab === 'reportes' && (
           <div className="animate-in fade-in duration-200">
-            <BalanceView
-              scale={activeScale}
-              intentions={intentions}
+            <ReportesView
+              config={config}
               tasks={tasks}
               history={history}
-              config={config}
-              periodStart={currentPeriod.start}
-              periodEnd={currentPeriod.end}
+              intentions={intentions}
             />
           </div>
         )}

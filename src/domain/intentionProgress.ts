@@ -7,7 +7,6 @@ export type AreaCommitment = {
 };
 
 export const INTENTION_SCALE_LABELS = {
-  phase: 'Fase',
   cycle: 'Ciclo',
   quarter: 'Trimestre',
   year: 'Año'

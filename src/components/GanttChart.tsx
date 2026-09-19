@@ -9,25 +9,25 @@ interface GanttChartProps {
   tasks: AppTask[];
   history?: HistoryRecord[];
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
-  scale: 'phase' | 'cycle' | 'quarter' | 'year';
-  periodStart: string;
-  periodEnd: string;
+  scale?: 'cycle' | 'quarter' | 'year';
+  periodStart?: string;
+  periodEnd?: string;
 }
 
 export type GanttScale = 'ciclo' | 'cuarto' | 'año';
 
-export default function GanttChart({ config, tasks, history = [], onUpdateTask, scale, periodStart, periodEnd }: GanttChartProps) {
+export default function GanttChart({ config, tasks, history = [], onUpdateTask, scale = 'cuarto', periodStart = '', periodEnd = '' }: GanttChartProps) {
   const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgLines, setSvgLines] = useState<{ d: string; id: string }[]>([]);
 
   const mapPropToGanttScale = (s: string): GanttScale => {
-    if (s === 'phase' || s === 'cycle') return 'ciclo';
+    if (s === 'cycle') return 'ciclo';
     if (s === 'quarter') return 'cuarto';
     return 'año';
   };
 
-  const mapGanttScaleToPropScale = (s: GanttScale): 'phase' | 'cycle' | 'quarter' | 'year' => {
+  const mapGanttScaleToPropScale = (s: GanttScale): 'cycle' | 'quarter' | 'year' => {
     if (s === 'ciclo') return 'cycle';
     if (s === 'cuarto') return 'quarter';
     return 'year';

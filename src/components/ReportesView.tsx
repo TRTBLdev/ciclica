@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { AppTask, Config, HistoryRecord, BiologicalPhase } from '../types';
+import { AppTask, Config, HistoryRecord, BiologicalPhase, Intention } from '../types';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import {
   BarChart3,
@@ -19,7 +19,8 @@ import {
   ChevronRight,
   ChevronDown,
   Award,
-  CalendarDays
+  CalendarDays,
+  Target
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
@@ -30,11 +31,12 @@ interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  intentions?: Intention[];
 }
 
 type PeriodType = 'hoy' | 'semana' | '7dias' | 'mes' | '30dias' | 'ciclo' | 'custom';
 
-export default function ReportesView({ config, tasks, history }: Props) {
+export default function ReportesView({ config, tasks, history, intentions = [] }: Props) {
   const [period, setPeriod] = useState<PeriodType>('7dias');
   const [areaFilter, setAreaFilter] = useState('Todas');
   const [showOccupancy, setShowOccupancy] = useState(false);
@@ -120,6 +122,23 @@ export default function ReportesView({ config, tasks, history }: Props) {
     }
     return { start, end };
   }, [period, customStart, customEnd, config]);
+
+  // Find matching intention for the selected period
+  const activeIntention = useMemo(() => {
+    if (!intentions || intentions.length === 0) return null;
+    const startStr = formatDateOnly(periodRange.start);
+    const endStr = formatDateOnly(periodRange.end);
+
+    // 1. Exact match
+    const exact = intentions.find(i => i.periodStart === startStr && i.periodEnd === endStr);
+    if (exact) return exact;
+
+    // 2. Overlapping quarter or month
+    const overlapping = intentions.find(i => {
+      return i.periodStart <= endStr && i.periodEnd >= startStr;
+    });
+    return overlapping || null;
+  }, [intentions, periodRange]);
 
   // 2. Filter history items in selected range by date
   const filteredHistoryByDate = useMemo(() => {
@@ -756,6 +775,47 @@ SORT date DESC
           </div>
         )}
       </div>
+
+      {/* INTENTION CONTEXT BANNER ("EL ESPEJO") */}
+      {activeIntention && (
+        <div className="bg-base-dim/15 border border-border-line/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Compass className="w-3.5 h-3.5 text-accent" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
+                Espejo de Intención Activa ({activeIntention.scale === 'quarter' ? 'Cuarto' : activeIntention.scale === 'cycle' ? 'Mes' : 'Año'})
+              </span>
+            </div>
+            {activeIntention.theme ? (
+              <p className="text-xs font-sans text-text-main italic font-medium">
+                "{activeIntention.theme}"
+              </p>
+            ) : (
+              <p className="text-xs font-sans text-text-dim">Sin norte temático escrito para este período.</p>
+            )}
+          </div>
+
+          {/* Commitment pills */}
+          {activeIntention.items && activeIntention.items.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              {activeIntention.items.map(item => {
+                const task = tasks.find(t => t.id === (item.taskId || item.projectId));
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-base border border-border-line/30 rounded-lg text-[10px] font-mono text-text-main shadow-2xs"
+                  >
+                    <Target className="w-3 h-3 text-primary" />
+                    <span className="font-medium">{task?.text || item.areaName}</span>
+                    {item.targetPercent && <span className="text-primary font-bold">≥{item.targetPercent}%</span>}
+                    {item.targetDays && <span className="text-primary font-bold">{item.targetDays}d</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* METRICS GRID - STYLED WITH NON-INTERSECTING LINES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border-t border-l border-border-line/30 mb-8">
