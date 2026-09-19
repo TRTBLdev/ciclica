@@ -243,39 +243,22 @@ body {
   background: #C8E8E3;
 }
 
-.tracking-result-cell[data-result='complete-planned'] {
+.tracking-result-cell[data-result='complete'] {
   border-color: #3f8f68;
   background: #3f8f68;
 }
 
-.tracking-result-cell[data-result='complete-extra'] {
-  border-color: #FEF494;
-  background: #FEF494;
-}
-
-.tracking-result-cell[data-result='partial-planned'] {
+.tracking-result-cell[data-result='partial'] {
   border-color: #3f8f68;
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
-.tracking-result-cell[data-result='partial-extra'] {
-  border-color: #FEF494;
-}
-
-.tracking-result-cell[data-result='partial-planned']::before,
-.tracking-result-cell[data-result='partial-extra']::before {
+.tracking-result-cell[data-result='partial']::before {
   position: absolute;
   inset: 0;
   content: '';
   clip-path: polygon(0 0, 0 100%, 100% 100%);
-}
-
-.tracking-result-cell[data-result='partial-planned']::before {
   background: #3f8f68;
-}
-
-.tracking-result-cell[data-result='partial-extra']::before {
-  background: #FEF494;
 }
 
 .tracking-result-cell[data-result='missed'] {

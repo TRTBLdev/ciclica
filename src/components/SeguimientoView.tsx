@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { CalendarDays, CalendarRange } from 'lucide-react';
 import { AppTask, Config, HistoryRecord, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
 import { DateRange, formatDateOnly, getNominalDays, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
@@ -71,18 +72,12 @@ function formatShortDate(value?: string) {
 export default function SeguimientoView({ config, tasks, history, progressSnapshots }: Props) {
   void config;
   const today = new Date();
-  const days = getRecentDates(30, today);
+  const days = getRecentDates(30, today).reverse();
   const pulses = tasks.filter(task => task.type === 'Pulso');
   const trackable = tasks.filter(task => task.type === 'Hábito' || (task.type === 'Rutina' && isRoutineConfigured(task)));
-  const frequent = buildRoutineGroups(trackable, task => (
-    getAppearanceMode(task) === 'quota'
-    || getNominalDays(getAppearanceFrequency(task), getAppearanceUnit(task)) < 7
-  ));
-  const monthly = buildRoutineGroups(trackable, task => (
-    getAppearanceMode(task) !== 'quota'
-    && getNominalDays(getAppearanceFrequency(task), getAppearanceUnit(task)) >= 7
-  ));
+  const allHabitsRoutines = buildRoutineGroups(trackable, () => true);
   const year = today.getFullYear();
+  const [trackingView, setTrackingView] = useState<'30days' | 'annual'>('30days');
   const [expandedRoutines, setExpandedRoutines] = useState<Set<string>>(() => new Set());
   const toggleRoutine = (routineId: string) => {
     setExpandedRoutines(previous => {
@@ -92,18 +87,31 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
       return next;
     });
   };
-  const [expandedMonthlyRoutines, setExpandedMonthlyRoutines] = useState<Set<string>>(() => new Set());
-  const toggleMonthlyRoutine = (routineId: string) => {
-    setExpandedMonthlyRoutines(previous => {
-      const next = new Set(previous);
-      if (next.has(routineId)) next.delete(routineId);
-      else next.add(routineId);
-      return next;
-    });
-  };
 
-  const hasFrequent = frequent.routines.length > 0 || frequent.standaloneHabits.length > 0;
-  const hasMonthly = monthly.routines.length > 0 || monthly.standaloneHabits.length > 0;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pulsosScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (pulsosScrollRef.current) {
+        pulsosScrollRef.current.scrollLeft = pulsosScrollRef.current.scrollWidth;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (trackingView === '30days') {
+      const frame = requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+        }
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [trackingView]);
+
+  const hasItems = allHabitsRoutines.routines.length > 0 || allHabitsRoutines.standaloneHabits.length > 0;
 
   return (
     <main className="p-6 md:p-10 max-w-6xl mx-auto xl:mx-0 space-y-12 text-left">
@@ -111,7 +119,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
         <h2 className="text-title mb-1">Pulsos</h2>
         <p className="text-xs text-text-dim mb-5">Cada registro cuenta como una ocurrencia durante los últimos 30 días. La polaridad define qué significa cumplir la meta.</p>
         {pulses.length === 0 ? <Empty text="No hay pulsos configurados." /> : (
-          <div className="space-y-4 overflow-x-auto pb-2">
+          <div ref={pulsosScrollRef} className="space-y-4 overflow-x-auto pb-2">
             <TrackingHeader days={days} />
             {pulses.map(pulse => {
               const target = Math.max(1, pulse.targetCount || pulse.objetivo || 1);
@@ -147,36 +155,71 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
       </section>
 
       <section>
-        <h2 className="text-title mb-1">Ritmo frecuente</h2>
-        <p className="text-xs text-text-dim mb-5">Hoy aparece primero; desplaza hacia la derecha para consultar los 29 días anteriores.</p>
-        {!hasFrequent ? <Empty text="No hay elementos con ritmo menor de siete días." /> : (
-          <div className="space-y-3 overflow-x-auto pb-2">
-            <TrackingHeader days={days} />
-            {frequent.routines.map(group => (
-              <React.Fragment key={group.routine.id}><FrequentRoutineGroup
-                group={group}
-                days={days}
-                tasks={tasks}
-                history={history}
-                snapshots={progressSnapshots}
-                expanded={expandedRoutines.has(group.routine.id)}
-                onToggle={() => toggleRoutine(group.routine.id)}
-              /></React.Fragment>
-            ))}
-            {frequent.standaloneHabits.map(habit => (
-              <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} days={days} history={history} snapshots={progressSnapshots} /></React.Fragment>
-            ))}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 className="text-title mb-1">Hábitos y Rutinas</h2>
+            <p className="text-xs text-text-dim">
+              {trackingView === '30days'
+                ? 'Pasado a la izquierda; hoy al extremo derecho. Desplaza para consultar los días anteriores.'
+                : `Promedio de apariciones y ciclos cerrados o vencidos en cada mes · ${year}.`}
+            </p>
           </div>
-        )}
-        <ResultLegend />
-      </section>
+          <div className="flex items-center gap-6 border-b border-border-line/40 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setTrackingView('30days')}
+              className={cn(
+                'flex items-center gap-1.5 pb-2 -mb-px text-xs font-mono uppercase tracking-wider transition-all cursor-pointer bg-transparent border-0 border-b-2 outline-none',
+                trackingView === '30days'
+                  ? 'border-text-main text-text-main font-bold'
+                  : 'border-transparent text-text-dim hover:text-text-main'
+              )}
+            >
+              <CalendarDays className={cn('w-3.5 h-3.5 transition-colors', trackingView === '30days' ? 'text-text-main' : 'text-text-dim')} />
+              <span>30 días</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrackingView('annual')}
+              className={cn(
+                'flex items-center gap-1.5 pb-2 -mb-px text-xs font-mono uppercase tracking-wider transition-all cursor-pointer bg-transparent border-0 border-b-2 outline-none',
+                trackingView === 'annual'
+                  ? 'border-text-main text-text-main font-bold'
+                  : 'border-transparent text-text-dim hover:text-text-main'
+              )}
+            >
+              <CalendarRange className={cn('w-3.5 h-3.5 transition-colors', trackingView === 'annual' ? 'text-text-main' : 'text-text-dim')} />
+              <span>Resumen anual</span>
+            </button>
+          </div>
+        </div>
 
-      <ProjectWorkCalendar tasks={tasks} history={history} />
-
-      <section>
-        <h2 className="text-title mb-1">Resumen Anual Rutinas y Hábitos · {year}</h2>
-        <p className="text-xs text-text-dim mb-5">Promedio de apariciones y ciclos cerrados o vencidos en cada mes. El punto indica actividad sin convertirla en cierre.</p>
-        {!hasMonthly ? <Empty text="No hay hábitos o rutinas con frecuencia semanal o mayor." /> : (
+        {!hasItems ? (
+          <Empty text="No hay hábitos o rutinas configurados." />
+        ) : trackingView === '30days' ? (
+          <div ref={scrollRef} className="space-y-3 overflow-x-auto pb-2">
+            <TrackingHeader days={days} />
+            {allHabitsRoutines.routines.map(group => (
+              <React.Fragment key={group.routine.id}>
+                <FrequentRoutineGroup
+                  group={group}
+                  days={days}
+                  tasks={tasks}
+                  history={history}
+                  snapshots={progressSnapshots}
+                  expanded={expandedRoutines.has(group.routine.id)}
+                  onToggle={() => toggleRoutine(group.routine.id)}
+                />
+              </React.Fragment>
+            ))}
+            {allHabitsRoutines.standaloneHabits.map(habit => (
+              <React.Fragment key={habit.id}>
+                <HabitTrackingRow habit={habit} days={days} history={history} snapshots={progressSnapshots} />
+              </React.Fragment>
+            ))}
+            <ResultLegend />
+          </div>
+        ) : (
           <section className="overflow-x-auto pb-2" aria-label="Resultados mensuales">
             <table className="w-max border-collapse text-xs">
               <thead>
@@ -187,7 +230,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                 </tr>
               </thead>
               <tbody>
-                {monthly.routines.map(group => (
+                {allHabitsRoutines.routines.map(group => (
                   <React.Fragment key={group.routine.id}>
                     <MonthlyTaskRow
                       task={group.routine}
@@ -195,23 +238,29 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                       snapshots={progressSnapshots}
                       year={year}
                       activityTaskIds={group.habits.map(habit => habit.id)}
-                      expanded={expandedMonthlyRoutines.has(group.routine.id)}
-                      onToggle={() => toggleMonthlyRoutine(group.routine.id)}
+                      expanded={expandedRoutines.has(group.routine.id)}
+                      onToggle={() => toggleRoutine(group.routine.id)}
                       hasNested={group.habits.length > 0}
                     />
-                    {expandedMonthlyRoutines.has(group.routine.id) && group.habits.map(habit => (
-                      <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} nested /></React.Fragment>
+                    {expandedRoutines.has(group.routine.id) && group.habits.map(habit => (
+                      <React.Fragment key={habit.id}>
+                        <MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} nested />
+                      </React.Fragment>
                     ))}
                   </React.Fragment>
                 ))}
-                {monthly.standaloneHabits.map(habit => (
-                  <React.Fragment key={habit.id}><MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} /></React.Fragment>
+                {allHabitsRoutines.standaloneHabits.map(habit => (
+                  <React.Fragment key={habit.id}>
+                    <MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} />
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
           </section>
         )}
       </section>
+
+      <ProjectWorkCalendar tasks={tasks} history={history} />
     </main>
   );
 }
@@ -490,9 +539,9 @@ function RoutineCycleCell({
   }
   const status = getSnapshotResultStatus(snapshot);
   const state: ResultCellState = status === 'complete'
-    ? scheduled ? 'complete-planned' : 'complete-extra'
+    ? 'complete'
     : status === 'partial'
-      ? scheduled ? 'partial-planned' : 'partial-extra'
+      ? 'partial'
       : 'missed';
   return <ResultCell state={state} activity={activity} label={`${dateKey}: rutina ${status === 'complete' ? 'completa' : status === 'partial' ? `parcial, ${snapshot.progressPercent}%` : 'no completada'}`} />;
 }
@@ -531,11 +580,11 @@ function HabitTrackingRow({
           return <ResultCell state={state} activity={activity} label={`${dateKey}: ${status}${activity ? ', con actividad' : ''}`} />;
         }
         const state: ResultCellState = result.status === 'complete'
-          ? scheduled ? 'complete-planned' : 'complete-extra'
+          ? 'complete'
           : result.status === 'partial'
-            ? scheduled ? 'partial-planned' : 'partial-extra'
+            ? 'partial'
             : 'missed';
-        return <ResultCell state={state} activity={activity} label={`${dateKey}: ${result.status === 'complete' ? scheduled ? 'completo en fecha' : 'completo fuera de fecha' : result.status === 'partial' ? `${scheduled ? 'parcial en fecha' : 'parcial fuera de fecha'}, ${result.progressPercent}%` : 'no completado'}${activity ? ', con actividad' : ''}`} />;
+        return <ResultCell state={state} activity={activity} label={`${dateKey}: ${result.status === 'complete' ? 'completo' : result.status === 'partial' ? `parcial, ${result.progressPercent}%` : 'no completado'}${activity ? ', con actividad' : ''}`} />;
       }}
     />
   );
@@ -624,10 +673,8 @@ function MonthlyResultCell({
 type ResultCellState =
   | 'empty'
   | 'planned'
-  | 'complete-planned'
-  | 'complete-extra'
-  | 'partial-planned'
-  | 'partial-extra'
+  | 'complete'
+  | 'partial'
   | 'missed';
 
 interface ResolvedResult {
@@ -665,9 +712,29 @@ function getResolvedResults(
 function TrackingHeader({ days }: { days: Date[] }) {
   return (
     <header className="grid grid-cols-[190px_repeat(30,20px)] gap-1 items-end min-w-[980px] border-b border-border-line/40 pb-2">
-      <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim">Hoy → pasado</span>
+      <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim">Pasado → hoy</span>
       <ul className="contents list-none m-0 p-0">
-        {days.map((date, index) => <li key={formatDateOnly(date)} className="contents"><time dateTime={formatDateOnly(date)} className={cn('block text-center text-[8px] font-mono text-text-dim', index === 0 && 'font-bold text-primary')} title={formatDateOnly(date)}>{date.getDate()}</time></li>)}
+        {days.map((date, index) => {
+          const isToday = index === days.length - 1;
+          const fullDateTitle = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+          return (
+            <li key={formatDateOnly(date)} className="flex flex-col items-center justify-end text-center leading-tight">
+              <abbr
+                title={fullDateTitle}
+                className={cn('no-underline text-[9px]', isToday ? 'font-bold text-primary' : 'text-text-dim')}
+              >
+                {date.toLocaleDateString('es-ES', { weekday: 'narrow' })}
+              </abbr>
+              <time
+                dateTime={formatDateOnly(date)}
+                className={cn('block font-mono text-[8px]', isToday ? 'font-bold text-primary' : 'text-text-dim')}
+                title={fullDateTitle}
+              >
+                {date.getDate()}
+              </time>
+            </li>
+          );
+        })}
       </ul>
     </header>
   );
@@ -728,11 +795,9 @@ function MonthlyOutcomeCell({
 
 function ResultLegend() {
   const entries: [ResultCellState, string][] = [
-    ['planned', 'Pendiente'],
-    ['complete-planned', 'Completo · en fecha'],
-    ['complete-extra', 'Completo · fuera de fecha'],
-    ['partial-planned', 'Parcial · en fecha'],
-    ['partial-extra', 'Parcial · fuera de fecha'],
+    ['planned', 'Programado'],
+    ['complete', 'Completo'],
+    ['partial', 'Parcial'],
     ['missed', 'No completado'],
   ];
   return (
