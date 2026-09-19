@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot } from '../types';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
@@ -55,6 +55,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
 
   // Collapsible sections state
   const [showPulsos, setShowPulsos] = useState(true);
+  const [showLogs, setShowLogs] = useState(true);
   const [showTimeline, setShowTimeline] = useState(true);
   const [showFlexible, setShowFlexible] = useState(true);
   const [showBacklog, setShowBacklog] = useState(true);
@@ -263,11 +264,10 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
       pulseLogValue: task?.type === 'Pulso' ? getPulseLogValue(task, rec) : undefined,
       originalRecord: rec
     };
-  });
+  }).sort((a, b) => timeToMins(a.hora) - timeToMins(b.hora));
 
   const timedItems = [
     ...timedTasks,
-    ...mappedRecords,
     ...(config?.separators || [])
       .filter(separator => !separator.weekdays?.length || separator.weekdays.includes(getIsoWeekday(new Date())))
       .map((s, idx) => ({ ...s, isSeparator: true, separatorIndex: idx }))
@@ -506,29 +506,33 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
           </div>
 
           <div className="flex justify-between text-[9px] tracking-wide font-mono">
-            <span className={cn(
-              "transition-colors",
-              totalSoporteReal > soporteBudget ? "text-red-500 font-semibold" : "text-text-dim/80"
-            )}>
-              🛡️ Soporte: <span className={cn("font-bold", totalSoporteReal > soporteBudget ? "text-red-500" : "text-text-main")}>{totalSoporteReal.toFixed(1)}h / {soporteBudget.toFixed(1)}h</span>
+            <span className="text-text-dim/80">
+              🛡️ Soporte: <span className="font-bold text-text-main">{totalSoporteReal.toFixed(1)}h</span>
             </span>
             <span className={cn(
               "transition-colors",
-              totalInversionReal > inversionBudget ? "text-red-500 font-semibold" : "text-text-dim/80"
+              totalInversionReal > inversionBudget ? "text-orange-500 font-semibold" : "text-text-dim/80"
             )}>
-              ⚡ Inversión: <span className={cn("font-bold", totalInversionReal > inversionBudget ? "text-red-500" : "text-text-main")}>{totalInversionReal.toFixed(1)}h / {inversionBudget.toFixed(1)}h</span>
+              ⚡ Inversión: <span className={cn("font-bold", totalInversionReal > inversionBudget ? "text-orange-500" : "text-text-main")}>{totalInversionReal.toFixed(1)}h / {inversionBudget.toFixed(1)}h</span>
             </span>
           </div>
 
-          {/* Validating/celebratory messages */}
-          {totalSoporteReal > 0 && totalSoporteReal <= soporteBudget && (
-            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-1 uppercase tracking-wider">
-              🛡️ {totalSoporteReal.toFixed(1)}h de soporte vital.
+          {/* Logros sutiles integrados con la barra de dedicación (Opción B) */}
+          {todayRecords.length > 0 && (
+            <div className="text-[10px] font-mono text-[#81b29a] flex items-center gap-1.5 pt-1 border-t border-border-line/20 mt-1">
+              <Check className="w-3 h-3 stroke-[2.5]" />
+              <span>
+                {todayRecords.filter(h => h.isCompletion).length > 0
+                  ? `${todayRecords.filter(h => h.isCompletion).length} ${todayRecords.filter(h => h.isCompletion).length === 1 ? 'tarea completada' : 'tareas completadas'} hoy`
+                  : `${todayRecords.length} ${todayRecords.length === 1 ? 'registro de actividad' : 'registros de actividad'} hoy`}
+              </span>
             </div>
           )}
-          {totalSoporteReal > soporteBudget && (
-            <div className="text-[9px] text-red-500 font-mono leading-tight mt-1 uppercase tracking-wider font-semibold">
-              ⚠️ Has superado el presupuesto de soporte sugerido para hoy.
+
+          {/* Validating/celebratory messages */}
+          {totalSoporteReal > 0 && (
+            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-1 uppercase tracking-wider">
+              🛡️ {totalSoporteReal.toFixed(1)}h dedicadas a soporte vital.
             </div>
           )}
           {totalInversionReal >= inversionBudget && inversionBudget > 0 && totalInversionReal <= (inversionBudget + 1) && (
@@ -815,8 +819,84 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
             </div>
           )}
 
+          {/* Logs Section (Activity recorded today) */}
+          {mappedRecords.length > 0 && (
+            <div className={cn("flex flex-col gap-4", pulsos.length > 0 && "border-t border-border-line pt-6")}>
+              <div className="flex items-center justify-between border-b border-border-line/30 pb-2">
+                <h3
+                  onClick={() => setShowLogs(!showLogs)}
+                  className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
+                >
+                  <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Logs
+                  <span className="text-[10px] font-mono text-text-dim font-normal ml-1">
+                    ({mappedRecords.length} {mappedRecords.length === 1 ? 'registro' : 'registros'} · {hoursWorkedToday.toFixed(1)}h)
+                  </span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowLogs(!showLogs)}
+                  aria-label={showLogs ? 'Contraer logs' : 'Expandir logs'}
+                  className="text-[11px] text-[#a2b29f] hover:text-text-main flex items-center gap-1 font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 outline-none"
+                >
+                  {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
+              {showLogs && (
+                <div className="space-y-1 bg-transparent animate-in fade-in duration-200">
+                  {mappedRecords.map(t => {
+                    const recordTask = t.originalRecord?.taskId ? tasks.find(task => task.id === t.originalRecord.taskId) : undefined;
+                    const isPulseRecord = recordTask?.type === 'Pulso';
+                    const canStartTimer = !isPulseRecord && recordTask && onStartTimer && activeTimer?.taskId !== recordTask.id && canTrackTask(recordTask, tasks, history);
+
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => {
+                          if (canStartTimer) {
+                            onStartTimer(t.originalRecord.taskId);
+                          }
+                        }}
+                        className={cn(
+                          "relative flex items-center justify-between py-2.5 border-b border-border-line/20 pl-4 pr-3 group hover:bg-base-dim/10 transition-colors text-left select-none my-1 animate-in fade-in duration-200 rounded-lg",
+                          canStartTimer && "cursor-pointer"
+                        )}
+                        title={canStartTimer ? "Hacer clic para continuar el timer ⏱️" : undefined}
+                        aria-label={isPulseRecord ? `${t.text}: ${t.pulseLogValue}` : undefined}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs font-mono font-bold text-text-dim shrink-0">{t.hora}</span>
+                          <span className="text-[9px] uppercase font-mono tracking-widest text-[#73c2b8] border border-[#73c2b8]/30 px-2 py-0.5 rounded-full leading-none flex items-center gap-1 shrink-0 bg-transparent">
+                            {isPulseRecord ? <Activity className="w-2.5 h-2.5 text-[#73c2b8]" /> : <Clock className="w-2.5 h-2.5 text-[#73c2b8]" />}
+                            {isPulseRecord ? 'Pulso' : 'log'}
+                          </span>
+                          <span className={cn("text-xs font-light text-text-main truncate", !isPulseRecord && "line-through opacity-65", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
+                            {t.text}
+                          </span>
+                          {t.category && (
+                            <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
+                          )}
+                        </div>
+
+                        {isPulseRecord ? (
+                          <div className="shrink-0 font-mono text-xs font-medium text-[#73c2b8]">
+                            {t.pulseLogValue}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-4 text-xs font-mono font-bold text-[#73c2b8] shrink-0">
+                            +{t.duration.toFixed(2)}h
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Línea de Tiempo Section */}
-          <div className={cn("flex flex-col gap-4", pulsos.length > 0 && "border-t border-border-line pt-8")}>
+          <div className={cn("flex flex-col gap-4", (pulsos.length > 0 || mappedRecords.length > 0) && "border-t border-border-line pt-8")}>
             <div className="flex items-center justify-between border-b border-border-line/30 pb-2">
               <h3
                 onClick={() => setShowTimeline(!showTimeline)}
@@ -1152,53 +1232,6 @@ function TimelineRenderer({
           </div>
         );
       }
-    } else if (t.isRecord) {
-      const areaConfig = config?.areas?.[t.category || ''];
-      const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-      const recordTask = t.originalRecord?.taskId ? allTasks.find(task => task.id === t.originalRecord.taskId) : undefined;
-      const isPulseRecord = recordTask?.type === 'Pulso';
-      const canStartTimer = !isPulseRecord && recordTask && onStartTimer && activeTimer?.taskId !== recordTask.id && canTrackTask(recordTask, allTasks, history);
-
-      renderedItems.push(
-        <div
-          key={t.id}
-          onClick={() => {
-            if (canStartTimer) {
-              onStartTimer(t.originalRecord.taskId);
-            }
-          }}
-          className={cn(
-            "relative flex items-center justify-between py-2.5 border-b border-border-line/20 pl-4 pr-3 group hover:bg-base-dim/10 transition-colors text-left select-none my-1 animate-in fade-in duration-200",
-            canStartTimer && "cursor-pointer"
-          )}
-          title={canStartTimer ? "Hacer clic para iniciar tracker de nuevo ⏱️" : undefined}
-          aria-label={isPulseRecord ? `${t.text}: ${t.pulseLogValue}` : undefined}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-xs font-mono font-bold text-text-dim shrink-0">{t.hora}</span>
-            <span className="text-[9px] uppercase font-mono tracking-widest text-[#73c2b8] border border-[#73c2b8]/30 px-2 py-0.5 rounded-full leading-none flex items-center gap-1 shrink-0 bg-transparent">
-              {isPulseRecord ? <Activity className="w-2.5 h-2.5 text-[#73c2b8]" /> : <Clock className="w-2.5 h-2.5 text-[#73c2b8]" />}
-              {isPulseRecord ? 'Pulso' : 'log'}
-            </span>
-            <span className={cn("text-xs font-light text-text-main truncate", !isPulseRecord && "line-through opacity-65", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
-              {t.text}
-            </span>
-            {t.category && (
-              <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
-            )}
-          </div>
-
-          {isPulseRecord ? (
-            <div className="shrink-0 font-mono text-xs font-medium text-[#73c2b8]">
-              {t.pulseLogValue}
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 text-xs font-mono font-bold text-[#73c2b8] shrink-0">
-              +{t.duration.toFixed(2)}h
-            </div>
-          )}
-        </div>
-      );
     } else {
       const durationMins = (t.duracion || 0) * 60;
       const endMins = startMins + durationMins;
