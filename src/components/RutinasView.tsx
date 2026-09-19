@@ -424,6 +424,7 @@ export default function RutinasView({
             }}
           />
           <SortDropdown
+            align="left"
             options={[
               { label: 'Manual', value: 'manual' },
               { label: 'Prioridad', value: 'priority' },
@@ -650,6 +651,12 @@ export default function RutinasView({
                             </React.Fragment>
                           ))}
                         </div>
+                        <progress
+                          max={100}
+                          value={routineProgress || 0}
+                          aria-label={`Progreso de la rutina: ${routineProgress || 0}%`}
+                          className="mt-3 block h-0.5 w-full appearance-none overflow-hidden accent-emerald-600 [&::-webkit-progress-bar]:bg-border-line/40 [&::-webkit-progress-value]:bg-emerald-600 [&::-moz-progress-bar]:bg-emerald-600"
+                        />
                       </div>
 
                       {/* Controls Column (on the right) */}
@@ -761,7 +768,6 @@ export default function RutinasView({
                         )}
                       </div>
                     </div>
-
                     {configured && routineReady && !cycleClosed && (
                       <button
                         type="button"
@@ -771,12 +777,6 @@ export default function RutinasView({
                         Completar rutina
                       </button>
                     )}
-                    <div className="mt-2 h-0.5 w-full overflow-hidden bg-[var(--color-border-line)]/30">
-                      <div
-                        className="h-full bg-[var(--color-primary)] transition-all duration-500"
-                        style={{ width: `${routineProgress || 0}%` }}
-                      ></div>
-                    </div>
 
                     {isExpanded && (
                       <section className="relative mt-4 flex flex-col gap-2 pl-4 animate-in fade-in duration-200" aria-label={`Hábitos de ${routine.text}`}>

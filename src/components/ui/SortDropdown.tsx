@@ -13,6 +13,7 @@ interface Props {
   onChange: (val: string) => void;
   title?: string;
   className?: string;
+  align?: 'left' | 'right';
 }
 
 export default function SortDropdown({
@@ -20,7 +21,8 @@ export default function SortDropdown({
   currentValue,
   onChange,
   title = 'Ordenar por',
-  className
+  className,
+  align = 'left'
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -37,6 +39,20 @@ export default function SortDropdown({
 
   return (
     <div className={cn("relative inline-block", className)} ref={dropdownRef}>
+      {/* Native selector for mobile devices */}
+      <select
+        aria-label={title}
+        value={currentValue}
+        onChange={e => onChange(e.target.value)}
+        className="sm:hidden absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -47,7 +63,7 @@ export default function SortDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-48 bg-base border border-border-line rounded-2xl shadow-lg py-2 z-50 animate-in fade-in zoom-in-95 duration-100 glass-matte p-1">
+        <div className={cn("absolute top-full mt-2 w-48 max-w-[calc(100vw-2rem)] bg-base border border-border-line rounded-2xl shadow-lg py-2 z-50 animate-in fade-in zoom-in-95 duration-100 glass-matte p-1", align === 'right' ? 'right-0' : 'left-0')}>
           <div className="px-3 pb-1.5 pt-1 text-[9px] font-mono uppercase tracking-widest text-text-dim/60 mb-1 border-b border-border-line/40">
             {title}
           </div>

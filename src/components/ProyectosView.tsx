@@ -513,6 +513,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             }}
           />
           <SortDropdown
+            align="left"
             options={[
               { label: 'Manual', value: 'manual' },
               { label: 'Fecha', value: 'date' },

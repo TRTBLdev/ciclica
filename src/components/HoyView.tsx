@@ -65,6 +65,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
+  const [filterTypeGroup, setFilterTypeGroup] = useState<'Todas' | 'habitos_rutinas' | 'tareas_proyectos'>('Todas');
   const habitDurationSummaries = React.useMemo(
     () => buildHabitDurationSummaryIndex(tasks, history, progressSnapshots, currentDay),
     [tasks, history, progressSnapshots, currentDay],
@@ -149,6 +150,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
         ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
         : t.allocationType === filterAllocation
     ));
+  }
+
+  if (filterTypeGroup === 'habitos_rutinas') {
+    filteredTodayTasks = filteredTodayTasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
+  } else if (filterTypeGroup === 'tareas_proyectos') {
+    filteredTodayTasks = filteredTodayTasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto');
+    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto');
   }
 
   const todayTasks = filteredTodayTasks;
@@ -431,6 +440,15 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
               align="right"
               configs={[
                 {
+                  key: 'typeGroup',
+                  label: 'Tipo',
+                  options: [
+                    { label: 'Todos los tipos', value: 'Todas' },
+                    { label: 'Hábitos y Rutinas', value: 'habitos_rutinas' },
+                    { label: 'Tareas y Proyectos', value: 'tareas_proyectos' }
+                  ]
+                },
+                {
                   key: 'area',
                   label: 'Área',
                   options: [
@@ -450,10 +468,12 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                 }
               ]}
               activeFilters={{
+                typeGroup: filterTypeGroup,
                 area: filterArea,
                 allocation: filterAllocation
               }}
               onChange={(key, val) => {
+                if (key === 'typeGroup') setFilterTypeGroup(val as any);
                 if (key === 'area') setFilterArea(val);
                 if (key === 'allocation') setFilterAllocation(val);
               }}
@@ -873,6 +893,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
               </h3>
               <div className="flex items-center gap-2">
                 <SortDropdown
+                  align="right"
                   options={[
                     { label: 'Orden manual', value: 'manual' },
                     { label: 'Prioridad', value: 'priority' },
@@ -942,6 +963,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
               </h3>
               <div className="flex items-center gap-2">
                 <SortDropdown
+                  align="right"
                   options={[
                     { label: 'Orden manual', value: 'manual' },
                     { label: 'Prioridad', value: 'priority' },

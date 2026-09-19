@@ -462,6 +462,7 @@ export default function TaskItem({
   const contextualMetadata: Array<React.ReactNode | null> = context === 'today' ? [
     isProjectChild ? null : task.hora || null,
     childQuotaMetadata,
+    task.type === 'Rutina' ? `Ciclo ${routineProgress}%` : null,
     recurringDuration
       ? null
       : (trackedHoursToday > 0 || plannedHours > 0) ? `${trackedHoursToday.toFixed(2)}h/${plannedHours.toFixed(1)}h` : null,
@@ -1073,6 +1074,14 @@ export default function TaskItem({
                     <div className="h-full bg-emerald-600 transition-all duration-200" style={{ width: `${checklistProgress}%` }} />
                   </div>
                 </div>
+              )}
+              {task.type === 'Rutina' && (
+                <progress
+                  max={100}
+                  value={routineProgress}
+                  aria-label={`Progreso de la rutina: ${routineProgress}%`}
+                  className="mt-3 block h-0.5 w-full appearance-none overflow-hidden accent-emerald-600 [&::-webkit-progress-bar]:bg-border-line/40 [&::-webkit-progress-value]:bg-emerald-600 [&::-moz-progress-bar]:bg-emerald-600"
+                />
               )}
             </>
           )}
