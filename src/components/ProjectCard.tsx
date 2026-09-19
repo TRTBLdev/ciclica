@@ -4,6 +4,7 @@ import { cn } from '../lib/utils';
 import { formatRelativeCalendarDate } from '../domain/appearance';
 import { ProjectPresentation } from '../domain/projectPresentation';
 import CategoryBadge from './ui/CategoryBadge';
+import ItemDetails from './ItemDetails';
 
 export type ProjectCardVariant = 'strategy' | 'timeline' | 'flexible' | 'backlog';
 
@@ -27,6 +28,7 @@ interface Props {
   onToggleProject: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onUpdateNotes?: (notes: string) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   canMoveUp?: boolean;
@@ -290,6 +292,14 @@ export default function ProjectCard({
 
       {expanded && (
         <section className="ml-9 mt-4" aria-label={`Contenido de ${project.text}`}>
+          {project.notes && (
+            <div className="mb-3 border-b border-border-line/40 pb-2">
+              <ItemDetails
+                notes={project.notes}
+                onUpdateNotes={onUpdateNotes}
+              />
+            </div>
+          )}
           {isStrategy && (
             <ul className="mb-4 flex list-none flex-wrap gap-x-8 gap-y-3 border-b border-border-line/40 p-0 pb-4 text-[10px] text-text-dim">
               <li className="flex min-w-28 flex-col gap-1">

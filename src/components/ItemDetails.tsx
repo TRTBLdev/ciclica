@@ -7,6 +7,7 @@ interface Props {
   notes?: string;
   checklist?: ChecklistItem[];
   onToggleChecklistItem?: (itemId: string) => void;
+  onUpdateNotes?: (notes: string) => void;
 }
 
 function ChecklistMark({ done }: { done: boolean }) {
@@ -30,12 +31,21 @@ export default function ItemDetails({
   notes,
   checklist = [],
   onToggleChecklistItem,
+  onUpdateNotes,
 }: Props) {
   const detailsId = React.useId();
   const notesId = `${detailsId}-notes`;
   const checklistId = `${detailsId}-checklist`;
   const hasNotes = !!notes?.trim();
   const hasChecklist = checklist.length > 0;
+
+  const [isEditingNotes, setIsEditingNotes] = React.useState(false);
+  const [editedNotes, setEditedNotes] = React.useState(notes || '');
+
+  React.useEffect(() => {
+    setEditedNotes(notes || '');
+  }, [notes]);
+
   if (!hasNotes && !hasChecklist) return null;
 
   const completedItems = checklist.filter(item => item.done).length;
@@ -47,14 +57,64 @@ export default function ItemDetails({
     <section className="mb-1 text-left text-xs text-text-main" aria-label="Detalles del ítem">
       {hasNotes && (
         <section className="py-3" aria-labelledby={notesId}>
-          <header className="mb-1.5">
+          <header className="mb-1.5 flex items-center justify-between">
             <h4 id={notesId} className="font-mono text-[9px] font-bold uppercase tracking-widest text-text-dim">
               Notas
             </h4>
+            {onUpdateNotes && !isEditingNotes && (
+              <button
+                type="button"
+                onClick={() => setIsEditingNotes(true)}
+                className="text-[9px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"
+              >
+                Editar
+              </button>
+            )}
           </header>
-          <p className="whitespace-pre-wrap font-sans font-light leading-relaxed">
-            <LinkedText text={notes} />
-          </p>
+          {isEditingNotes ? (
+            <div className="flex flex-col gap-2 animate-in fade-in duration-150">
+              <textarea
+                autoFocus
+                value={editedNotes}
+                onChange={e => setEditedNotes(e.target.value)}
+                rows={3}
+                className="w-full resize-y border-0 border-b border-border-line bg-transparent px-0 py-1.5 text-xs font-sans font-light leading-relaxed text-text-main outline-none focus:border-text-main"
+                placeholder="Escribe notas o contexto..."
+              />
+              <div className="flex justify-end gap-2 items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditedNotes(notes || '');
+                    setIsEditingNotes(false);
+                  }}
+                  className="text-[9px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateNotes?.(editedNotes);
+                    setIsEditingNotes(false);
+                  }}
+                  className="text-[9px] font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p
+              onClick={onUpdateNotes ? () => setIsEditingNotes(true) : undefined}
+              className={cn(
+                "whitespace-pre-wrap font-sans font-light leading-relaxed",
+                onUpdateNotes && "cursor-pointer hover:opacity-85"
+              )}
+            >
+              <LinkedText text={notes} />
+            </p>
+          )}
         </section>
       )}
 

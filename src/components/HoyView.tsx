@@ -123,6 +123,19 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
     setDraggedId(null);
   };
 
+  const handleMoveTaskInList = (taskId: string, list: AppTask[], targetIndex: number) => {
+    const currentIndex = list.findIndex(t => t.id === taskId);
+    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= list.length) return;
+
+    const newList = [...list];
+    const [moved] = newList.splice(currentIndex, 1);
+    newList.splice(targetIndex, 0, moved);
+
+    newList.forEach((t, idx) => {
+      onUpdateTask(t.id, { order: (idx + 1) * 1000 });
+    });
+  };
+
   let filteredTodayTasks = tasks.filter(t => {
     if (t.type === 'Rutina' && !isRoutineConfigured(t)) return false;
     const placement = getTodayPlacement(t, tasks, history, progressSnapshots, currentDay);
@@ -992,7 +1005,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Sin elementos flexibles.</p>
                 ) : (
                   <ul className="m-0 list-none space-y-3 p-0">
-                    {getSortedTasks(untimedTasks, sortFlexiblesBy).map(t => (
+                    {getSortedTasks(untimedTasks, sortFlexiblesBy).map((t, idx, arr) => (
                       <li
                         key={t.id}
                         draggable={sortFlexiblesBy === 'manual'}
@@ -1014,6 +1027,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
+                          showMoveArrows={sortFlexiblesBy === 'manual'}
+                          onMoveUp={sortFlexiblesBy === 'manual' && idx > 0 ? () => handleMoveTaskInList(t.id, arr, idx - 1) : undefined}
+                          onMoveDown={sortFlexiblesBy === 'manual' && idx < arr.length - 1 ? () => handleMoveTaskInList(t.id, arr, idx + 1) : undefined}
+                          canMoveUp={idx > 0}
+                          canMoveDown={idx < arr.length - 1}
                           context="today"
                           durationSummary={habitDurationSummaries.get(t.id)}
                           routineDurationSummary={routineDurationSummaries.get(t.id)}
@@ -1062,7 +1080,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                   <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Backlog vacío. Buen trabajo.</p>
                 ) : (
                   <ul className="m-0 list-none space-y-3 p-0">
-                    {getSortedTasks(backlogTasks, sortBacklogBy).map(t => (
+                    {getSortedTasks(backlogTasks, sortBacklogBy).map((t, idx, arr) => (
                       <li
                         key={t.id}
                         draggable={sortBacklogBy === 'manual'}
@@ -1084,6 +1102,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
+                          showMoveArrows={sortBacklogBy === 'manual'}
+                          onMoveUp={sortBacklogBy === 'manual' && idx > 0 ? () => handleMoveTaskInList(t.id, arr, idx - 1) : undefined}
+                          onMoveDown={sortBacklogBy === 'manual' && idx < arr.length - 1 ? () => handleMoveTaskInList(t.id, arr, idx + 1) : undefined}
+                          canMoveUp={idx > 0}
+                          canMoveDown={idx < arr.length - 1}
                           context="backlog"
                           durationSummary={habitDurationSummaries.get(t.id)}
                           routineDurationSummary={routineDurationSummaries.get(t.id)}

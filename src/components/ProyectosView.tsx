@@ -83,7 +83,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         const aDate = getDeadlineDate(a) || getAppearanceDate(a);
         const bDate = getDeadlineDate(b) || getAppearanceDate(b);
         const aTime = aDate ? new Date(`${aDate}T00:00:00`).getTime() : new Date(a.createdAt).getTime();
-        const bTime = bDate ? new Date(`${bDate}T00:00:00`).getTime() : new Date(b.createdAt).getTime();
+        const bTime = bDate ? new Date(`${bDate}T00:00:00`).getTime() : new Date(a.createdAt).getTime();
         return aTime - bTime;
       });
     } else if (criterion === 'progress') {
@@ -106,9 +106,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
 
     return [...sortedPending, ...sortedCompleted];
   };
-
-
-
 
   React.useEffect(() => {
     if (focusTaskId) {
@@ -171,7 +168,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     projects = projects.filter(p => projectMatchesEnergyFilter(p, tasks, filterAllocation));
   }
 
-
   const activeProjs = sortTasks(projects.filter(p => !p.completed), sortBy);
   const compProjs = sortTasks(projects.filter(p => p.completed), sortBy);
 
@@ -193,7 +189,6 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   if (filterAllocation !== 'Todas') {
     standaloneTasks = standaloneTasks.filter(t => t.allocationType === filterAllocation);
   }
-
 
   const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed), sortBy);
   const completedStandaloneTasks = sortTasks(standaloneTasks.filter(t => t.completed), sortBy);
@@ -338,6 +333,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         onToggleProject={() => onToggleTask(proj)}
         onEdit={() => startEdit(proj)}
         onDelete={() => onDeleteTask(proj.id)}
+        onUpdateNotes={(notes) => onUpdateTask(proj.id, { notes })}
         onMoveUp={sortBy === 'manual' ? () => handleMoveProjUp(proj) : undefined}
         onMoveDown={sortBy === 'manual' ? () => handleMoveProjDown(proj) : undefined}
         canMoveUp={!isFirstItem}

@@ -11,6 +11,7 @@ import { cn, isSameDay } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
+import ItemDetails from './ItemDetails';
 import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
 import { getAppearanceDate, getItemTemporalIndicators, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
 import TemporalIndicator from './ui/TemporalIndicator';
@@ -780,6 +781,14 @@ export default function RutinasView({
 
                     {isExpanded && (
                       <section className="relative mt-4 flex flex-col gap-2 pl-4 animate-in fade-in duration-200" aria-label={`Hábitos de ${routine.text}`}>
+                        {routine.notes && (
+                          <div className="mb-3 border-b border-border-line/40 pb-2">
+                            <ItemDetails
+                              notes={routine.notes}
+                              onUpdateNotes={(notes) => onUpdateTask(routine.id, { notes })}
+                            />
+                          </div>
+                        )}
                         <ActivityDurationAverage
                           lastActivity={routineTemporalIndicators.find(indicator => indicator.kind === 'activity')?.title}
                           averageHours={routineDurationSummary.combinedAverageHours}

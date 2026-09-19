@@ -643,8 +643,8 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         </section>
       )}
 
-      {/* Notas (Tarea/Hábito) */}
-      {(type === 'Tarea' || type === 'Hábito') && (
+      {/* Notas (Tarea/Hábito/Proyecto/Rutina) */}
+      {(type === 'Tarea' || type === 'Hábito' || type === 'Proyecto' || type === 'Rutina') && (
         <div className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
           <span className="text-[10px] text-text-dim font-mono uppercase tracking-wider">Notas:</span>
           <textarea 

@@ -96,6 +96,10 @@ interface Props {
   onEditProject?: (projectId: string) => void;
   onEditingChange?: (editing: boolean) => void;
   showMoveArrows?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   context?: 'today' | 'backlog' | 'routine' | 'project' | 'default';
   durationSummary?: HabitDurationSummary;
   routineDurationSummary?: RoutineDurationSummary;
@@ -120,6 +124,10 @@ export default function TaskItem({
   onEditProject,
   onEditingChange,
   showMoveArrows = false,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   context = 'default',
   durationSummary,
   routineDurationSummary,
@@ -167,10 +175,12 @@ export default function TaskItem({
     });
   };
 
-  // Helper to find visual sibling items (same parent, same type)
+  // Helper to find visual sibling items (same parent, or top-level items)
   const getSiblings = () => {
     const parentId = task.parentId || '';
-    const siblingsList = allTasks.filter(t => (t.parentId || '') === parentId && t.type === task.type);
+    const siblingsList = parentId
+      ? allTasks.filter(t => t.parentId === parentId)
+      : allTasks.filter(t => !t.parentId && t.type === task.type);
 
     const pending = siblingsList.filter(t => !t.completed);
     const completed = siblingsList.filter(t => t.completed);
@@ -195,10 +205,16 @@ export default function TaskItem({
   const idx = siblings.findIndex(s => s.id === task.id);
   const isFirstItem = idx <= 0;
   const isLastItem = idx === -1 || idx === siblings.length - 1;
+  const effectiveCanMoveUp = canMoveUp !== undefined ? canMoveUp : !isFirstItem;
+  const effectiveCanMoveDown = canMoveDown !== undefined ? canMoveDown : !isLastItem;
 
   const handleMoveUp = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen(false);
+    if (onMoveUp) {
+      onMoveUp();
+      return;
+    }
     if (!onUpdate) return;
 
     if (idx <= 0) return; // Already at the top
@@ -220,6 +236,10 @@ export default function TaskItem({
   const handleMoveDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen(false);
+    if (onMoveDown) {
+      onMoveDown();
+      return;
+    }
     if (!onUpdate) return;
 
     if (idx === -1 || idx === siblings.length - 1) return; // Already at the bottom
@@ -556,6 +576,11 @@ export default function TaskItem({
         onToggleProject={() => onToggle(task)}
         onEdit={onUpdate ? () => setIsEditing(true) : undefined}
         onDelete={onDelete}
+        onUpdateNotes={onUpdate ? (notes) => onUpdate(task.id, { notes }) : undefined}
+        onMoveUp={onMoveUp || (showMoveArrows ? handleMoveUp : undefined)}
+        onMoveDown={onMoveDown || (showMoveArrows ? handleMoveDown : undefined)}
+        canMoveUp={effectiveCanMoveUp}
+        canMoveDown={effectiveCanMoveDown}
       >
         <ul className="m-0 list-none space-y-1 p-0" aria-label={`Tareas pendientes de ${task.text}`}>
           {getSubtasksWithOrders().map(sub => (
@@ -580,7 +605,7 @@ export default function TaskItem({
                   setEditingChildId(editing ? sub.id : current => current === sub.id ? null : current);
                   if (editing) setIsExpanded(true);
                 }}
-                showMoveArrows={showMoveArrows}
+                showMoveArrows={true}
                 context={context}
               />
             </li>
@@ -1132,31 +1157,13 @@ export default function TaskItem({
                   openUpwards ? "bottom-full mb-1" : "top-full mt-1"
                 )}>
                   {onUpdate && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
-                      >
-                        <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                        Editar
-                      </button>
-                      <button
-                        onClick={handleMoveUp}
-                        disabled={isFirstItem}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                      >
-                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
-                        Mover arriba
-                      </button>
-                      <button
-                        onClick={handleMoveDown}
-                        disabled={isLastItem}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light disabled:opacity-40 disabled:pointer-events-none"
-                      >
-                        <svg className="w-3.5 h-3.5 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-                        Mover abajo
-                      </button>
-                    </>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsMenuOpen(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      Editar
+                    </button>
                   )}
                   {task.parentId && onUpdate && (
                     <button
@@ -1202,19 +1209,19 @@ export default function TaskItem({
           </div>
 
           {/* Reordering Arrows */}
-          {showMoveArrows && (
+          {(showMoveArrows || isSubtask || onMoveUp !== undefined) && (
             <div className="flex flex-col gap-0.5 items-center">
               <button
-                onClick={handleMoveUp}
-                disabled={isFirstItem}
+                onClick={onMoveUp || handleMoveUp}
+                disabled={!effectiveCanMoveUp}
                 className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
                 title="Mover arriba"
               >
                 <ArrowUp className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={handleMoveDown}
-                disabled={isLastItem}
+                onClick={onMoveDown || handleMoveDown}
+                disabled={!effectiveCanMoveDown}
                 className="p-0.5 text-text-dim/40 hover:text-text-main disabled:opacity-20 cursor-pointer bg-transparent border-0 flex items-center justify-center rounded hover:bg-base-dim/50 transition-colors"
                 title="Mover abajo"
               >
@@ -1273,6 +1280,7 @@ export default function TaskItem({
             notes={task.notes}
             checklist={task.checklist}
             onToggleChecklistItem={onUpdate ? handleToggleChecklistItem : undefined}
+            onUpdateNotes={onUpdate ? (notes) => onUpdate(task.id, { notes }) : undefined}
           />
 
           {/* Subtasks rendering */}
@@ -1296,7 +1304,7 @@ export default function TaskItem({
                       hideAreaCategory={true}
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
-                      showMoveArrows={showMoveArrows}
+                      showMoveArrows={true}
                       context={context}
                     />
                   </li>
