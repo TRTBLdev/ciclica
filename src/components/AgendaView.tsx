@@ -261,62 +261,106 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
     return total;
   };
 
-  // Compute Task Spans across consecutive days in a slot
-  const computeSlotTaskSpans = (slotIdx: number): TaskSpan[] => {
+  // Compute Task Rows grouped by hour across the week in a slot
+  const computeSlotTaskRows = (slotIdx: number): TaskSpan[][] => {
     const dayTasksMap = new Map<number, AppTask[]>();
     weekDays.forEach((date, dayIdx) => {
       const tasksForDay = getScheduledForDate(date).filter(t => getSlotIdxForTime(t.hora!) === slotIdx);
       dayTasksMap.set(dayIdx, tasksForDay);
     });
 
-    const taskMap = new Map<string, AppTask>();
+    // Collect all distinct hours in this slot
+    const hoursSet = new Set<string>();
     dayTasksMap.forEach(taskList => {
-      taskList.forEach(t => taskMap.set(t.id, t));
+      taskList.forEach(t => {
+        if (t.hora) hoursSet.add(t.hora);
+      });
     });
 
-    const spans: TaskSpan[] = [];
+    // Chronological order of hours
+    const sortedHours = Array.from(hoursSet).sort((a, b) => a.localeCompare(b));
+    const allRows: TaskSpan[][] = [];
 
-    taskMap.forEach((task, taskId) => {
-      const appearingDays: number[] = [];
-      for (let d = 0; d < 7; d++) {
-        const list = dayTasksMap.get(d) || [];
-        if (list.some(t => t.id === taskId)) {
-          appearingDays.push(d);
-        }
-      }
+    sortedHours.forEach(hour => {
+      // Find all tasks appearing at this hour
+      const tasksForHourMap = new Map<string, AppTask>();
+      dayTasksMap.forEach(taskList => {
+        taskList.forEach(t => {
+          if (t.hora === hour) tasksForHourMap.set(t.id, t);
+        });
+      });
 
-      if (appearingDays.length > 0) {
-        let currentStart = appearingDays[0];
-        let currentCount = 1;
-        let currentDays = [appearingDays[0]];
-
-        for (let i = 1; i < appearingDays.length; i++) {
-          const day = appearingDays[i];
-          if (day === appearingDays[i - 1] + 1) {
-            currentCount++;
-            currentDays.push(day);
-          } else {
-            spans.push({
-              task,
-              startDay: currentStart,
-              spanCount: currentCount,
-              days: currentDays,
-            });
-            currentStart = day;
-            currentCount = 1;
-            currentDays = [day];
+      // Generate spans for each task at this hour
+      const hourSpans: TaskSpan[] = [];
+      tasksForHourMap.forEach((task, taskId) => {
+        const appearingDays: number[] = [];
+        for (let d = 0; d < 7; d++) {
+          const list = dayTasksMap.get(d) || [];
+          if (list.some(t => t.id === taskId)) {
+            appearingDays.push(d);
           }
         }
-        spans.push({
-          task,
-          startDay: currentStart,
-          spanCount: currentCount,
-          days: currentDays,
-        });
-      }
+
+        if (appearingDays.length > 0) {
+          let currentStart = appearingDays[0];
+          let currentCount = 1;
+          let currentDays = [appearingDays[0]];
+
+          for (let i = 1; i < appearingDays.length; i++) {
+            const day = appearingDays[i];
+            if (day === appearingDays[i - 1] + 1) {
+              currentCount++;
+              currentDays.push(day);
+            } else {
+              hourSpans.push({
+                task,
+                startDay: currentStart,
+                spanCount: currentCount,
+                days: currentDays,
+              });
+              currentStart = day;
+              currentCount = 1;
+              currentDays = [day];
+            }
+          }
+          hourSpans.push({
+            task,
+            startDay: currentStart,
+            spanCount: currentCount,
+            days: currentDays,
+          });
+        }
+      });
+
+      // Sort spans by startDay (left to right)
+      hourSpans.sort((a, b) => a.startDay - b.startDay);
+
+      // Pack spans into rows for this hour
+      const hourRows: TaskSpan[][] = [];
+      hourSpans.forEach(span => {
+        let placed = false;
+        for (const row of hourRows) {
+          const rowDays = new Set<number>();
+          row.forEach(rSpan => rSpan.days.forEach(d => rowDays.add(d)));
+
+          const hasConflict = span.days.some(d => rowDays.has(d));
+          if (!hasConflict) {
+            row.push(span);
+            placed = true;
+            break;
+          }
+        }
+
+        if (!placed) {
+          hourRows.push([span]);
+        }
+      });
+
+      // Append this hour's rows to allRows
+      allRows.push(...hourRows);
     });
 
-    return spans;
+    return allRows;
   };
 
   // Direct navigation on item click (no modal)
@@ -377,7 +421,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
         key={task.id}
         onClick={() => handleItemClick(task)}
         className={cn(
-          "flex flex-col gap-1.5 p-2 rounded-none border-l-3 border-t-0 border-r-0 border-b-0 cursor-pointer transition-all text-xs leading-snug group w-full",
+          "flex flex-col gap-1.5 p-2 rounded-none border-l-3 border-t-0 border-r-0 border-b-0 cursor-pointer transition-all text-xs leading-snug group w-full min-w-0 overflow-hidden",
           getLeftBorderClass(areaColor),
           workedToday
             ? "opacity-50 grayscale-[40%] bg-transparent"
@@ -387,11 +431,16 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
         )}
       >
         {/* Title row + duration / span indicator top right */}
-        <div className="flex items-start justify-between gap-1.5 min-w-0">
-          <span className="font-medium text-text-main group-hover:text-primary transition-colors line-clamp-2 leading-tight">
+        <div className="flex items-start justify-between gap-1.5 min-w-0 w-full">
+          <span className="font-medium text-text-main group-hover:text-primary transition-colors line-clamp-2 leading-tight min-w-0">
             {task.text}
           </span>
           <div className="flex items-center gap-1 shrink-0 ml-auto">
+            {task.hora && (
+              <span className="font-mono text-[9px] text-text-dim/80 px-1 py-0.2 rounded-none">
+                {task.hora}
+              </span>
+            )}
             {spanLabel && (
               <span className="font-mono text-[8px] uppercase text-primary font-bold bg-primary/10 px-1 py-0.2 rounded-none border border-primary/20">
                 {spanLabel}
@@ -406,9 +455,9 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
         </div>
 
         {/* Metadata Badges Row (Muji Minimalist: Type text without icon + Allocation Icon + Category Badge) */}
-        <div className="flex flex-wrap gap-1.5 items-center mt-0.5">
+        <div className="flex flex-wrap gap-1 items-center mt-0.5 min-w-0 w-full overflow-hidden">
           {/* Type text only (no icon) */}
-          <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-text-dim px-1 py-0.2 rounded-none bg-base-dim/30">
+          <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-text-dim px-1 py-0.2 rounded-none bg-base-dim/30 shrink-0">
             {task.type}
           </span>
 
@@ -566,7 +615,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
             const isOpen = Boolean(openSlots[slotIdx]);
             const itemCount = getSlotWeeklyItemCount(slotIdx);
             const isCurrentTimeSlot = currentMins >= slot.startMins && currentMins < slot.endMins;
-            const taskSpans = isOpen ? computeSlotTaskSpans(slotIdx) : [];
+            const taskRows = isOpen ? computeSlotTaskRows(slotIdx) : [];
 
             return (
               <div key={slotIdx} className="border-b border-border-line/25 last:border-b-0 w-full">
@@ -619,23 +668,31 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
                   </div>
                 </button>
 
-                {/* 7-Column Unified CSS Grid for Accordion Content (Expands naturally vertically) */}
+                {/* 7-Column Grid Rows for Accordion Content */}
                 {isOpen && (
-                  <div className="grid grid-cols-7 min-w-[700px] md:min-w-0 w-full p-2 gap-2 border-b border-border-line/15 bg-base animate-in fade-in duration-150">
-                    {/* Render Spanned Tasks in single Unified Grid flow */}
-                    {taskSpans.map((spanItem, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          gridColumnStart: spanItem.startDay + 1,
-                          gridColumnEnd: `span ${spanItem.spanCount}`,
-                        }}
-                        className="flex"
-                      >
-                        {renderTaskCard(spanItem.task, spanItem.spanCount, spanItem.days)}
+                  <div className="flex flex-col gap-2 min-w-[700px] md:min-w-0 w-full p-2 border-b border-border-line/15 bg-base animate-in fade-in duration-150">
+                    {taskRows.length === 0 ? (
+                      <div className="text-[10px] text-text-dim/40 font-mono py-2 text-center">
+                        Sin actividades programadas en este bloque
                       </div>
-                    ))}
-
+                    ) : (
+                      taskRows.map((row, rowIdx) => (
+                        <div key={rowIdx} className="grid grid-cols-7 gap-2 w-full">
+                          {row.map((spanItem, spanIdx) => (
+                            <div
+                              key={spanIdx}
+                              style={{
+                                gridColumnStart: spanItem.startDay + 1,
+                                gridColumnEnd: `span ${spanItem.spanCount}`,
+                              }}
+                              className="flex min-w-0 overflow-hidden"
+                            >
+                              {renderTaskCard(spanItem.task, spanItem.spanCount, spanItem.days)}
+                            </div>
+                          ))}
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>

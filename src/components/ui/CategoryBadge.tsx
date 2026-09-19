@@ -23,21 +23,27 @@ export default function CategoryBadge({ area, subCategory, config, className, on
   const content = (
     <>
       {area && !hideArea && (
-        <b className={cn(
-          "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono font-bold uppercase tracking-wider rounded-full leading-none whitespace-nowrap bg-transparent border",
-          getAreaTextClasses(color),
-          getAreaBorderClasses(color),
-          onClick && "cursor-pointer hover:opacity-80 transition-opacity"
-        )}>
+        <b
+          title={area}
+          className={cn(
+            "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono font-bold uppercase tracking-wider rounded-full leading-none whitespace-nowrap bg-transparent border max-w-[130px] truncate",
+            getAreaTextClasses(color),
+            getAreaBorderClasses(color),
+            onClick && "cursor-pointer hover:opacity-80 transition-opacity"
+          )}
+        >
           {area}
         </b>
       )}
       {subCategory && (
-        <em className={cn(
-          "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono not-italic uppercase tracking-wider rounded-full leading-none whitespace-nowrap",
-          getAreaColorClasses(color),
-          onClick && "cursor-pointer hover:opacity-80 transition-opacity"
-        )}>
+        <em
+          title={subCategory}
+          className={cn(
+            "inline-flex items-center justify-center h-5 px-2 text-[9px] font-mono not-italic uppercase tracking-wider rounded-full leading-none whitespace-nowrap max-w-[130px] truncate",
+            getAreaColorClasses(color),
+            onClick && "cursor-pointer hover:opacity-80 transition-opacity"
+          )}
+        >
           {subCategory}
         </em>
       )}
@@ -46,11 +52,11 @@ export default function CategoryBadge({ area, subCategory, config, className, on
 
   if (onClick) {
     return (
-      <button type="button" className={cn('flex items-center gap-1.5 border-0 bg-transparent p-0', className)} onClick={onClick} title={title}>
+      <button type="button" className={cn('flex items-center gap-1.5 flex-wrap min-w-0 border-0 bg-transparent p-0', className)} onClick={onClick} title={title}>
         {content}
       </button>
     );
   }
 
-  return <small className={cn('flex items-center gap-1.5', className)} title={title}>{content}</small>;
+  return <small className={cn('flex items-center gap-1.5 flex-wrap min-w-0', className)} title={title}>{content}</small>;
 }
