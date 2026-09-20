@@ -20,7 +20,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScale } from '../types';
-import { cn, getAreaTextClasses } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { formatLocalDate, parseLocalDate, findIntentionForPeriod } from '../domain/periodUtils';
 import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 import DedicationChart from './DedicationChart';
@@ -555,17 +555,17 @@ export default function IntencionesPanelView({
   const yearIntention = getIntention('year', yearStart, yearEnd);
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-20">
       {/* Mobile Segmented Toggle (Sticky) */}
       <div className="lg:hidden sticky top-0 z-20 bg-base/95 backdrop-blur-sm pt-2 pb-3 border-b border-border-line/30">
-        <div className="flex bg-base-dim/20 p-1 rounded-xl border border-border-line/40 max-w-sm mx-auto">
+        <div className="flex bg-base-dim/20 p-0.5 max-w-sm mx-auto">
           <button
             type="button"
             onClick={() => setActiveMobileTab('intenciones')}
             className={cn(
-              "flex-1 py-1.5 text-xs font-mono uppercase tracking-wider rounded-lg transition-all",
+              "flex-1 py-1.5 text-xs font-sans tracking-wide transition-all",
               activeMobileTab === 'intenciones'
-                ? "bg-base text-primary font-bold shadow-sm"
+                ? "bg-base text-text-main font-medium border-b border-text-main"
                 : "text-text-dim hover:text-text-main"
             )}
           >
@@ -575,9 +575,9 @@ export default function IntencionesPanelView({
             type="button"
             onClick={() => setActiveMobileTab('dedicacion')}
             className={cn(
-              "flex-1 py-1.5 text-xs font-mono uppercase tracking-wider rounded-lg transition-all",
+              "flex-1 py-1.5 text-xs font-sans tracking-wide transition-all",
               activeMobileTab === 'dedicacion'
-                ? "bg-base text-primary font-bold shadow-sm"
+                ? "bg-base text-text-main font-medium border-b border-text-main"
                 : "text-text-dim hover:text-text-main"
             )}
           >
@@ -586,34 +586,34 @@ export default function IntencionesPanelView({
         </div>
       </div>
 
-      {/* Main Grid: 2 Columns on Desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN: The Hierarchical Intention Tree */}
+      {/* Main Grid: 2 Columns on Desktop, completely open without boxes */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start w-full">
+        {/* LEFT COLUMN: The Hierarchical Intention Tree (Open Notebook) */}
         <div className={cn(
-          "space-y-6 lg:col-span-7",
+          "space-y-8 lg:col-span-7",
           activeMobileTab === 'dedicacion' ? "hidden lg:block" : "block"
         )}>
-          {/* LEVEL 1: YEAR CARD */}
-          <div className="bg-base border border-border-line/40 rounded-2xl p-5 shadow-sm space-y-4">
+          {/* LEVEL 1: YEAR SECTION (Open) */}
+          <div className="space-y-4">
             <div
-              className="flex items-center justify-between cursor-pointer group"
+              className="flex items-center justify-between cursor-pointer group select-none py-1"
               onClick={() => setYearExpanded(!yearExpanded)}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-lg bg-base-dim/20 flex items-center justify-center text-text-dim group-hover:text-primary transition-colors">
-                  {yearExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <div className="flex items-center gap-2.5">
+                <div className="w-4 h-4 flex items-center justify-center text-text-dim group-hover:text-text-main transition-colors">
+                  {yearExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono uppercase tracking-widest text-primary font-bold">
+                    <span className="text-xs font-mono text-text-main font-medium">
                       Año {currentYear}
                     </span>
-                    <span className="text-[9px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      Visión Vital
+                    <span className="text-[10px] font-mono text-text-dim px-1.5 py-0.2 bg-base-dim/30">
+                      Visión vital
                     </span>
                   </div>
-                  <h2 className="text-base font-sans font-light text-text-main">
-                    Norte Estratégico y Áreas Prioritarias
+                  <h2 className="text-base font-sans font-light text-text-main mt-0.5">
+                    Norte estratégico y áreas prioritarias
                   </h2>
                 </div>
               </div>
@@ -630,92 +630,70 @@ export default function IntencionesPanelView({
                   });
                 }}
                 className={cn(
-                  "p-2 rounded-lg text-xs font-mono flex items-center gap-1 transition-colors border",
+                  "px-2 py-0.5 text-xs font-sans flex items-center gap-1.5 transition-colors",
                   selectedPeriod.scale === 'year'
-                    ? "bg-primary/10 border-primary/30 text-primary font-bold"
-                    : "border-border-line/30 text-text-dim hover:text-text-main hover:bg-base-dim/10"
+                    ? "text-text-main font-medium underline underline-offset-4"
+                    : "text-text-dim hover:text-text-main"
                 )}
                 title="Ver dedicación del año en el panel lateral"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Ver Dedicación</span>
+                <span className="hidden sm:inline">Dedicación</span>
               </button>
             </div>
 
             {yearExpanded && (
-              <div className="space-y-5 pt-2 border-t border-border-line/20">
+              <div className="pl-6 space-y-6 pt-1">
                 {/* Year Narrative Theme */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold flex items-center gap-1.5">
-                    <Compass className="w-3 h-3 text-accent" /> Norte Narrativo del Año
+                <div className="space-y-1">
+                  <label className="text-xs font-sans text-text-dim flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-text-main/70" /> Norte narrativo del año
                   </label>
                   <textarea
                     defaultValue={yearIntention?.theme || ''}
                     onBlur={(e) => handleUpdateTheme('year', yearStart, yearEnd, e.target.value)}
                     placeholder="¿Cuál es la brújula o propósito central de este año? (ej. Año de consolidación, salud integral y ritmos sostenibles...)"
-                    className="w-full bg-base-dim/10 border border-border-line/30 rounded-xl p-3 text-sm font-sans text-text-main focus:outline-none focus:border-primary/50 transition-colors resize-none h-20 placeholder:text-text-dim/40"
+                    className="w-full bg-transparent border-b border-border-line/40 rounded-none p-2 text-sm font-sans text-text-main focus:outline-none focus:border-text-main transition-colors resize-none h-20 placeholder:text-text-dim/40 leading-relaxed"
                   />
                 </div>
 
-                {/* Priority Areas Chips */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold">
-                    Áreas Vitales de Enfoque
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(config?.areas || {}).map(([areaName, areaVal]) => {
-                      const color = typeof areaVal === 'string' ? areaVal : (areaVal?.color || 'slate');
-                      return (
-                        <div
-                          key={areaName}
-                          className={cn(
-                            "px-3 py-1 rounded-full text-xs font-mono uppercase tracking-wider border border-border-line/30 bg-base-dim/10 flex items-center gap-2",
-                            getAreaTextClasses(color)
-                          )}
-                        >
-                          <span className="w-2 h-2 rounded-full bg-current opacity-75" />
-                          {areaName}
-                        </div>
-                      );
-                    })}
+                {/* Panorama of the 4 Quarters: Open 4-column layout */}
+                <div className="space-y-2 pt-1">
+                  <div className="text-xs font-sans text-text-dim">
+                    Panorama de cuartos ({currentYear})
                   </div>
-                </div>
-
-                {/* Mini Dashboard of the 4 Quarters */}
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold">
-                    <span>Panorama de Cuartos ({currentYear})</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-1">
                     {quarters.map(q => {
                       const qIntention = getIntention('quarter', q.start, q.end);
                       const isCurrent = q.key === currentQKey;
                       const hasTheme = !!qIntention?.theme;
                       const itemsCount = qIntention?.items?.length || 0;
+                      const items = qIntention?.items || [];
+                      const doneCount = items.filter(it => calculateCommitmentProgress(it, q.start, q.end).isDone).length;
+                      const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
 
                       return (
                         <div
                           key={q.key}
-                          className={cn(
-                            "p-2.5 rounded-xl border flex flex-col justify-between gap-1 text-left transition-all",
-                            isCurrent
-                              ? "border-primary/40 bg-primary/5 shadow-xs"
-                              : "border-border-line/20 bg-base-dim/5"
-                          )}
+                          className="flex flex-col justify-between gap-1 text-left"
                         >
                           <div className="flex justify-between items-center">
-                            <span className="text-xs font-mono font-bold text-text-main">{q.key}</span>
+                            <span className="text-xs font-mono font-medium text-text-main">{q.key}</span>
                             {isCurrent && (
-                              <span className="text-[8px] font-mono uppercase tracking-wider text-primary font-bold">
-                                Actual
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim font-medium">
+                                En curso
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] font-sans text-text-dim line-clamp-1 italic">
+                          <p className="text-xs font-sans text-text-dim line-clamp-1 italic">
                             {hasTheme ? `"${qIntention.theme}"` : 'Sin definir'}
                           </p>
-                          <div className="text-[9px] font-mono text-text-dim/70 mt-1">
-                            {itemsCount} {itemsCount === 1 ? 'compromiso' : 'compromisos'}
+                          <div className="flex items-center justify-between text-[10px] font-mono text-text-dim mt-1">
+                            <span>{itemsCount} {itemsCount === 1 ? 'compromiso' : 'compromisos'}</span>
+                            {itemsCount > 0 && <span>{pct}%</span>}
+                          </div>
+                          <div className="w-full bg-border-line/20 h-[1.5px] mt-1 overflow-hidden">
+                            <div className="bg-text-main/60 h-full transition-all duration-300" style={{ width: `${pct}%` }} />
                           </div>
                         </div>
                       );
@@ -726,10 +704,10 @@ export default function IntencionesPanelView({
             )}
           </div>
 
-          {/* LEVEL 2: QUARTERS ACCORDION (Q1 - Q4) */}
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold px-1">
-              Cuartos Trimestrales (Metas y Compromisos de 90 Días)
+          {/* LEVEL 2: QUARTERS (Open Sections with Indentation) */}
+          <div className="space-y-6 pt-2">
+            <h3 className="text-xs font-sans text-text-dim border-b border-border-line/20 pb-2">
+              Cuartos del año · Metas de 90 días
             </h3>
 
             {quarters.map(q => {
@@ -740,33 +718,22 @@ export default function IntencionesPanelView({
               const isSelectedForDedication = selectedPeriod.scale === 'quarter' && selectedPeriod.start === q.start;
 
               return (
-                <div
-                  key={q.key}
-                  className={cn(
-                    "border rounded-2xl transition-all duration-200 overflow-hidden",
-                    isCurrentQ
-                      ? "bg-base border-primary/40 shadow-sm"
-                      : "bg-base border-border-line/30 opacity-95"
-                  )}
-                >
+                <div key={q.key} className="space-y-4">
                   {/* Quarter Header */}
                   <div
-                    className={cn(
-                      "p-4 flex items-center justify-between cursor-pointer transition-colors",
-                      isCurrentQ ? "bg-primary/5 hover:bg-primary/10" : "bg-base hover:bg-base-dim/10"
-                    )}
+                    className="flex items-center justify-between cursor-pointer select-none py-1 group"
                     onClick={() => setExpandedQuarters(prev => ({ ...prev, [q.key]: !prev[q.key] }))}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-5 h-5 flex items-center justify-center text-text-dim">
-                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-4 h-4 flex items-center justify-center text-text-dim group-hover:text-text-main transition-colors">
+                        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-text-main">{q.label}</span>
+                          <span className="font-mono font-medium text-sm text-text-main">{q.label}</span>
                           {isCurrentQ && (
-                            <span className="text-[9px] font-mono uppercase tracking-wider bg-primary text-base px-2 py-0.5 rounded-full font-bold">
-                              En Curso
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim px-1.5 py-0.2 bg-base-dim/40 font-medium">
+                              En curso
                             </span>
                           )}
                           <span className="text-[10px] font-mono text-text-dim hidden sm:inline">
@@ -794,10 +761,10 @@ export default function IntencionesPanelView({
                           });
                         }}
                         className={cn(
-                          "p-2 rounded-lg text-xs font-mono flex items-center gap-1 transition-colors border",
+                          "px-2 py-0.5 text-xs font-sans flex items-center gap-1 transition-colors",
                           isSelectedForDedication
-                            ? "bg-primary/10 border-primary/30 text-primary font-bold"
-                            : "border-border-line/30 text-text-dim hover:text-text-main hover:bg-base-dim/10"
+                            ? "text-text-main font-medium underline underline-offset-4"
+                            : "text-text-dim hover:text-text-main"
                         )}
                         title="Ver dedicación de este cuarto en el panel lateral"
                       >
@@ -807,20 +774,20 @@ export default function IntencionesPanelView({
                     </div>
                   </div>
 
-                  {/* Quarter Content */}
+                  {/* Quarter Content (Indented) */}
                   {isExpanded && (
-                    <div className="p-4 sm:p-5 border-t border-border-line/20 space-y-6">
+                    <div className="pl-6 space-y-6 pt-1">
                       {/* Quarter Theme Input */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold flex items-center gap-1.5">
-                          <Compass className="w-3 h-3 text-accent" /> Norte del Cuarto ({q.key})
+                      <div className="space-y-1">
+                        <label className="text-xs font-sans text-text-dim flex items-center gap-1.5">
+                          <Compass className="w-3.5 h-3.5 text-text-main/70" /> Norte del cuarto ({q.key})
                         </label>
                         <input
                           type="text"
                           defaultValue={qIntention?.theme || ''}
                           onBlur={(e) => handleUpdateTheme('quarter', q.start, q.end, e.target.value)}
                           placeholder="Foco de este trimestre (ej. 90 días de consistencia en rutinas base y batchcooking)"
-                          className="w-full bg-base-dim/10 border border-border-line/30 rounded-xl px-3 py-2 text-xs font-sans text-text-main focus:outline-none focus:border-primary/50 transition-colors placeholder:text-text-dim/40"
+                          className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main transition-colors placeholder:text-text-dim/40"
                         />
                       </div>
 
@@ -828,9 +795,9 @@ export default function IntencionesPanelView({
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
-                            <Target className="w-3.5 h-3.5 text-primary" />
-                            <h4 className="text-[10px] font-mono uppercase tracking-widest text-text-main font-bold">
-                              Compromisos del Cuarto ({items.length})
+                            <Target className="w-3.5 h-3.5 text-text-main/70" />
+                            <h4 className="text-xs font-sans font-medium text-text-main">
+                              Compromisos del cuarto ({items.length})
                             </h4>
                           </div>
                           <button
@@ -839,77 +806,77 @@ export default function IntencionesPanelView({
                               setAddingCommitmentQ(q.key);
                               setSelectedTaskId(routines[0]?.id || projects[0]?.id || '');
                             }}
-                            className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-primary hover:underline cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs font-sans text-text-dim hover:text-text-main cursor-pointer"
                           >
-                            <Plus className="w-3 h-3" /> Añadir Compromiso
+                            <Plus className="w-3 h-3" /> Añadir compromiso
                           </button>
                         </div>
 
-                        {/* Add Commitment Form (Inline Modal / Drawer) */}
+                        {/* Add Commitment Form (Open & Indented) */}
                         {addingCommitmentQ === q.key && (
-                          <div className="p-4 rounded-xl border border-primary/30 bg-base-dim/10 space-y-3 animate-in fade-in duration-150">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-mono font-bold text-text-main">
-                                Nuevo Compromiso para {q.key}
+                          <div className="py-3 space-y-4 animate-in fade-in duration-150 pl-2">
+                            <div className="flex justify-between items-center border-b border-border-line/20 pb-2">
+                              <span className="text-xs font-sans font-medium text-text-main">
+                                Nuevo compromiso para {q.key}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => setAddingCommitmentQ(null)}
-                                className="text-text-dim hover:text-text-main"
+                                className="text-text-dim hover:text-text-main cursor-pointer"
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
 
-                            {/* 4 Tabs: Hábito/Rutina | Horas | Contador | Hito/Proyecto */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-base-dim/20 rounded-xl border border-border-line/30">
+                            {/* 4 Tabs: Charcoal Underline style */}
+                            <div className="flex border-b border-border-line/30 gap-6">
                               <button
                                 type="button"
                                 onClick={() => setCommitmentType('routine_habit')}
                                 className={cn(
-                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  "pb-2 text-xs font-sans transition-all flex items-center gap-1.5 cursor-pointer border-b-2",
                                   commitmentType === 'routine_habit'
-                                    ? "bg-primary text-base font-bold shadow-xs"
-                                    : "text-text-dim hover:text-text-main"
+                                    ? "border-text-main text-text-main font-medium"
+                                    : "border-transparent text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <Repeat className="w-3.5 h-3.5" /> Hábito / Rutina
+                                <Repeat className="w-3.5 h-3.5 text-text-main/70" /> Hábito / Rutina
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setCommitmentType('hours')}
                                 className={cn(
-                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  "pb-2 text-xs font-sans transition-all flex items-center gap-1.5 cursor-pointer border-b-2",
                                   commitmentType === 'hours'
-                                    ? "bg-primary text-base font-bold shadow-xs"
-                                    : "text-text-dim hover:text-text-main"
+                                    ? "border-text-main text-text-main font-medium"
+                                    : "border-transparent text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <Clock className="w-3.5 h-3.5" /> Horas
+                                <Clock className="w-3.5 h-3.5 text-text-main/70" /> Horas
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setCommitmentType('counter')}
                                 className={cn(
-                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  "pb-2 text-xs font-sans transition-all flex items-center gap-1.5 cursor-pointer border-b-2",
                                   commitmentType === 'counter'
-                                    ? "bg-primary text-base font-bold shadow-xs"
-                                    : "text-text-dim hover:text-text-main"
+                                    ? "border-text-main text-text-main font-medium"
+                                    : "border-transparent text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <BookOpen className="w-3.5 h-3.5" /> Contador
+                                <BookOpen className="w-3.5 h-3.5 text-text-main/70" /> Contador
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setCommitmentType('milestone')}
                                 className={cn(
-                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  "pb-2 text-xs font-sans transition-all flex items-center gap-1.5 cursor-pointer border-b-2",
                                   commitmentType === 'milestone'
-                                    ? "bg-primary text-base font-bold shadow-xs"
-                                    : "text-text-dim hover:text-text-main"
+                                    ? "border-text-main text-text-main font-medium"
+                                    : "border-transparent text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <CheckSquare className="w-3.5 h-3.5" /> Hito / Proyecto
+                                <CheckSquare className="w-3.5 h-3.5 text-text-main/70" /> Hito / Proyecto
                               </button>
                             </div>
 
@@ -921,7 +888,7 @@ export default function IntencionesPanelView({
                                   <select
                                     value={selectedRoutineHabitId || allHabitsAndRoutines[0]?.id || ''}
                                     onChange={(e) => setSelectedRoutineHabitId(e.target.value)}
-                                    className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                   >
                                     <optgroup label="Rutinas">
                                       {routines.map(r => (
@@ -952,7 +919,7 @@ export default function IntencionesPanelView({
                                       step={5}
                                       value={routineTargetPercent}
                                       onChange={(e) => setRoutineTargetPercent(Number(e.target.value))}
-                                      className="w-32 bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
+                                      className="w-24 bg-transparent border-b border-border-line/40 rounded-none py-1 text-xs font-mono text-text-main focus:outline-none focus:border-text-main"
                                     />
                                     <span className="text-[11px] font-sans text-text-dim">
                                       (Meta de ritmo: cumplir al menos el {routineTargetPercent}% del período)
@@ -967,13 +934,13 @@ export default function IntencionesPanelView({
                               <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
                                   <label className="text-[10px] font-mono text-text-dim uppercase">¿A qué vinculas el tiempo?</label>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-4 pt-0.5">
                                     <button
                                       type="button"
                                       onClick={() => { setHoursTargetKind('area'); setSelectedHoursTargetId(areaNames[0] || ''); }}
                                       className={cn(
-                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
-                                        hoursTargetKind === 'area' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        hoursTargetKind === 'area' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Área Vital
@@ -982,8 +949,8 @@ export default function IntencionesPanelView({
                                       type="button"
                                       onClick={() => { setHoursTargetKind('project'); setSelectedHoursTargetId(projects[0]?.id || ''); }}
                                       className={cn(
-                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
-                                        hoursTargetKind === 'project' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        hoursTargetKind === 'project' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Proyecto
@@ -992,8 +959,8 @@ export default function IntencionesPanelView({
                                       type="button"
                                       onClick={() => { setHoursTargetKind('task'); setSelectedHoursTargetId(trackableTasks[0]?.id || ''); }}
                                       className={cn(
-                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
-                                        hoursTargetKind === 'task' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        hoursTargetKind === 'task' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Hábito / Tarea
@@ -1009,7 +976,7 @@ export default function IntencionesPanelView({
                                     <select
                                       value={selectedHoursTargetId || areaNames[0] || ''}
                                       onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {areaNames.map(a => (
                                         <option key={a} value={a}>{a}</option>
@@ -1020,7 +987,7 @@ export default function IntencionesPanelView({
                                     <select
                                       value={selectedHoursTargetId || projects[0]?.id || ''}
                                       onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {projects.map(p => (
                                         <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
@@ -1031,7 +998,7 @@ export default function IntencionesPanelView({
                                     <select
                                       value={selectedHoursTargetId || trackableTasks[0]?.id || ''}
                                       onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {trackableTasks.map(t => (
                                         <option key={t.id} value={t.id}>{t.text} ({t.type} · {t.category || 'Sin Área'})</option>
@@ -1040,7 +1007,7 @@ export default function IntencionesPanelView({
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">Modalidad de Meta</label>
                                     <select
@@ -1050,7 +1017,7 @@ export default function IntencionesPanelView({
                                         setHoursPacing(p);
                                         setHoursValue(p === 'weekly' ? 4 : 50);
                                       }}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       <option value="weekly">Ritmo semanal (h/sem)</option>
                                       <option value="total">Total en el período (h)</option>
@@ -1067,7 +1034,7 @@ export default function IntencionesPanelView({
                                       step={0.5}
                                       value={hoursValue}
                                       onChange={(e) => setHoursValue(Number(e.target.value))}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1 text-xs font-mono text-text-main focus:outline-none focus:border-text-main"
                                     />
                                   </div>
                                 </div>
@@ -1085,27 +1052,27 @@ export default function IntencionesPanelView({
                                     <button
                                       type="button"
                                       onClick={() => setIsCreatingNewCounterTask(!isCreatingNewCounterTask)}
-                                      className="text-[10px] font-mono text-primary hover:underline cursor-pointer"
+                                      className="text-[10px] font-mono text-text-dim hover:text-text-main cursor-pointer underline"
                                     >
                                       {isCreatingNewCounterTask ? "Elegir existente" : "+ Crear nueva tarea"}
                                     </button>
                                   </div>
 
                                   {isCreatingNewCounterTask ? (
-                                    <div className="space-y-2 p-2.5 rounded-lg border border-border-line/40 bg-base">
+                                    <div className="space-y-2 py-1">
                                       <input
                                         type="text"
                                         placeholder="Nombre del libro o actividad (ej. Leer 'El infinito en un junco')"
                                         value={counterName}
                                         onChange={(e) => setCounterName(e.target.value)}
-                                        className="w-full bg-transparent border-b border-border-line/40 pb-1 text-xs font-sans text-text-main focus:outline-none focus:border-primary"
+                                        className="w-full bg-transparent border-b border-border-line/40 pb-1 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                       />
                                       <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-mono text-text-dim uppercase">Área:</span>
                                         <select
                                           value={newCounterTaskCategory}
                                           onChange={(e) => setNewCounterTaskCategory(e.target.value)}
-                                          className="bg-base-dim/20 border border-border-line/30 rounded px-2 py-0.5 text-xs font-mono text-text-main"
+                                          className="bg-transparent border-b border-border-line/30 px-1 py-0.5 text-xs font-mono text-text-main"
                                         >
                                           {areaNames.map(a => (
                                             <option key={a} value={a}>{a}</option>
@@ -1121,7 +1088,7 @@ export default function IntencionesPanelView({
                                         const t = tasks.find(task => task.id === e.target.value);
                                         if (t) setCounterName(t.text);
                                       }}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {trackableTasks.map(t => (
                                         <option key={t.id} value={t.id}>{t.text} ({t.category || 'Sin Área'})</option>
@@ -1130,7 +1097,7 @@ export default function IntencionesPanelView({
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">Meta Cuantitativa Total</label>
                                     <input
@@ -1139,7 +1106,7 @@ export default function IntencionesPanelView({
                                       value={counterTarget}
                                       onChange={(e) => setCounterTarget(Number(e.target.value))}
                                       placeholder="500"
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1 text-xs font-mono text-text-main focus:outline-none focus:border-text-main"
                                     />
                                   </div>
 
@@ -1150,7 +1117,7 @@ export default function IntencionesPanelView({
                                       value={counterUnit}
                                       onChange={(e) => setCounterUnit(e.target.value)}
                                       placeholder="páginas, capítulos, etc."
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     />
                                   </div>
                                 </div>
@@ -1162,13 +1129,13 @@ export default function IntencionesPanelView({
                               <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
                                   <label className="text-[10px] font-mono text-text-dim uppercase">Tipo de Meta</label>
-                                  <div className="grid grid-cols-3 gap-1.5">
+                                  <div className="flex gap-4 pt-0.5">
                                     <button
                                       type="button"
                                       onClick={() => setMilestoneKind('standalone_task')}
                                       className={cn(
-                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
-                                        milestoneKind === 'standalone_task' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        milestoneKind === 'standalone_task' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Tarea Suelta
@@ -1177,8 +1144,8 @@ export default function IntencionesPanelView({
                                       type="button"
                                       onClick={() => setMilestoneKind('project_milestone')}
                                       className={cn(
-                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
-                                        milestoneKind === 'project_milestone' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        milestoneKind === 'project_milestone' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Hito de Proyecto
@@ -1187,8 +1154,8 @@ export default function IntencionesPanelView({
                                       type="button"
                                       onClick={() => setMilestoneKind('project_complete')}
                                       className={cn(
-                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
-                                        milestoneKind === 'project_complete' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                        "text-xs font-sans pb-1 transition-all cursor-pointer border-b",
+                                        milestoneKind === 'project_complete' ? "border-text-main font-medium text-text-main" : "border-transparent text-text-dim hover:text-text-main"
                                       )}
                                     >
                                       Proyecto Entero
@@ -1202,7 +1169,7 @@ export default function IntencionesPanelView({
                                     <select
                                       value={selectedMilestoneTaskId || standaloneTasks[0]?.id || ''}
                                       onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {standaloneTasks.map(t => (
                                         <option key={t.id} value={t.id}>
@@ -1223,7 +1190,7 @@ export default function IntencionesPanelView({
                                           setSelectedProjectId(e.target.value);
                                           setSelectedMilestoneTaskId('');
                                         }}
-                                        className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                        className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                       >
                                         {projects.map(p => (
                                           <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
@@ -1235,7 +1202,7 @@ export default function IntencionesPanelView({
                                       <select
                                         value={selectedMilestoneTaskId || projectTasks[0]?.id || ''}
                                         onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
-                                        className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                        className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                       >
                                         {projectTasks.map(m => (
                                           <option key={m.id} value={m.id}>
@@ -1253,7 +1220,7 @@ export default function IntencionesPanelView({
                                     <select
                                       value={selectedProjectId || projects[0]?.id || ''}
                                       onChange={(e) => setSelectedProjectId(e.target.value)}
-                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
                                     >
                                       {projects.map(p => (
                                         <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
@@ -1264,61 +1231,61 @@ export default function IntencionesPanelView({
                               </div>
                             )}
 
-                            <div className="flex justify-end gap-2 pt-2">
+                            <div className="flex justify-end gap-3 pt-2">
                               <button
                                 type="button"
                                 onClick={() => setAddingCommitmentQ(null)}
-                                className="px-3 py-1.5 text-xs font-mono text-text-dim hover:text-text-main cursor-pointer"
+                                className="px-3 py-1 text-xs font-sans text-text-dim hover:text-text-main cursor-pointer"
                               >
                                 Cancelar
                               </button>
                               <button
                                 type="button"
                                 onClick={() => submitNewCommitment(q)}
-                                className="px-4 py-1.5 bg-primary text-base rounded-lg text-xs font-mono font-bold hover:bg-primary/90 transition-colors cursor-pointer"
+                                className="px-3 py-1 bg-text-main text-base text-xs font-sans font-medium hover:bg-text-main/90 transition-colors cursor-pointer"
                               >
-                                Guardar Compromiso
+                                Guardar compromiso
                               </button>
                             </div>
                           </div>
                         )}
 
-                        {/* List of Commitments */}
+                        {/* List of Commitments (Open Rows) */}
                         {items.length === 0 ? (
-                          <div className="p-4 rounded-xl border border-dashed border-border-line/40 text-center text-xs font-mono text-text-dim">
-                            No has definido compromisos para {q.key}. Añade una meta prioritaria.
+                          <div className="py-3 text-xs font-sans text-text-dim italic">
+                            No has definido compromisos para {q.key}.
                           </div>
                         ) : (
-                          <div className="space-y-2.5">
+                          <div className="space-y-3 pt-1">
                             {items.map(item => {
                               const prog = calculateCommitmentProgress(item, q.start, q.end);
                               const taskObj = tasks.find(t => t.id === (item.taskId || item.projectId));
                               const title = item.counterName || taskObj?.text || item.areaName || 'Compromiso';
 
-                              let icon = <Repeat className="w-3.5 h-3.5 text-[#81b29a]" />;
+                              let icon = <Repeat className="w-3.5 h-3.5 text-text-main/70" />;
                               if (item.targetType === 'hours') {
-                                icon = <Clock className="w-3.5 h-3.5 text-[#e07a5f]" />;
+                                icon = <Clock className="w-3.5 h-3.5 text-text-main/70" />;
                               } else if (item.targetType === 'counter') {
-                                icon = <BookOpen className="w-3.5 h-3.5 text-[#3d5a80]" />;
+                                icon = <BookOpen className="w-3.5 h-3.5 text-text-main/70" />;
                               } else if (item.targetType === 'completion') {
-                                icon = item.projectId && !item.taskId ? <Layers className="w-3.5 h-3.5 text-[#f4a261]" /> : <CheckSquare className="w-3.5 h-3.5 text-[#2a9d8f]" />;
+                                icon = item.projectId && !item.taskId ? <Layers className="w-3.5 h-3.5 text-text-main/70" /> : <CheckSquare className="w-3.5 h-3.5 text-text-main/70" />;
                               }
 
                               return (
                                 <div
                                   key={item.id}
-                                  className="p-3 rounded-xl border border-border-line/30 bg-base-dim/5 hover:bg-base-dim/10 transition-colors space-y-2"
+                                  className="space-y-1.5 py-1 group"
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                      <div className="p-1 rounded-full bg-base-dim/20 text-text-main">
+                                      <div className="text-text-main/70">
                                         {icon}
                                       </div>
                                       <div>
-                                        <div className="text-xs font-bold text-text-main">
+                                        <div className="text-xs font-medium text-text-main">
                                           {title}
                                         </div>
-                                        <div className="text-[9px] font-mono text-text-dim">
+                                        <div className="text-[10px] font-mono text-text-dim">
                                           {prog.label}
                                         </div>
                                       </div>
@@ -1326,18 +1293,18 @@ export default function IntencionesPanelView({
 
                                     <div className="flex items-center gap-2">
                                       {prog.isDone ? (
-                                        <span className="inline-flex items-center gap-1 text-[9px] font-mono bg-[#81b29a]/15 text-[#81b29a] font-bold px-2 py-0.5 rounded-full">
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-600 font-medium">
                                           <Check className="w-3 h-3" /> Cumplido
                                         </span>
                                       ) : (
-                                        <span className="text-[10px] font-mono font-bold text-text-main">
+                                        <span className="text-[10px] font-mono text-text-dim">
                                           {prog.percentProgress}%
                                         </span>
                                       )}
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteItemFromQuarter(q.start, q.end, item.id)}
-                                        className="text-text-dim hover:text-red-500 p-1 transition-colors cursor-pointer"
+                                        className="text-text-dim/40 hover:text-red-500 p-1 transition-colors cursor-pointer"
                                         title="Eliminar compromiso"
                                       >
                                         <Trash2 className="w-3 h-3" />
@@ -1347,15 +1314,15 @@ export default function IntencionesPanelView({
 
                                   {/* Counter quick-log action */}
                                   {item.targetType === 'counter' && (
-                                    <div className="pt-1">
+                                    <div className="pt-0.5">
                                       {loggingPagesItemId === item.id ? (
-                                        <div className="flex items-center gap-2 p-1.5 bg-base rounded-lg border border-border-line/40">
+                                        <div className="flex items-center gap-2 py-1">
                                           <span className="text-[10px] font-mono text-text-dim">Sumar:</span>
                                           <input
                                             type="number"
                                             value={pagesToAdd}
                                             onChange={(e) => setPagesToAdd(Number(e.target.value))}
-                                            className="w-16 bg-base-dim/20 border border-border-line/30 rounded px-1.5 py-0.5 text-xs font-mono text-text-main"
+                                            className="w-14 bg-transparent border-b border-border-line/40 px-1 py-0.5 text-xs font-mono text-text-main focus:outline-none focus:border-text-main"
                                           />
                                           <span className="text-[10px] font-mono text-text-dim">{item.unitLabel || 'páginas'}</span>
                                           <button
@@ -1365,7 +1332,7 @@ export default function IntencionesPanelView({
                                               handleUpdateItemInQuarter(q.start, q.end, item.id, { currentCount: newCount });
                                               setLoggingPagesItemId(null);
                                             }}
-                                            className="px-2 py-0.5 bg-primary text-base text-[10px] font-mono font-bold rounded cursor-pointer"
+                                            className="px-2 py-0.5 bg-text-main text-base text-[10px] font-mono font-medium cursor-pointer"
                                           >
                                             Guardar
                                           </button>
@@ -1384,7 +1351,7 @@ export default function IntencionesPanelView({
                                             setLoggingPagesItemId(item.id);
                                             setPagesToAdd(10);
                                           }}
-                                          className="text-[10px] font-mono text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                                          className="text-[10px] font-mono text-text-dim hover:text-text-main flex items-center gap-1 cursor-pointer underline"
                                         >
                                           <Plus className="w-3 h-3" /> Registrar {item.unitLabel || 'páginas'}
                                         </button>
@@ -1392,12 +1359,12 @@ export default function IntencionesPanelView({
                                     </div>
                                   )}
 
-                                  {/* Progress bar */}
-                                  <div className="w-full bg-base-dim/30 h-1.5 rounded-full overflow-hidden">
+                                  {/* Progress bar hairline */}
+                                  <div className="w-full bg-border-line/20 h-[1.5px] overflow-hidden">
                                     <div
                                       className={cn(
                                         "h-full transition-all duration-300",
-                                        prog.isDone ? "bg-[#81b29a]" : "bg-primary"
+                                        prog.isDone ? "bg-emerald-600" : "bg-text-main/60"
                                       )}
                                       style={{ width: `${Math.min(100, prog.percentProgress)}%` }}
                                     />
@@ -1409,13 +1376,13 @@ export default function IntencionesPanelView({
                         )}
                       </div>
 
-                      {/* LEVEL 3: MONTHS NESTED INSIDE THIS QUARTER */}
-                      <div className="space-y-3 pt-3 border-t border-border-line/15">
-                        <h5 className="text-[10px] font-mono uppercase tracking-widest text-text-dim font-bold">
-                          Meses de {q.key} (Desglose y Foco Mensual)
+                      {/* LEVEL 3: MONTHS NESTED INSIDE THIS QUARTER (Open & Indented) */}
+                      <div className="space-y-3 pt-3 border-t border-border-line/20">
+                        <h5 className="text-xs font-sans text-text-dim">
+                          Meses de {q.key} · Foco y avance mensual
                         </h5>
 
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {q.months.map(m => {
                             const isCurrentMonth = m.monthIdx === currentMonthIdx;
                             const isMonthExpanded = !!expandedMonths[m.name];
@@ -1423,31 +1390,23 @@ export default function IntencionesPanelView({
                             const isMonthSelected = selectedPeriod.scale === 'cycle' && selectedPeriod.start === m.start;
 
                             return (
-                              <div
-                                key={m.name}
-                                className={cn(
-                                  "border rounded-xl transition-all overflow-hidden",
-                                  isCurrentMonth
-                                    ? "border-primary/40 bg-base-dim/5"
-                                    : "border-border-line/20 bg-base"
-                                )}
-                              >
+                              <div key={m.name} className="space-y-2">
                                 <div
-                                  className="p-3 flex items-center justify-between cursor-pointer hover:bg-base-dim/10 transition-colors"
+                                  className="flex items-center justify-between cursor-pointer py-1 group select-none"
                                   onClick={() => setExpandedMonths(prev => ({ ...prev, [m.name]: !prev[m.name] }))}
                                 >
                                   <div className="flex items-center gap-2.5">
-                                    <div className="w-4 h-4 flex items-center justify-center text-text-dim">
+                                    <div className="w-4 h-4 flex items-center justify-center text-text-dim group-hover:text-text-main transition-colors">
                                       {isMonthExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                     </div>
-                                    <span className="text-xs font-mono font-bold text-text-main">{m.name}</span>
+                                    <span className="text-xs font-mono font-medium text-text-main">{m.name}</span>
                                     {isCurrentMonth && (
-                                      <span className="text-[8px] font-mono uppercase tracking-wider bg-primary/20 text-primary px-1.5 py-0.2 rounded font-bold">
+                                      <span className="text-[8px] font-mono uppercase tracking-wider text-text-dim px-1.5 py-0.2 bg-base-dim/40 font-medium">
                                         Mes Actual
                                       </span>
                                     )}
                                     {monthIntention?.theme && (
-                                      <span className="text-[11px] font-sans text-text-dim italic line-clamp-1 ml-2">
+                                      <span className="text-xs font-sans text-text-dim italic line-clamp-1 ml-2">
                                         "{monthIntention.theme}"
                                       </span>
                                     )}
@@ -1465,10 +1424,10 @@ export default function IntencionesPanelView({
                                       });
                                     }}
                                     className={cn(
-                                      "p-1.5 rounded-md text-[10px] font-mono flex items-center gap-1 transition-colors border",
+                                      "text-[10px] font-sans flex items-center gap-1 transition-colors",
                                       isMonthSelected
-                                        ? "bg-primary/10 border-primary/30 text-primary font-bold"
-                                        : "border-border-line/30 text-text-dim hover:text-text-main hover:bg-base-dim/10"
+                                        ? "text-text-main font-medium underline underline-offset-4"
+                                        : "text-text-dim hover:text-text-main"
                                     )}
                                     title="Ver dedicación de este mes"
                                   >
@@ -1478,34 +1437,34 @@ export default function IntencionesPanelView({
                                 </div>
 
                                 {isMonthExpanded && (
-                                  <div className="p-3 border-t border-border-line/10 space-y-3 bg-base-dim/5">
+                                  <div className="pl-6 space-y-3 pt-1">
                                     {/* Monthly Theme */}
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-mono uppercase tracking-wider text-text-dim font-bold flex items-center gap-1">
-                                        <Compass className="w-2.5 h-2.5 text-accent" /> Foco de {m.name}
+                                      <label className="text-[10px] font-mono text-text-dim flex items-center gap-1">
+                                        <Compass className="w-2.5 h-2.5 text-text-main/70" /> Foco de {m.name}
                                       </label>
                                       <input
                                         type="text"
                                         defaultValue={monthIntention?.theme || ''}
                                         onBlur={(e) => handleUpdateTheme('cycle', m.start, m.end, e.target.value)}
                                         placeholder={`Norte temático para ${m.name}...`}
-                                        className="w-full bg-base border border-border-line/30 rounded-lg px-2.5 py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-primary/50 transition-colors"
+                                        className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1 text-xs font-sans text-text-main focus:outline-none focus:border-text-main transition-colors"
                                       />
                                     </div>
 
                                     {/* Month Operational Breakdown of Quarter Commitments */}
                                     {items.length > 0 && (
                                       <div className="space-y-1.5 pt-1">
-                                        <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim font-bold">
+                                        <span className="text-[10px] font-mono text-text-dim">
                                           Avance de metas del cuarto en {m.name}
                                         </span>
-                                        <div className="space-y-1.5">
+                                        <div className="space-y-1">
                                           {items.map(item => {
                                             const monthProg = calculateCommitmentProgress(item, m.start, m.end);
                                             const taskObj = tasks.find(t => t.id === (item.taskId || item.projectId));
                                             return (
-                                              <div key={item.id} className="flex justify-between items-center text-[11px] font-sans text-text-main bg-base px-2.5 py-1.5 rounded-lg border border-border-line/20">
-                                                <span className="truncate pr-2 font-medium">{taskObj?.text || item.areaName}</span>
+                                              <div key={item.id} className="flex justify-between items-center text-xs font-sans text-text-main py-0.5">
+                                                <span className="truncate pr-2">{taskObj?.text || item.areaName}</span>
                                                 <span className="text-[10px] font-mono text-text-dim shrink-0">
                                                   {monthProg.label}
                                                 </span>
@@ -1530,35 +1489,33 @@ export default function IntencionesPanelView({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Dedicated Sticky Dedication & Progress Mirror */}
+        {/* RIGHT COLUMN: Dedicated Sticky Dedication & Progress Mirror (Open) */}
         <div className={cn(
-          "lg:col-span-5 lg:sticky lg:top-6 space-y-4",
+          "lg:col-span-5 lg:sticky lg:top-6 space-y-6",
           activeMobileTab === 'intenciones' ? "hidden lg:block" : "block"
         )}>
-          <div className="bg-base border border-border-line/40 rounded-2xl p-5 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-border-line/20 pb-3">
-              <div>
-                <span className="text-[9px] font-mono uppercase tracking-widest text-primary font-bold">
-                  Espejo de Dedicación Real
-                </span>
-                <h3 className="text-base font-sans font-bold text-text-main">
-                  {selectedPeriod.label}
-                </h3>
-              </div>
+          <div className="border-b border-border-line/30 pb-3">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-text-dim font-medium">
+              Espejo de dedicación real
+            </span>
+            <div className="flex justify-between items-baseline mt-0.5">
+              <h3 className="text-base font-sans font-light text-text-main">
+                {selectedPeriod.label}
+              </h3>
               <span className="text-[10px] font-mono text-text-dim">
                 {selectedPeriod.start} / {selectedPeriod.end}
               </span>
             </div>
-
-            {/* Render DedicationChart for the selected period */}
-            <DedicationChart
-              config={config || ({} as Config)}
-              tasks={tasks}
-              history={history}
-              periodStart={selectedPeriod.start}
-              periodEnd={selectedPeriod.end}
-            />
           </div>
+
+          {/* Render DedicationChart for the selected period */}
+          <DedicationChart
+            config={config || ({} as Config)}
+            tasks={tasks}
+            history={history}
+            periodStart={selectedPeriod.start}
+            periodEnd={selectedPeriod.end}
+          />
         </div>
       </div>
     </div>

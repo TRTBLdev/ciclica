@@ -79,10 +79,10 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
   });
 
   const phaseLabels = {
-    'reflexiva': { label: 'Reflexiva', color: 'text-[#d4a373]', border: 'border-[#d4a373]' },
-    'dinamica': { label: 'Dinámica', color: 'text-[#81b29a]', border: 'border-[#81b29a]' },
-    'expresiva': { label: 'Expresiva', color: 'text-[#e07a5f]', border: 'border-[#e07a5f]' },
-    'creativa': { label: 'Creativa', color: 'text-[#f2cc8f]', border: 'border-[#f2cc8f]' },
+    'reflexiva': { label: 'Reflexiva', color: 'text-[#d4a373]', dot: 'bg-[#d4a373]', bar: 'bg-[#d4a373]' },
+    'dinamica': { label: 'Dinámica', color: 'text-[#81b29a]', dot: 'bg-[#81b29a]', bar: 'bg-[#81b29a]' },
+    'expresiva': { label: 'Expresiva', color: 'text-[#e07a5f]', dot: 'bg-[#e07a5f]', bar: 'bg-[#e07a5f]' },
+    'creativa': { label: 'Creativa', color: 'text-[#f2cc8f]', dot: 'bg-[#f2cc8f]', bar: 'bg-[#f2cc8f]' },
   };
 
   // --- Occupancy Nodes (filtered by selectedPhase if active) ---
@@ -218,24 +218,24 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
   }, [areaGroups]);
 
   return (
-    <div className="space-y-8">
-      {/* Phase Breakdown Cards (Interactive filter) */}
-      <div className="space-y-3">
+    <div className="space-y-6">
+      {/* Phase Breakdown (Open interactive filter, zero frames) */}
+      <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
-            Diferencia de Dedicación por Fase Biológica
+          <h4 className="text-xs font-sans text-text-dim">
+            Dedicación por fase biológica
           </h4>
           {selectedPhase && (
             <button
               onClick={() => setSelectedPhase(null)}
-              className="inline-flex items-center gap-1 text-[10px] font-mono text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-[10px] font-mono text-text-dim hover:text-text-main cursor-pointer underline"
             >
               <X className="w-3 h-3" /> Quitar filtro
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-1">
           {Object.entries(phaseBreakdown).map(([phase, data]) => {
             const total = data.vital + data.inversion;
             const pInfo = phaseLabels[phase as keyof typeof phaseLabels];
@@ -247,40 +247,40 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
                 type="button"
                 onClick={() => setSelectedPhase(prev => (prev === phase ? null : phase))}
                 className={cn(
-                  "text-left bg-base-dim/10 border rounded-xl p-3 flex flex-col gap-1.5 transition-all duration-200 cursor-pointer relative",
-                  isSelected
-                    ? cn("ring-2 ring-primary bg-base-dim/30 shadow-sm", pInfo.border)
-                    : "border-border-line/30 hover:border-border-line hover:bg-base-dim/15"
+                  "text-left py-1 transition-opacity cursor-pointer group select-none",
+                  isSelected ? "opacity-100" : "opacity-60 hover:opacity-100"
                 )}
               >
-                {isSelected && (
-                  <span className="absolute top-2 right-2 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                <div className="flex items-center gap-1.5">
+                  <span className={cn(
+                    "rounded-full transition-all",
+                    pInfo.dot,
+                    isSelected ? "w-2 h-2 ring-2 ring-text-main/20 ring-offset-1" : "w-1.5 h-1.5 opacity-80"
+                  )} />
+                  <span className="text-[11px] font-sans font-medium text-text-main">
+                    {pInfo.label}
                   </span>
-                )}
-                <div className={cn("text-[10px] font-mono uppercase tracking-widest font-bold", pInfo.color)}>
-                  {pInfo.label}
                 </div>
-                <div className="text-lg font-sans font-light text-text-main">
-                  {total.toFixed(1)} <span className="text-xs text-text-dim font-mono">h</span>
+                <div className="text-sm font-sans font-light text-text-main mt-0.5">
+                  {total.toFixed(1)} <span className="text-[10px] text-text-dim font-mono">h</span>
                 </div>
-                <div className="space-y-1 mt-1">
-                  <div className="flex justify-between text-[9px] font-mono text-text-dim">
-                    <span>Soporte</span>
-                    <span>{data.vital.toFixed(1)}h</span>
-                  </div>
-                  <div className="w-full bg-base-dim/20 h-1 rounded-full overflow-hidden">
-                    <div className="bg-[#81b29a] h-full" style={{ width: `${total > 0 ? (data.vital / total) * 100 : 0}%` }}></div>
-                  </div>
-
-                  <div className="flex justify-between text-[9px] font-mono text-text-dim pt-0.5">
-                    <span>Inversión</span>
-                    <span>{data.inversion.toFixed(1)}h</span>
-                  </div>
-                  <div className="w-full bg-base-dim/20 h-1 rounded-full overflow-hidden">
-                    <div className="bg-[#e07a5f] h-full" style={{ width: `${total > 0 ? (data.inversion / total) * 100 : 0}%` }}></div>
-                  </div>
+                {/* Combined Soporte / Inversión stacked bar */}
+                <div className="w-full bg-border-line/20 h-[2px] rounded-full overflow-hidden flex mt-1">
+                  <div
+                    className="bg-[#81b29a] h-full transition-all duration-300"
+                    style={{ width: `${total > 0 ? (data.vital / total) * 100 : 0}%` }}
+                    title={`Soporte: ${data.vital.toFixed(1)}h`}
+                  />
+                  <div
+                    className="bg-[#e07a5f] h-full transition-all duration-300"
+                    style={{ width: `${total > 0 ? (data.inversion / total) * 100 : 0}%` }}
+                    title={`Inversión: ${data.inversion.toFixed(1)}h`}
+                  />
+                </div>
+                <div className="text-[9px] font-mono text-text-dim flex gap-1.5 mt-0.5">
+                  <span>{data.vital.toFixed(1)}h sop</span>
+                  <span>·</span>
+                  <span>{data.inversion.toFixed(1)}h inv</span>
                 </div>
               </button>
             );
@@ -290,7 +290,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
 
       {/* Distribution Stacked Bar & Grouped Table */}
       {totalPeriodHours === 0 ? (
-        <div className="text-center py-8 text-xs font-mono text-text-dim border border-border-line/40 bg-base-dim/5 rounded-xl">
+        <div className="py-6 text-xs font-sans text-text-dim italic">
           {selectedPhase
             ? `No hay registros de tiempo durante la fase ${phaseLabels[selectedPhase as keyof typeof phaseLabels]?.label || selectedPhase}.`
             : "No hay registros de tiempo en este período."}
@@ -301,19 +301,19 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
           <div className="space-y-2">
             <div className="flex justify-between items-end">
               <div className="flex items-center gap-2">
-                <h4 className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
-                  Distribución de Dedicación
+                <h4 className="text-xs font-sans text-text-dim">
+                  Distribución de dedicación
                 </h4>
                 {selectedPhase && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-mono text-text-dim bg-base-dim/30 px-2 py-0.5 rounded-full">
-                    <Filter className="w-2.5 h-2.5" /> Fase {phaseLabels[selectedPhase as keyof typeof phaseLabels]?.label}
+                  <span className="text-[10px] font-mono text-text-dim">
+                    · Fase {phaseLabels[selectedPhase as keyof typeof phaseLabels]?.label}
                   </span>
                 )}
               </div>
-              <span className="text-xs font-mono font-bold text-text-main">{totalPeriodHours.toFixed(1)} h totales</span>
+              <span className="text-xs font-mono text-text-dim">{totalPeriodHours.toFixed(1)} h totales</span>
             </div>
 
-            <div className="w-full h-3.5 flex rounded-full overflow-hidden border border-border-line/30 bg-base-dim/20">
+            <div className="w-full h-1.5 flex rounded-none overflow-hidden bg-border-line/20">
               {areaGroups.map(group => {
                 const percent = (group.totalHours / totalPeriodHours) * 100;
                 if (percent < 0.5) return null;
@@ -327,63 +327,61 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
                 );
               })}
             </div>
-            <div className="flex flex-wrap gap-3 mt-1">
+            <div className="flex flex-wrap gap-4 mt-1">
               {areaGroups.map(group => (
-                <div key={group.area} className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-text-dim">
-                  <div className={cn("w-2 h-2 rounded-full", getAreaColor(group.area))} />
+                <div key={group.area} className="flex items-center gap-1.5 text-[10px] font-mono text-text-dim">
+                  <div className={cn("w-1.5 h-1.5 rounded-full", getAreaColor(group.area))} />
                   <span>{group.area} ({((group.totalHours / totalPeriodHours) * 100).toFixed(0)}%)</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Hierarchical Table Grouped by Area with Accordions */}
-          <div className="border border-border-line/40 rounded-xl overflow-hidden text-xs font-sans">
+          {/* Hierarchical List Grouped by Area (Open & Indented, No Box) */}
+          <div className="space-y-2 text-xs font-sans pt-2">
             {/* Header */}
-            <div className="flex bg-base-dim/15 border-b border-border-line/40 p-3 font-mono text-[10px] uppercase tracking-wider font-bold text-text-dim">
-              <div className="flex-[3] pl-2">Área / Elemento</div>
+            <div className="flex border-b border-border-line/30 pb-1.5 font-mono text-[10px] uppercase tracking-wider text-text-dim">
+              <div className="flex-[3]">Área / Elemento</div>
               <div className="flex-[1] text-right">Horas</div>
               <div className="flex-[1] text-right">% del Total</div>
             </div>
 
             {/* Rows grouped by Area */}
-            <div className="divide-y divide-border-line/20">
+            <div className="space-y-1">
               {areaGroups.map(group => {
-                const isAreaExpanded = expandedAreas[group.area] ?? true; // Default expanded for visibility
+                const isAreaExpanded = expandedAreas[group.area] ?? true;
                 const groupPercent = ((group.totalHours / totalPeriodHours) * 100).toFixed(1);
-                const areaConfig = config.areas?.[group.area];
-                const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
 
                 return (
-                  <div key={group.area} className="divide-y divide-border-line/10">
+                  <div key={group.area} className="space-y-0.5">
                     {/* Area Level 1 Header (Accordion) */}
                     <div
-                      className="flex p-3 items-center bg-base-dim/5 hover:bg-base-dim/15 transition-colors cursor-pointer group"
+                      className="flex py-1.5 items-center cursor-pointer group select-none hover:opacity-80 transition-opacity border-b border-border-line/10"
                       onClick={() => toggleArea(group.area)}
                     >
                       <div className="flex-[3] flex items-center gap-2">
-                        <div className="w-4 h-4 flex items-center justify-center text-text-dim">
-                          {isAreaExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        <div className="w-3.5 h-3.5 flex items-center justify-center text-text-dim">
+                          {isAreaExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                         </div>
-                        <div className={cn("w-2.5 h-2.5 rounded-full", getAreaColor(group.area))} />
-                        <span className="font-mono font-bold uppercase tracking-wider text-text-main text-[11px]">
+                        <div className={cn("w-2 h-2 rounded-full", getAreaColor(group.area))} />
+                        <span className="font-mono font-medium uppercase tracking-wider text-text-main text-[11px]">
                           {group.area}
                         </span>
                         <span className="text-[10px] text-text-dim font-mono">
-                          ({group.nodes.length} {group.nodes.length === 1 ? 'ítem' : 'ítems'})
+                          ({group.nodes.length})
                         </span>
                       </div>
-                      <div className="flex-[1] text-right font-mono font-bold text-text-main">
+                      <div className="flex-[1] text-right font-mono font-medium text-text-main">
                         {group.totalHours.toFixed(1)}h
                       </div>
-                      <div className="flex-[1] text-right font-mono text-text-dim font-medium">
+                      <div className="flex-[1] text-right font-mono text-text-dim">
                         {groupPercent}%
                       </div>
                     </div>
 
-                    {/* Area Content (Level 2 & 3 Nodes) */}
+                    {/* Area Content (Level 2 & 3 Nodes, Indented) */}
                     {isAreaExpanded && (
-                      <div className="divide-y divide-border-line/10 bg-base/40">
+                      <div className="pl-5 space-y-1 py-0.5">
                         {group.nodes.map(node => {
                           const isNodeExpanded = !!expandedNodes[node.id];
                           const hasChildren = node.children.length > 0;
@@ -394,27 +392,27 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
                               {/* Node Row (Project, Routine, or Task) */}
                               <div
                                 className={cn(
-                                  "flex p-2.5 pl-8 items-center hover:bg-base-dim/10 transition-colors group",
+                                  "flex py-1 items-center hover:opacity-80 transition-opacity select-none",
                                   hasChildren ? "cursor-pointer" : ""
                                 )}
                                 onClick={() => hasChildren && toggleNode(node.id)}
                               >
                                 <div className="flex-[3] flex items-center gap-2">
-                                  <div className="w-4 h-4 flex items-center justify-center">
+                                  <div className="w-3.5 h-3.5 flex items-center justify-center text-text-dim">
                                     {hasChildren ? (
-                                      isNodeExpanded ? <ChevronDown className="w-3 h-3 text-text-dim" /> : <ChevronRight className="w-3 h-3 text-text-dim" />
+                                      isNodeExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
                                     ) : (
                                       <div className="w-1 h-1 rounded-full bg-text-dim/30" />
                                     )}
                                   </div>
-                                  <div className={cn("p-1 rounded-full bg-base-dim/20 text-text-main", getAreaTextClasses(color))}>
-                                    {node.type === 'Proyecto' ? <Layers className="w-3 h-3" /> :
-                                      node.type === 'Rutina' ? <Repeat className="w-3 h-3" /> :
-                                        <CheckCircle2 className="w-3 h-3" />}
+                                  <div>
+                                    {node.type === 'Proyecto' ? <Layers className="w-3.5 h-3.5 text-blue-500" /> :
+                                      node.type === 'Rutina' ? <Repeat className="w-3.5 h-3.5 text-amber-500" /> :
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
                                   </div>
                                   <div>
-                                    <div className="font-medium text-text-main">{node.text}</div>
-                                    <div className="text-[9px] text-text-dim font-mono uppercase">{node.type}</div>
+                                    <div className="text-text-main">{node.text}</div>
+                                    <div className="text-[9px] text-text-dim font-mono">{node.type}</div>
                                   </div>
                                 </div>
                                 <div className="flex-[1] text-right font-mono text-text-main">
@@ -427,23 +425,20 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
 
                               {/* Children Rows (subtasks, habits) */}
                               {isNodeExpanded && hasChildren && (
-                                <div className="bg-base-dim/10 divide-y divide-border-line/10 border-t border-border-line/10">
+                                <div className="pl-6 space-y-0.5 py-0.5">
                                   {node.children.map(child => {
                                     const childPercent = ((child.totalHours / node.totalHours) * 100).toFixed(1);
                                     return (
-                                      <div key={child.id} className="flex p-2 pl-16 items-center hover:bg-base-dim/15 transition-colors">
-                                        <div className="flex-[3] flex items-center gap-2">
-                                          <div className="text-[9px] text-text-dim">•</div>
-                                          <div>
-                                            <div className="text-text-main text-[11px]">{child.text}</div>
-                                            <div className="text-[8px] text-text-dim/60 font-mono uppercase">{child.type}</div>
-                                          </div>
+                                      <div key={child.id} className="flex py-0.5 items-center text-text-dim">
+                                        <div className="flex-[3] flex items-center gap-2 pl-2">
+                                          <div className="w-1 h-1 rounded-full bg-text-dim/40" />
+                                          <span className="truncate">{child.text}</span>
                                         </div>
                                         <div className="flex-[1] text-right font-mono text-[11px] text-text-main">
                                           {child.totalHours.toFixed(1)}h
                                         </div>
                                         <div className="flex-[1] text-right font-mono text-[9px] text-text-dim">
-                                          {childPercent}% <span className="text-[8px] opacity-50">del {node.type}</span>
+                                          {childPercent}%
                                         </div>
                                       </div>
                                     );

@@ -385,7 +385,7 @@ export default function BitacoraView({
         )}
 
         {activeTab === 'intenciones' && (
-          <div className="animate-in fade-in duration-200 p-6 md:p-8 lg:p-10 w-full text-left">
+          <div className="animate-in fade-in duration-200 px-4 sm:px-6 lg:px-8 py-6 w-full text-left">
             <IntencionesPanelView
               config={config}
               tasks={tasks}
