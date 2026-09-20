@@ -313,7 +313,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
               <span className="text-xs font-mono text-text-dim">{totalPeriodHours.toFixed(1)} h totales</span>
             </div>
 
-            <div className="w-full h-1.5 flex rounded-none overflow-hidden bg-border-line/20">
+            <div className="w-full h-2 flex rounded-full overflow-hidden bg-border-line/20">
               {areaGroups.map(group => {
                 const percent = (group.totalHours / totalPeriodHours) * 100;
                 if (percent < 0.5) return null;
