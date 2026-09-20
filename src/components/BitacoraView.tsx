@@ -395,6 +395,7 @@ export default function BitacoraView({
               onUpdateIntention={onUpdateIntention}
               onDeleteIntention={onDeleteIntention}
               onUpdateTask={onUpdateTask}
+              onAddTask={onAddTask}
             />
           </div>
         )}

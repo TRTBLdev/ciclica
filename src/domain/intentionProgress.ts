@@ -13,6 +13,10 @@ export const INTENTION_SCALE_LABELS = {
 } as const;
 
 export function getIntentionItemLabel(item: IntentionItem, tasks: AppTask[]): string {
+  if (item.targetType === 'counter') {
+    if (item.counterName) return item.counterName;
+    if (item.taskId) return tasks.find(task => task.id === item.taskId)?.text || 'Contador';
+  }
   if (item.projectId) return tasks.find(task => task.id === item.projectId)?.text || 'Proyecto';
   if (item.taskId) return tasks.find(task => task.id === item.taskId)?.text || 'Tarea';
   if (item.subCategory) return item.subCategory;
@@ -77,10 +81,54 @@ export function calculateHoursProgress(
   });
 
   const current = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
-  const target = item.targetHours || 0;
+  let target = item.targetHours || 0;
+  if (item.hoursPacing === 'weekly' && item.weeklyHours) {
+    const s = new Date(periodStart);
+    const e = new Date(periodEnd);
+    const totalDays = Math.max(7, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const totalWeeks = Math.max(1, Math.round(totalDays / 7));
+    target = item.weeklyHours * totalWeeks;
+  }
   const percent = target > 0 ? Math.min(100, (current / target) * 100) : 0;
 
-  return { current, target, percent };
+  return { current, target, percent, weeklyHours: item.weeklyHours, pacing: item.hoursPacing };
+}
+
+export function calculateCounterProgress(
+  item: IntentionItem,
+  tasks: AppTask[],
+  history: HistoryRecord[],
+  periodStart: string,
+  periodEnd: string
+) {
+  const current = item.currentCount || 0;
+  const target = item.targetCount || 0;
+  const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  const unit = item.unitLabel || 'unidades';
+
+  let hoursSpent = 0;
+  if (item.taskId) {
+    const relevantHistory = history.filter(h => {
+      const recordDateStr = getHistoryDateKey(h);
+      return (
+        h.taskId === item.taskId &&
+        recordDateStr >= periodStart &&
+        recordDateStr <= periodEnd &&
+        h.duration !== undefined &&
+        h.duration > 0
+      );
+    });
+    hoursSpent = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
+  }
+
+  return {
+    current,
+    target,
+    percent,
+    unit,
+    hoursSpent,
+    isDone: target > 0 && current >= target
+  };
 }
 
 export function calculateConsistencyProgress(
@@ -137,10 +185,11 @@ export function calculateItemProgress(
   periodEnd: string,
   intentions: Intention[] = []
 ): {
-  type: 'hours' | 'consistency' | 'completion';
-  hours?: { current: number; target: number; percent: number };
+  type: 'hours' | 'consistency' | 'completion' | 'counter';
+  hours?: { current: number; target: number; percent: number; weeklyHours?: number; pacing?: 'weekly' | 'total' };
   consistency?: { current: number; target: number; percent: number };
   completion?: { completed: boolean; taskName: string };
+  counter?: { current: number; target: number; percent: number; unit: string; hoursSpent: number; isDone: boolean };
 } {
   // Find all child items linked to this parent item across all intentions
   const childLinks: LinkedItem[] = [];
@@ -179,6 +228,8 @@ export function calculateItemProgress(
         currentSum += childProgress.hours.current;
       } else if (childProgress.type === 'consistency' && childProgress.consistency) {
         currentSum += childProgress.consistency.current;
+      } else if (childProgress.type === 'counter' && childProgress.counter) {
+        currentSum += childProgress.counter.current;
       } else if (childProgress.type === 'completion' && childProgress.completion) {
         if (childProgress.completion.completed) {
           completedCount++;
@@ -204,6 +255,19 @@ export function calculateItemProgress(
           current: currentSum,
           target: targetDays,
           percent: targetDays > 0 ? Math.min(100, (currentSum / targetDays) * 100) : 0
+        }
+      };
+    } else if (item.targetType === 'counter') {
+      const targetCount = item.targetCount || 0;
+      return {
+        type: 'counter',
+        counter: {
+          current: currentSum,
+          target: targetCount,
+          percent: targetCount > 0 ? Math.min(100, Math.round((currentSum / targetCount) * 100)) : 0,
+          unit: item.unitLabel || 'unidades',
+          hoursSpent: 0,
+          isDone: targetCount > 0 && currentSum >= targetCount
         }
       };
     } else {
@@ -234,6 +298,12 @@ export function calculateItemProgress(
       consistency: calculateConsistencyProgress(item, tasks, history, periodStart, periodEnd)
     };
   }
+  if (item.targetType === 'counter') {
+    return {
+      type: 'counter',
+      counter: calculateCounterProgress(item, tasks, history, periodStart, periodEnd)
+    };
+  }
   // item.targetType === 'completion'
   return {
     type: 'completion',
@@ -256,6 +326,14 @@ export function summarizeIntentionProgress(progress: ReturnType<typeof calculate
       value: `${progress.consistency.current} / ${progress.consistency.target} d`,
       compactValue: `${progress.consistency.current}/${progress.consistency.target}d`,
       percent: progress.consistency.percent
+    };
+  }
+  if (progress.type === 'counter' && progress.counter) {
+    return {
+      typeLabel: 'Contador',
+      value: `${progress.counter.current} / ${progress.counter.target} ${progress.counter.unit}`,
+      compactValue: `${progress.counter.current}/${progress.counter.target}`,
+      percent: progress.counter.percent
     };
   }
 

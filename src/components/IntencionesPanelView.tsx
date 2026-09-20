@@ -14,7 +14,10 @@ import {
   Eye,
   Check,
   X,
-  Compass
+  Compass,
+  Clock,
+  BookOpen,
+  CheckSquare
 } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScale } from '../types';
 import { cn, getAreaTextClasses } from '../lib/utils';
@@ -31,6 +34,7 @@ interface Props {
   onUpdateIntention: (id: string, updates: Partial<Intention>) => void;
   onDeleteIntention: (id: string) => void;
   onUpdateTask?: (id: string, updates: Partial<AppTask>) => void;
+  onAddTask?: (task: Omit<AppTask, 'id'>) => void;
 }
 
 interface QuarterInfo {
@@ -54,6 +58,7 @@ export default function IntencionesPanelView({
   onAddIntention,
   onUpdateIntention,
   onDeleteIntention,
+  onAddTask,
 }: Props) {
   const [activeMobileTab, setActiveMobileTab] = useState<'intenciones' | 'dedicacion'>('intenciones');
 
@@ -202,60 +207,192 @@ export default function IntencionesPanelView({
     });
   };
 
+  const handleUpdateItemInQuarter = (quarterStart: string, quarterEnd: string, itemId: string, updates: Partial<IntentionItem>) => {
+    const existing = getIntention('quarter', quarterStart, quarterEnd);
+    if (!existing) return;
+    onUpdateIntention(existing.id, {
+      items: existing.items.map(i => i.id === itemId ? { ...i, ...updates } : i),
+      updatedAt: new Date().toISOString()
+    });
+  };
+
   // State for Add Commitment Form modal/inline
   const [addingCommitmentQ, setAddingCommitmentQ] = useState<string | null>(null);
-  const [commitmentType, setCommitmentType] = useState<'routine' | 'project'>('routine');
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
-  const [routineTargetType, setRoutineTargetType] = useState<'percent' | 'days'>('percent');
-  const [routineTargetValue, setRoutineTargetValue] = useState<number>(80);
-  const [projectMode, setProjectMode] = useState<'project_complete' | 'milestone'>('project_complete');
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('');
+  const [commitmentType, setCommitmentType] = useState<'routine_habit' | 'hours' | 'counter' | 'milestone'>('routine_habit');
 
+  // Routine / Habit
+  const [selectedRoutineHabitId, setSelectedRoutineHabitId] = useState<string>('');
+  const [routineTargetPercent, setRoutineTargetPercent] = useState<number>(80);
+
+  // Hours
+  const [hoursTargetKind, setHoursTargetKind] = useState<'area' | 'project' | 'task'>('area');
+  const [selectedHoursTargetId, setSelectedHoursTargetId] = useState<string>('');
+  const [hoursPacing, setHoursPacing] = useState<'weekly' | 'total'>('weekly');
+  const [hoursValue, setHoursValue] = useState<number>(4);
+
+  // Counter
+  const [counterTaskId, setCounterTaskId] = useState<string>('');
+  const [counterName, setCounterName] = useState<string>('');
+  const [counterTarget, setCounterTarget] = useState<number>(500);
+  const [counterUnit, setCounterUnit] = useState<string>('páginas');
+  const [isCreatingNewCounterTask, setIsCreatingNewCounterTask] = useState<boolean>(false);
+  const [newCounterTaskCategory, setNewCounterTaskCategory] = useState<string>('MIND');
+
+  // Milestone
+  const [milestoneKind, setMilestoneKind] = useState<'standalone_task' | 'project_milestone' | 'project_complete'>('standalone_task');
+  const [selectedMilestoneTaskId, setSelectedMilestoneTaskId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+
+  // State for logging pages on counter cards
+  const [loggingPagesItemId, setLoggingPagesItemId] = useState<string | null>(null);
+  const [pagesToAdd, setPagesToAdd] = useState<number>(10);
+
+  const areaNames = useMemo(() => Object.keys(config?.areas || {}), [config]);
   const routines = useMemo(() => tasks.filter(t => t.type === 'Rutina'), [tasks]);
+  const standaloneHabits = useMemo(() => tasks.filter(t => t.type === 'Hábito' && !t.parentId), [tasks]);
+  const allHabitsAndRoutines = useMemo(() => [
+    ...routines.map(r => ({ id: r.id, text: r.text, category: r.category, typeLabel: 'Rutina' })),
+    ...tasks.filter(t => t.type === 'Hábito').map(h => ({ id: h.id, text: h.text, category: h.category, typeLabel: 'Hábito' }))
+  ], [routines, tasks]);
   const projects = useMemo(() => tasks.filter(t => t.type === 'Proyecto'), [tasks]);
-  const projectMilestones = useMemo(() => {
-    if (!selectedTaskId) return [];
-    return tasks.filter(t => t.parentId === selectedTaskId);
-  }, [tasks, selectedTaskId]);
+  const standaloneTasks = useMemo(() => tasks.filter(t => t.type === 'Tarea' && !t.parentId), [tasks]);
+  const projectTasks = useMemo(() => {
+    if (!selectedProjectId) return [];
+    return tasks.filter(t => t.parentId === selectedProjectId);
+  }, [tasks, selectedProjectId]);
+  const trackableTasks = useMemo(() => tasks.filter(t => t.type === 'Tarea' || t.type === 'Hábito'), [tasks]);
 
   const submitNewCommitment = (q: QuarterInfo) => {
-    if (!selectedTaskId) return;
+    let newItem: IntentionItem | null = null;
 
-    let newItem: IntentionItem;
-    if (commitmentType === 'routine') {
-      const routine = routines.find(r => r.id === selectedTaskId);
+    if (commitmentType === 'routine_habit') {
+      const targetId = selectedRoutineHabitId || allHabitsAndRoutines[0]?.id;
+      if (!targetId) return;
+      const targetTask = tasks.find(t => t.id === targetId);
       newItem = {
         id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         targetType: 'consistency',
-        taskId: selectedTaskId,
-        areaName: routine?.category || 'General',
-        targetPercent: routineTargetType === 'percent' ? routineTargetValue : undefined,
-        targetDays: routineTargetType === 'days' ? routineTargetValue : undefined,
+        taskId: targetId,
+        areaName: targetTask?.category || 'General',
+        targetPercent: routineTargetPercent || 80,
       };
-    } else {
-      const project = projects.find(p => p.id === selectedTaskId);
-      if (projectMode === 'milestone' && selectedMilestoneId) {
+    } else if (commitmentType === 'hours') {
+      if (hoursTargetKind === 'area') {
+        const area = selectedHoursTargetId || areaNames[0] || 'General';
         newItem = {
           id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          targetType: 'completion',
-          projectId: selectedTaskId,
-          taskId: selectedMilestoneId,
-          areaName: project?.category || 'General',
+          targetType: 'hours',
+          areaName: area,
+          hoursPacing,
+          weeklyHours: hoursPacing === 'weekly' ? (hoursValue || 4) : undefined,
+          targetHours: hoursPacing === 'total' ? (hoursValue || 50) : undefined,
+        };
+      } else if (hoursTargetKind === 'project') {
+        const projId = selectedHoursTargetId || projects[0]?.id;
+        if (!projId) return;
+        const proj = projects.find(p => p.id === projId);
+        newItem = {
+          id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          targetType: 'hours',
+          projectId: projId,
+          areaName: proj?.category || 'General',
+          hoursPacing,
+          weeklyHours: hoursPacing === 'weekly' ? (hoursValue || 4) : undefined,
+          targetHours: hoursPacing === 'total' ? (hoursValue || 50) : undefined,
         };
       } else {
+        const taskId = selectedHoursTargetId || trackableTasks[0]?.id;
+        if (!taskId) return;
+        const task = tasks.find(t => t.id === taskId);
+        newItem = {
+          id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          targetType: 'hours',
+          taskId: taskId,
+          areaName: task?.category || 'General',
+          hoursPacing,
+          weeklyHours: hoursPacing === 'weekly' ? (hoursValue || 4) : undefined,
+          targetHours: hoursPacing === 'total' ? (hoursValue || 50) : undefined,
+        };
+      }
+    } else if (commitmentType === 'counter') {
+      let finalTaskId = counterTaskId;
+      let finalTitle = counterName.trim();
+
+      if (isCreatingNewCounterTask && onAddTask && finalTitle) {
+        const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        onAddTask({
+          userId: 'default_user',
+          text: finalTitle,
+          type: 'Hábito',
+          category: newCounterTaskCategory || 'MIND',
+          completed: false,
+          createdAt: new Date().toISOString()
+        });
+        finalTaskId = newTaskId;
+      }
+
+      const linkedTask = tasks.find(t => t.id === finalTaskId);
+      if (!finalTitle && linkedTask) {
+        finalTitle = linkedTask.text;
+      }
+
+      newItem = {
+        id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        targetType: 'counter',
+        taskId: finalTaskId || undefined,
+        counterName: finalTitle || 'Contador',
+        currentCount: 0,
+        targetCount: counterTarget || 500,
+        unitLabel: counterUnit.trim() || 'páginas',
+        areaName: linkedTask?.category || newCounterTaskCategory || 'General',
+      };
+    } else if (commitmentType === 'milestone') {
+      if (milestoneKind === 'standalone_task') {
+        const taskId = selectedMilestoneTaskId || standaloneTasks[0]?.id;
+        if (!taskId) return;
+        const task = tasks.find(t => t.id === taskId);
         newItem = {
           id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           targetType: 'completion',
-          projectId: selectedTaskId,
-          areaName: project?.category || 'General',
+          taskId: taskId,
+          areaName: task?.category || 'General',
+        };
+      } else if (milestoneKind === 'project_milestone') {
+        const projId = selectedProjectId || projects[0]?.id;
+        const taskId = selectedMilestoneTaskId || projectTasks[0]?.id;
+        if (!projId || !taskId) return;
+        const proj = projects.find(p => p.id === projId);
+        newItem = {
+          id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          targetType: 'completion',
+          projectId: projId,
+          taskId: taskId,
+          areaName: proj?.category || 'General',
+        };
+      } else {
+        const projId = selectedProjectId || projects[0]?.id;
+        if (!projId) return;
+        const proj = projects.find(p => p.id === projId);
+        newItem = {
+          id: `ii_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          targetType: 'completion',
+          projectId: projId,
+          areaName: proj?.category || 'General',
         };
       }
     }
 
+    if (!newItem) return;
+
     handleAddItemToQuarter(q.start, q.end, newItem);
     setAddingCommitmentQ(null);
-    setSelectedTaskId('');
-    setSelectedMilestoneId('');
+    setSelectedRoutineHabitId('');
+    setSelectedHoursTargetId('');
+    setCounterTaskId('');
+    setCounterName('');
+    setIsCreatingNewCounterTask(false);
+    setSelectedMilestoneTaskId('');
+    setSelectedProjectId('');
   };
 
   // Calculation helpers for real-time progress of commitments
@@ -272,46 +409,125 @@ export default function IntencionesPanelView({
 
       const uniqueDays = new Set(relevantHistory.map(getHistoryDateKey)).size;
 
-      if (item.targetPercent !== undefined) {
-        // Calculate days elapsed in period up to today
+      // Calculate days elapsed in period up to today
+      const s = parseLocalDate(periodStart);
+      const e = parseLocalDate(periodEnd);
+      const now = new Date();
+      const effectiveEnd = now < e ? now : e;
+      const totalDaysElapsed = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const actualPercent = Math.min(100, Math.round((uniqueDays / totalDaysElapsed) * 100));
+      const targetPercent = item.targetPercent ?? 80;
+      return {
+        current: actualPercent,
+        target: targetPercent,
+        unit: '%',
+        label: `${actualPercent}% consistencia (${uniqueDays} de ${totalDaysElapsed} días)`,
+        percentProgress: Math.min(100, Math.round((actualPercent / targetPercent) * 100)),
+        isDone: actualPercent >= targetPercent
+      };
+    }
+
+    if (item.targetType === 'hours') {
+      let taskIds: string[] = [];
+      if (item.taskId) {
+        taskIds = [item.taskId];
+      } else if (item.projectId) {
+        taskIds = [item.projectId, ...tasks.filter(t => t.parentId === item.projectId).map(t => t.id)];
+      } else if (item.areaName) {
+        taskIds = tasks.filter(t => t.category === item.areaName).map(t => t.id);
+      }
+
+      const relevantHistory = history.filter(h => {
+        const d = getHistoryDateKey(h);
+        return (
+          taskIds.includes(h.taskId) &&
+          d >= periodStart &&
+          d <= periodEnd &&
+          h.duration !== undefined &&
+          h.duration > 0
+        );
+      });
+
+      const totalHours = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
+
+      if (item.hoursPacing === 'weekly' && item.weeklyHours) {
         const s = parseLocalDate(periodStart);
         const e = parseLocalDate(periodEnd);
+        const totalDays = Math.max(7, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const totalWeeks = Math.max(1, Math.round(totalDays / 7));
+        const targetTotalHours = item.weeklyHours * totalWeeks;
+
         const now = new Date();
         const effectiveEnd = now < e ? now : e;
-        const totalDaysElapsed = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const actualPercent = Math.min(100, Math.round((uniqueDays / totalDaysElapsed) * 100));
+        const elapsedDays = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const elapsedWeeks = Math.max(1, elapsedDays / 7);
+        const currentWeeklyAvg = totalHours / elapsedWeeks;
+
+        const percentProgress = targetTotalHours > 0 ? Math.min(100, Math.round((totalHours / targetTotalHours) * 100)) : 0;
         return {
-          current: actualPercent,
-          target: item.targetPercent,
-          unit: '%',
-          label: `${actualPercent}% consistencia (meta: ≥${item.targetPercent}%)`,
-          percentProgress: Math.min(100, (actualPercent / item.targetPercent) * 100),
-          isDone: actualPercent >= item.targetPercent
+          current: totalHours,
+          target: targetTotalHours,
+          unit: 'h',
+          label: `${totalHours.toFixed(1)} h (${currentWeeklyAvg.toFixed(1)} h/sem, meta: ${item.weeklyHours} h/sem)`,
+          percentProgress,
+          isDone: totalHours >= targetTotalHours
         };
       } else {
-        const targetDays = item.targetDays || 90;
-        const percentProgress = Math.min(100, Math.round((uniqueDays / targetDays) * 100));
+        const targetHours = item.targetHours || 50;
+        const percentProgress = targetHours > 0 ? Math.min(100, Math.round((totalHours / targetHours) * 100)) : 0;
         return {
-          current: uniqueDays,
-          target: targetDays,
-          unit: 'días',
-          label: `${uniqueDays} de ${targetDays} días`,
+          current: totalHours,
+          target: targetHours,
+          unit: 'h',
+          label: `${totalHours.toFixed(1)} de ${targetHours} h dedicadas`,
           percentProgress,
-          isDone: uniqueDays >= targetDays
+          isDone: totalHours >= targetHours
         };
       }
     }
 
+    if (item.targetType === 'counter') {
+      const current = item.currentCount || 0;
+      const target = item.targetCount || 500;
+      const unit = item.unitLabel || 'páginas';
+      const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+      let hoursSpent = 0;
+      if (item.taskId) {
+        const relevantHistory = history.filter(h => {
+          const d = getHistoryDateKey(h);
+          return (
+            h.taskId === item.taskId &&
+            d >= periodStart &&
+            d <= periodEnd &&
+            h.duration !== undefined &&
+            h.duration > 0
+          );
+        });
+        hoursSpent = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
+      }
+
+      return {
+        current,
+        target,
+        unit,
+        hoursSpent,
+        label: `${current} / ${target} ${unit}${hoursSpent > 0 ? ` · ${hoursSpent.toFixed(1)} h dedicadas` : ''}`,
+        percentProgress: percent,
+        isDone: current >= target
+      };
+    }
+
     if (item.targetType === 'completion') {
       if (item.taskId) {
-        // Milestone
+        // Milestone / Standalone task
         const task = tasks.find(t => t.id === item.taskId);
         const isDone = !!task?.completed;
         return {
           current: isDone ? 1 : 0,
           target: 1,
           unit: '',
-          label: isDone ? 'Hito completado' : 'Pendiente',
+          label: isDone ? 'Completado' : 'Pendiente',
           percentProgress: isDone ? 100 : 0,
           isDone
         };
@@ -645,85 +861,212 @@ export default function IntencionesPanelView({
                               </button>
                             </div>
 
-                            {/* Switch: Rutina vs Proyecto */}
-                            <div className="flex gap-2">
+                            {/* 4 Tabs: Hábito/Rutina | Horas | Contador | Hito/Proyecto */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-base-dim/20 rounded-xl border border-border-line/30">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCommitmentType('routine');
-                                  setSelectedTaskId(routines[0]?.id || '');
-                                }}
+                                onClick={() => setCommitmentType('routine_habit')}
                                 className={cn(
-                                  "flex-1 py-1.5 text-xs font-mono rounded-lg border transition-all flex items-center justify-center gap-1.5",
-                                  commitmentType === 'routine'
-                                    ? "bg-primary text-base border-primary font-bold"
-                                    : "border-border-line/40 text-text-dim hover:text-text-main"
+                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  commitmentType === 'routine_habit'
+                                    ? "bg-primary text-base font-bold shadow-xs"
+                                    : "text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <Repeat className="w-3.5 h-3.5" /> Vincular a Rutina
+                                <Repeat className="w-3.5 h-3.5" /> Hábito / Rutina
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCommitmentType('project');
-                                  setSelectedTaskId(projects[0]?.id || '');
-                                }}
+                                onClick={() => setCommitmentType('hours')}
                                 className={cn(
-                                  "flex-1 py-1.5 text-xs font-mono rounded-lg border transition-all flex items-center justify-center gap-1.5",
-                                  commitmentType === 'project'
-                                    ? "bg-primary text-base border-primary font-bold"
-                                    : "border-border-line/40 text-text-dim hover:text-text-main"
+                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  commitmentType === 'hours'
+                                    ? "bg-primary text-base font-bold shadow-xs"
+                                    : "text-text-dim hover:text-text-main"
                                 )}
                               >
-                                <Layers className="w-3.5 h-3.5" /> Vincular a Proyecto
+                                <Clock className="w-3.5 h-3.5" /> Horas
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCommitmentType('counter')}
+                                className={cn(
+                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  commitmentType === 'counter'
+                                    ? "bg-primary text-base font-bold shadow-xs"
+                                    : "text-text-dim hover:text-text-main"
+                                )}
+                              >
+                                <BookOpen className="w-3.5 h-3.5" /> Contador
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCommitmentType('milestone')}
+                                className={cn(
+                                  "py-1.5 px-2 text-[11px] font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                  commitmentType === 'milestone'
+                                    ? "bg-primary text-base font-bold shadow-xs"
+                                    : "text-text-dim hover:text-text-main"
+                                )}
+                              >
+                                <CheckSquare className="w-3.5 h-3.5" /> Hito / Proyecto
                               </button>
                             </div>
 
-                            {/* Form Fields: Routine */}
-                            {commitmentType === 'routine' && (
-                              <div className="space-y-3 pt-1">
+                            {/* Tab 1: Routine / Habit */}
+                            {commitmentType === 'routine_habit' && (
+                              <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
-                                  <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Rutina</label>
+                                  <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Rutina o Hábito</label>
                                   <select
-                                    value={selectedTaskId}
-                                    onChange={(e) => setSelectedTaskId(e.target.value)}
+                                    value={selectedRoutineHabitId || allHabitsAndRoutines[0]?.id || ''}
+                                    onChange={(e) => setSelectedRoutineHabitId(e.target.value)}
                                     className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
                                   >
-                                    {routines.map(r => (
-                                      <option key={r.id} value={r.id}>
-                                        {r.text} ({r.category || 'Sin Área'})
-                                      </option>
-                                    ))}
+                                    <optgroup label="Rutinas">
+                                      {routines.map(r => (
+                                        <option key={r.id} value={r.id}>
+                                          {r.text} ({r.category || 'Sin Área'})
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Hábitos">
+                                      {tasks.filter(t => t.type === 'Hábito').map(h => (
+                                        <option key={h.id} value={h.id}>
+                                          {h.text} ({h.category || 'Sin Área'})
+                                        </option>
+                                      ))}
+                                    </optgroup>
                                   </select>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-mono text-text-dim uppercase">Criterio de Meta</label>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-mono text-text-dim uppercase">
+                                    Porcentaje Mínimo de Consistencia (%)
+                                  </label>
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      type="number"
+                                      min={10}
+                                      max={100}
+                                      step={5}
+                                      value={routineTargetPercent}
+                                      onChange={(e) => setRoutineTargetPercent(Number(e.target.value))}
+                                      className="w-32 bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
+                                    />
+                                    <span className="text-[11px] font-sans text-text-dim">
+                                      (Meta de ritmo: cumplir al menos el {routineTargetPercent}% del período)
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tab 2: Hours */}
+                            {commitmentType === 'hours' && (
+                              <div className="space-y-3 pt-1 animate-in fade-in duration-150">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-mono text-text-dim uppercase">¿A qué vinculas el tiempo?</label>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setHoursTargetKind('area'); setSelectedHoursTargetId(areaNames[0] || ''); }}
+                                      className={cn(
+                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
+                                        hoursTargetKind === 'area' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Área Vital
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setHoursTargetKind('project'); setSelectedHoursTargetId(projects[0]?.id || ''); }}
+                                      className={cn(
+                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
+                                        hoursTargetKind === 'project' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Proyecto
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setHoursTargetKind('task'); setSelectedHoursTargetId(trackableTasks[0]?.id || ''); }}
+                                      className={cn(
+                                        "flex-1 py-1 text-xs font-mono rounded-lg border transition-all cursor-pointer",
+                                        hoursTargetKind === 'task' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Hábito / Tarea
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-mono text-text-dim uppercase">
+                                    {hoursTargetKind === 'area' ? 'Seleccionar Área' : hoursTargetKind === 'project' ? 'Seleccionar Proyecto' : 'Seleccionar Tarea o Hábito'}
+                                  </label>
+                                  {hoursTargetKind === 'area' && (
                                     <select
-                                      value={routineTargetType}
+                                      value={selectedHoursTargetId || areaNames[0] || ''}
+                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    >
+                                      {areaNames.map(a => (
+                                        <option key={a} value={a}>{a}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  {hoursTargetKind === 'project' && (
+                                    <select
+                                      value={selectedHoursTargetId || projects[0]?.id || ''}
+                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    >
+                                      {projects.map(p => (
+                                        <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  {hoursTargetKind === 'task' && (
+                                    <select
+                                      value={selectedHoursTargetId || trackableTasks[0]?.id || ''}
+                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    >
+                                      {trackableTasks.map(t => (
+                                        <option key={t.id} value={t.id}>{t.text} ({t.type} · {t.category || 'Sin Área'})</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">Modalidad de Meta</label>
+                                    <select
+                                      value={hoursPacing}
                                       onChange={(e) => {
-                                        const val = e.target.value as 'percent' | 'days';
-                                        setRoutineTargetType(val);
-                                        setRoutineTargetValue(val === 'percent' ? 80 : 90);
+                                        const p = e.target.value as 'weekly' | 'total';
+                                        setHoursPacing(p);
+                                        setHoursValue(p === 'weekly' ? 4 : 50);
                                       }}
                                       className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
                                     >
-                                      <option value="percent">Consistencia (% de días)</option>
-                                      <option value="days">Días acumulados (Racha)</option>
+                                      <option value="weekly">Ritmo semanal (h/sem)</option>
+                                      <option value="total">Total en el período (h)</option>
                                     </select>
                                   </div>
 
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">
-                                      {routineTargetType === 'percent' ? 'Porcentaje Mínimo (%)' : 'Total de Días'}
+                                      {hoursPacing === 'weekly' ? 'Horas por semana' : 'Horas totales'}
                                     </label>
                                     <input
                                       type="number"
-                                      min={1}
-                                      max={routineTargetType === 'percent' ? 100 : 90}
-                                      value={routineTargetValue}
-                                      onChange={(e) => setRoutineTargetValue(Number(e.target.value))}
+                                      min={0.5}
+                                      step={0.5}
+                                      value={hoursValue}
+                                      onChange={(e) => setHoursValue(Number(e.target.value))}
                                       className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
                                     />
                                   </div>
@@ -731,61 +1074,189 @@ export default function IntencionesPanelView({
                               </div>
                             )}
 
-                            {/* Form Fields: Project */}
-                            {commitmentType === 'project' && (
-                              <div className="space-y-3 pt-1">
+                            {/* Tab 3: Counter (Books, Pages, Modules) */}
+                            {commitmentType === 'counter' && (
+                              <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
-                                  <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Proyecto</label>
-                                  <select
-                                    value={selectedTaskId}
-                                    onChange={(e) => setSelectedTaskId(e.target.value)}
-                                    className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
-                                  >
-                                    {projects.map(p => (
-                                      <option key={p.id} value={p.id}>
-                                        {p.text} ({p.category || 'Sin Área'})
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">
+                                      Tarea / Hábito asociado (para activar timer ⏱️)
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsCreatingNewCounterTask(!isCreatingNewCounterTask)}
+                                      className="text-[10px] font-mono text-primary hover:underline cursor-pointer"
+                                    >
+                                      {isCreatingNewCounterTask ? "Elegir existente" : "+ Crear nueva tarea"}
+                                    </button>
+                                  </div>
+
+                                  {isCreatingNewCounterTask ? (
+                                    <div className="space-y-2 p-2.5 rounded-lg border border-border-line/40 bg-base">
+                                      <input
+                                        type="text"
+                                        placeholder="Nombre del libro o actividad (ej. Leer 'El infinito en un junco')"
+                                        value={counterName}
+                                        onChange={(e) => setCounterName(e.target.value)}
+                                        className="w-full bg-transparent border-b border-border-line/40 pb-1 text-xs font-sans text-text-main focus:outline-none focus:border-primary"
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono text-text-dim uppercase">Área:</span>
+                                        <select
+                                          value={newCounterTaskCategory}
+                                          onChange={(e) => setNewCounterTaskCategory(e.target.value)}
+                                          className="bg-base-dim/20 border border-border-line/30 rounded px-2 py-0.5 text-xs font-mono text-text-main"
+                                        >
+                                          {areaNames.map(a => (
+                                            <option key={a} value={a}>{a}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <select
+                                      value={counterTaskId || trackableTasks[0]?.id || ''}
+                                      onChange={(e) => {
+                                        setCounterTaskId(e.target.value);
+                                        const t = tasks.find(task => task.id === e.target.value);
+                                        if (t) setCounterName(t.text);
+                                      }}
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    >
+                                      {trackableTasks.map(t => (
+                                        <option key={t.id} value={t.id}>{t.text} ({t.category || 'Sin Área'})</option>
+                                      ))}
+                                    </select>
+                                  )}
                                 </div>
 
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">Meta Cuantitativa Total</label>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={counterTarget}
+                                      onChange={(e) => setCounterTarget(Number(e.target.value))}
+                                      placeholder="500"
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-mono text-text-main"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">Unidad de Medida</label>
+                                    <input
+                                      type="text"
+                                      value={counterUnit}
+                                      onChange={(e) => setCounterUnit(e.target.value)}
+                                      placeholder="páginas, capítulos, etc."
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tab 4: Milestone / Project */}
+                            {commitmentType === 'milestone' && (
+                              <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
-                                  <label className="text-[10px] font-mono text-text-dim uppercase">Tipo de Alcance</label>
-                                  <div className="flex gap-2">
-                                    <label className="flex items-center gap-1.5 text-xs font-sans text-text-main cursor-pointer">
-                                      <input
-                                        type="radio"
-                                        name="projMode"
-                                        checked={projectMode === 'project_complete'}
-                                        onChange={() => setProjectMode('project_complete')}
-                                      />
-                                      Completar Proyecto Entero
-                                    </label>
-                                    <label className="flex items-center gap-1.5 text-xs font-sans text-text-main cursor-pointer">
-                                      <input
-                                        type="radio"
-                                        name="projMode"
-                                        checked={projectMode === 'milestone'}
-                                        onChange={() => setProjectMode('milestone')}
-                                      />
-                                      Hito Clave Específico
-                                    </label>
+                                  <label className="text-[10px] font-mono text-text-dim uppercase">Tipo de Meta</label>
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setMilestoneKind('standalone_task')}
+                                      className={cn(
+                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
+                                        milestoneKind === 'standalone_task' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Tarea Suelta
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setMilestoneKind('project_milestone')}
+                                      className={cn(
+                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
+                                        milestoneKind === 'project_milestone' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Hito de Proyecto
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setMilestoneKind('project_complete')}
+                                      className={cn(
+                                        "py-1 text-xs font-mono rounded-lg border transition-all text-center cursor-pointer",
+                                        milestoneKind === 'project_complete' ? "bg-base-dim/40 border-primary font-bold text-text-main" : "border-border-line/30 text-text-dim"
+                                      )}
+                                    >
+                                      Proyecto Entero
+                                    </button>
                                   </div>
                                 </div>
 
-                                {projectMode === 'milestone' && (
+                                {milestoneKind === 'standalone_task' && (
                                   <div className="space-y-1">
-                                    <label className="text-[10px] font-mono text-text-dim uppercase">Tarea / Hito del Proyecto</label>
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Tarea Suelta</label>
                                     <select
-                                      value={selectedMilestoneId}
-                                      onChange={(e) => setSelectedMilestoneId(e.target.value)}
+                                      value={selectedMilestoneTaskId || standaloneTasks[0]?.id || ''}
+                                      onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
                                       className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
                                     >
-                                      <option value="">Selecciona una tarea clave...</option>
-                                      {projectMilestones.map(m => (
-                                        <option key={m.id} value={m.id}>
-                                          {m.text} {m.completed ? '(Ya completada)' : ''}
+                                      {standaloneTasks.map(t => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.text} ({t.category || 'Sin Área'}) {t.completed ? '✓' : ''}
                                         </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
+                                {milestoneKind === 'project_milestone' && (
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Proyecto</label>
+                                      <select
+                                        value={selectedProjectId || projects[0]?.id || ''}
+                                        onChange={(e) => {
+                                          setSelectedProjectId(e.target.value);
+                                          setSelectedMilestoneTaskId('');
+                                        }}
+                                        className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      >
+                                        {projects.map(p => (
+                                          <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-text-dim uppercase">Tarea Clave / Hito del Proyecto</label>
+                                      <select
+                                        value={selectedMilestoneTaskId || projectTasks[0]?.id || ''}
+                                        onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
+                                        className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                      >
+                                        {projectTasks.map(m => (
+                                          <option key={m.id} value={m.id}>
+                                            {m.text} {m.completed ? '(Completada)' : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {milestoneKind === 'project_complete' && (
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Proyecto</label>
+                                    <select
+                                      value={selectedProjectId || projects[0]?.id || ''}
+                                      onChange={(e) => setSelectedProjectId(e.target.value)}
+                                      className="w-full bg-base border border-border-line/40 rounded-lg p-2 text-xs font-sans text-text-main"
+                                    >
+                                      {projects.map(p => (
+                                        <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
                                       ))}
                                     </select>
                                   </div>
@@ -797,14 +1268,14 @@ export default function IntencionesPanelView({
                               <button
                                 type="button"
                                 onClick={() => setAddingCommitmentQ(null)}
-                                className="px-3 py-1.5 text-xs font-mono text-text-dim hover:text-text-main"
+                                className="px-3 py-1.5 text-xs font-mono text-text-dim hover:text-text-main cursor-pointer"
                               >
                                 Cancelar
                               </button>
                               <button
                                 type="button"
                                 onClick={() => submitNewCommitment(q)}
-                                className="px-4 py-1.5 bg-primary text-base rounded-lg text-xs font-mono font-bold hover:bg-primary/90 transition-colors"
+                                className="px-4 py-1.5 bg-primary text-base rounded-lg text-xs font-mono font-bold hover:bg-primary/90 transition-colors cursor-pointer"
                               >
                                 Guardar Compromiso
                               </button>
@@ -815,15 +1286,23 @@ export default function IntencionesPanelView({
                         {/* List of Commitments */}
                         {items.length === 0 ? (
                           <div className="p-4 rounded-xl border border-dashed border-border-line/40 text-center text-xs font-mono text-text-dim">
-                            No has definido compromisos para {q.key}. Añade una rutina o proyecto prioritario.
+                            No has definido compromisos para {q.key}. Añade una meta prioritaria.
                           </div>
                         ) : (
                           <div className="space-y-2.5">
                             {items.map(item => {
                               const prog = calculateCommitmentProgress(item, q.start, q.end);
                               const taskObj = tasks.find(t => t.id === (item.taskId || item.projectId));
-                              const isRoutine = item.targetType === 'consistency';
-                              const isProject = item.targetType === 'completion';
+                              const title = item.counterName || taskObj?.text || item.areaName || 'Compromiso';
+
+                              let icon = <Repeat className="w-3.5 h-3.5 text-[#81b29a]" />;
+                              if (item.targetType === 'hours') {
+                                icon = <Clock className="w-3.5 h-3.5 text-[#e07a5f]" />;
+                              } else if (item.targetType === 'counter') {
+                                icon = <BookOpen className="w-3.5 h-3.5 text-[#3d5a80]" />;
+                              } else if (item.targetType === 'completion') {
+                                icon = item.projectId && !item.taskId ? <Layers className="w-3.5 h-3.5 text-[#f4a261]" /> : <CheckSquare className="w-3.5 h-3.5 text-[#2a9d8f]" />;
+                              }
 
                               return (
                                 <div
@@ -833,11 +1312,11 @@ export default function IntencionesPanelView({
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <div className="p-1 rounded-full bg-base-dim/20 text-text-main">
-                                        {isRoutine ? <Repeat className="w-3.5 h-3.5 text-[#81b29a]" /> : <Layers className="w-3.5 h-3.5 text-[#e07a5f]" />}
+                                        {icon}
                                       </div>
                                       <div>
                                         <div className="text-xs font-bold text-text-main">
-                                          {taskObj?.text || item.areaName || 'Compromiso'}
+                                          {title}
                                         </div>
                                         <div className="text-[9px] font-mono text-text-dim">
                                           {prog.label}
@@ -858,13 +1337,60 @@ export default function IntencionesPanelView({
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteItemFromQuarter(q.start, q.end, item.id)}
-                                        className="text-text-dim hover:text-red-500 p-1 transition-colors"
+                                        className="text-text-dim hover:text-red-500 p-1 transition-colors cursor-pointer"
                                         title="Eliminar compromiso"
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </button>
                                     </div>
                                   </div>
+
+                                  {/* Counter quick-log action */}
+                                  {item.targetType === 'counter' && (
+                                    <div className="pt-1">
+                                      {loggingPagesItemId === item.id ? (
+                                        <div className="flex items-center gap-2 p-1.5 bg-base rounded-lg border border-border-line/40">
+                                          <span className="text-[10px] font-mono text-text-dim">Sumar:</span>
+                                          <input
+                                            type="number"
+                                            value={pagesToAdd}
+                                            onChange={(e) => setPagesToAdd(Number(e.target.value))}
+                                            className="w-16 bg-base-dim/20 border border-border-line/30 rounded px-1.5 py-0.5 text-xs font-mono text-text-main"
+                                          />
+                                          <span className="text-[10px] font-mono text-text-dim">{item.unitLabel || 'páginas'}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newCount = (item.currentCount || 0) + pagesToAdd;
+                                              handleUpdateItemInQuarter(q.start, q.end, item.id, { currentCount: newCount });
+                                              setLoggingPagesItemId(null);
+                                            }}
+                                            className="px-2 py-0.5 bg-primary text-base text-[10px] font-mono font-bold rounded cursor-pointer"
+                                          >
+                                            Guardar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setLoggingPagesItemId(null)}
+                                            className="text-[10px] font-mono text-text-dim hover:text-text-main cursor-pointer"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setLoggingPagesItemId(item.id);
+                                            setPagesToAdd(10);
+                                          }}
+                                          className="text-[10px] font-mono text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <Plus className="w-3 h-3" /> Registrar {item.unitLabel || 'páginas'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
 
                                   {/* Progress bar */}
                                   <div className="w-full bg-base-dim/30 h-1.5 rounded-full overflow-hidden">

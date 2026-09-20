@@ -178,7 +178,7 @@ export type IntentionScale = 'cycle' | 'quarter' | 'year';
 
 export interface IntentionItem {
   id: string;                    // 'ii_{timestamp}_{random7}'
-  targetType: 'hours' | 'consistency' | 'completion';
+  targetType: 'hours' | 'consistency' | 'completion' | 'counter';
   // Vinculación (4 niveles, en cascada):
   areaName?: string;             // Nivel 1: área completa (ej. 'BODY')
   subCategory?: string;          // Nivel 2: subcategoría (ej. 'EJERCICIO') — requiere areaName
@@ -186,9 +186,16 @@ export interface IntentionItem {
   taskId?: string;               // Nivel 4: tarea/hábito/rutina/pulso específico
   // Para 'hours':
   targetHours?: number;          // Horas target para el período completo
+  hoursPacing?: 'weekly' | 'total'; // Ritmo semanal o total
+  weeklyHours?: number;          // Horas semanales objetivo
   // Para 'consistency':
   targetDays?: number;           // Días target en el período completo (ej. 90)
   targetPercent?: number;        // Porcentaje target de consistencia (ej. 80 para >=80%)
+  // Para 'counter' (libros, páginas, módulos):
+  counterName?: string;          // Nombre descriptivo (ej. "Leer 'El infinito en un junco'")
+  currentCount?: number;         // Avance actual acumulado (ej. 120)
+  targetCount?: number;          // Meta cuantitativa total (ej. 500)
+  unitLabel?: string;            // Unidad (ej. "páginas", "capítulos", "módulos")
   // 'completion' no necesita campos extra — se lee completed del task/proyecto o progreso de subtareas
 }
 
