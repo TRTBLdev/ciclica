@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CalendarDays, CalendarRange } from 'lucide-react';
 import { AppTask, Config, HistoryRecord, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
-import { DateRange, formatDateOnly, getNominalDays, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
+import { DateRange, formatDateOnly, isRoutineConfigured, isTaskScheduledOnDate } from '../domain/recurrenceProgress';
 import {
   getPulseState,
   getPulseOccurrenceCount,
@@ -12,7 +12,7 @@ import {
   normalizePulsePolarity,
   TrackingCellState,
 } from '../domain/trackingProgress';
-import { getAppearanceFrequency, getAppearanceMode, getAppearanceUnit, getStandaloneQuotaCount, isAppearanceScheduledOnDate } from '../domain/appearance';
+import { getAppearanceMode, getStandaloneQuotaCount, isAppearanceScheduledOnDate } from '../domain/appearance';
 import {
   getHabitResultsInRange,
   getRoutineCycleProgress,
@@ -119,34 +119,48 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
         <h2 className="text-title mb-1">Pulsos</h2>
         <p className="text-xs text-text-dim mb-5">Cada registro cuenta como una ocurrencia durante los últimos 30 días. La polaridad define qué significa cumplir la meta.</p>
         {pulses.length === 0 ? <Empty text="No hay pulsos configurados." /> : (
-          <div ref={pulsosScrollRef} className="space-y-4 overflow-x-auto pb-2">
-            <TrackingHeader days={days} />
-            {pulses.map(pulse => {
-              const target = Math.max(1, pulse.targetCount || pulse.objetivo || 1);
-              const isAbandoning = normalizePulsePolarity(pulse.polaridad) === 'Abandonar';
-              return (
-                <React.Fragment key={pulse.id}><TrackingRow
-                  label={(
-                    <div className="min-w-0">
-                      <span className="block truncate text-xs text-text-main" title={pulse.text}>{pulse.text}</span>
-                      <span className={cn('text-[9px] font-mono uppercase tracking-wider', isAbandoning ? 'text-red-600' : 'text-primary')}>
-                        {isAbandoning ? 'Abandonar' : 'Reforzar'} · {isAbandoning ? 'límite' : 'meta'} {target} {pulse.unitLabel || 'veces'}
-                      </span>
-                    </div>
-                  )}
-                  days={days}
-                  renderCell={date => {
-                    const count = getPulseOccurrenceCount(history, pulse.id, date);
-                    const safeDayConfirmed = hasPulseSafeDayConfirmation(history, pulse.id, date);
-                    const state = getPulseState(pulse, count, safeDayConfirmed);
-                    const status = isAbandoning
-                      ? state === 'complete' ? 'logrado: día libre confirmado' : state === 'unconfirmed' ? 'sin registro' : state === 'partial' ? 'en progreso' : state === 'failed' ? 'incumplido: alcanzó el límite' : 'excedido'
-                      : state === 'complete' ? 'logrado' : state === 'partial' ? 'en progreso' : state === 'exceeded' ? 'excedido' : 'sin registro';
-                    return <Cell state={state} title={`${formatDateOnly(date)}: ${count}/${target} · ${status}`} value={count || undefined} />;
-                  }}
-                /></React.Fragment>
-              );
-            })}
+          <div ref={pulsosScrollRef} className="overflow-auto max-h-[50vh] sm:max-h-[60vh] pb-2">
+            <table className="w-max border-collapse text-xs">
+              <TrackingDaysHeader days={days} />
+              <tbody>
+                {pulses.map(pulse => {
+                  const target = Math.max(1, pulse.targetCount || pulse.objetivo || 1);
+                  const isAbandoning = normalizePulsePolarity(pulse.polaridad) === 'Abandonar';
+                  return (
+                    <tr key={pulse.id} className="border-b border-border-line/30 last:border-0">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-normal border-r border-border-line/30 overflow-hidden">
+                        <div className="min-w-0">
+                          <span className="block truncate text-xs text-text-main font-light" title={pulse.text}>{pulse.text}</span>
+                          <span className={cn('text-[9px] font-mono uppercase tracking-wider font-light', isAbandoning ? 'text-red-600' : 'text-primary')}>
+                            {isAbandoning ? 'Abandonar' : 'Reforzar'} · {isAbandoning ? 'límite' : 'meta'} {target} {pulse.unitLabel || 'veces'}
+                          </span>
+                        </div>
+                      </th>
+                      {days.map(date => {
+                        const count = getPulseOccurrenceCount(history, pulse.id, date);
+                        const safeDayConfirmed = hasPulseSafeDayConfirmation(history, pulse.id, date);
+                        const state = getPulseState(pulse, count, safeDayConfirmed);
+                        const status = isAbandoning
+                          ? state === 'complete' ? 'logrado: día libre confirmado' : state === 'unconfirmed' ? 'sin registro' : state === 'partial' ? 'en progreso' : state === 'failed' ? 'incumplido: alcanzó el límite' : 'excedido'
+                          : state === 'complete' ? 'logrado' : state === 'partial' ? 'en progreso' : state === 'exceeded' ? 'excedido' : 'sin registro';
+                        const isFirstDayOfMonth = date.getDate() === 1;
+                        return (
+                          <td
+                            key={formatDateOnly(date)}
+                            className={cn(
+                              "p-0 text-center align-middle h-full",
+                              isFirstDayOfMonth && "border-l-2 border-[#c27150]/60 pl-0.5"
+                            )}
+                          >
+                            <Cell state={state} title={`${formatDateOnly(date)}: ${count}/${target} · ${status}`} value={count || undefined} />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
         <Legend labels={[
@@ -197,39 +211,134 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
         {!hasItems ? (
           <Empty text="No hay hábitos o rutinas configurados." />
         ) : trackingView === '30days' ? (
-          <div ref={scrollRef} className="space-y-3 overflow-x-auto pb-2">
-            <TrackingHeader days={days} />
-            {allHabitsRoutines.routines.map(group => (
-              <React.Fragment key={group.routine.id}>
-                <FrequentRoutineGroup
-                  group={group}
-                  days={days}
-                  tasks={tasks}
-                  history={history}
-                  snapshots={progressSnapshots}
-                  expanded={expandedRoutines.has(group.routine.id)}
-                  onToggle={() => toggleRoutine(group.routine.id)}
-                />
-              </React.Fragment>
-            ))}
-            {allHabitsRoutines.standaloneHabits.map(habit => (
-              <React.Fragment key={habit.id}>
-                <HabitTrackingRow habit={habit} days={days} history={history} snapshots={progressSnapshots} />
-              </React.Fragment>
-            ))}
+          <>
+            <div ref={scrollRef} className="overflow-auto max-h-[65vh] sm:max-h-[75vh] pb-2 border-b border-border-line/20">
+              <table className="w-max border-collapse text-xs">
+                <TrackingDaysHeader days={days} />
+                <tbody>
+                  {allHabitsRoutines.routines.length > 0 && (
+                    <tr className="border-b border-border-line/40">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim font-light border-r border-border-line/30">
+                        Rutinas
+                      </th>
+                      {days.map(date => (
+                        <td key={formatDateOnly(date)} className={cn("p-0 text-center align-middle h-full", date.getDate() === 1 && "border-l-2 border-[#c27150]/60 pl-0.5")} />
+                      ))}
+                    </tr>
+                  )}
+                  {allHabitsRoutines.routines.map(group => {
+                    const { routine, habits } = group;
+                    const cycleProgress = getRoutineCycleProgress(routine, tasks, history, progressSnapshots);
+                    const summary = getTaskTrackingSummary(routine, history, progressSnapshots);
+                    const habitIds = habits.map(habit => habit.id);
+                    const expanded = expandedRoutines.has(routine.id);
+
+                    return (
+                      <React.Fragment key={routine.id}>
+                        <tr className="border-b border-border-line/30">
+                          <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-normal border-r border-border-line/30 overflow-hidden">
+                            {habits.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleRoutine(routine.id)}
+                                aria-expanded={expanded}
+                                className="w-full text-left bg-transparent border-0 p-0 cursor-pointer"
+                              >
+                                <header className="min-w-0 pr-2">
+                                  <span className="flex items-center gap-2 truncate text-xs font-light text-text-main" title={routine.text}>
+                                    <span className="w-3 text-[11px] font-light text-text-dim" aria-hidden="true">{expanded ? '−' : '+'}</span>
+                                    {routine.text}
+                                  </span>
+                                  <small className="mt-0.5 block font-mono text-[9px] uppercase tracking-wider text-text-dim font-light">
+                                    Ciclo {cycleProgress}% · {summary.lastActivityDate ? `últ. ${formatShortDate(summary.lastActivityDate)}` : 'sin actividad'}
+                                  </small>
+                                </header>
+                              </button>
+                            ) : (
+                              <header className="min-w-0 pr-2">
+                                <span className="block truncate text-xs font-light text-text-main" title={routine.text}>{routine.text}</span>
+                                <small className="mt-0.5 block font-mono text-[9px] uppercase tracking-wider text-text-dim font-light">
+                                  Ciclo {cycleProgress}% · {summary.lastActivityDate ? `últ. ${formatShortDate(summary.lastActivityDate)}` : 'sin actividad'}
+                                </small>
+                              </header>
+                            )}
+                          </th>
+                          {days.map(date => (
+                            <td
+                              key={formatDateOnly(date)}
+                              className={cn(
+                                "p-0 text-center align-middle h-full",
+                                date.getDate() === 1 && "border-l-2 border-[#c27150]/60 pl-0.5"
+                              )}
+                            >
+                              <RoutineCycleCell
+                                routine={routine}
+                                habitIds={habitIds}
+                                date={date}
+                                history={history}
+                                snapshots={progressSnapshots}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                        {expanded && habits.map(habit => (
+                          <tr key={habit.id} className="border-b border-border-line/20">
+                            <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pl-4 pr-2 text-left font-normal text-text-dim border-r border-border-line/30 overflow-hidden">
+                              <p className="m-0 truncate text-xs font-light text-text-dim" title={habit.text}>
+                                ↳ {habit.text}{getAppearanceMode(habit) === 'quota' ? ` · ${getStandaloneQuotaCount(habit, history)}/${Math.max(1, habit.quotaTarget || 1)}` : ''}
+                              </p>
+                            </th>
+                            {days.map(date => renderHabitCell(habit, routine, date, history, progressSnapshots))}
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {allHabitsRoutines.standaloneHabits.length > 0 && (
+                    <tr className="border-b border-border-line/40">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim font-light border-r border-border-line/30">
+                        Hábitos simples
+                      </th>
+                      {days.map(date => (
+                        <td key={formatDateOnly(date)} className={cn("p-0 text-center align-middle h-full", date.getDate() === 1 && "border-l-2 border-[#c27150]/60 pl-0.5")} />
+                      ))}
+                    </tr>
+                  )}
+                  {allHabitsRoutines.standaloneHabits.map(habit => (
+                    <tr key={habit.id} className="border-b border-border-line/30 last:border-0">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-normal text-text-main border-r border-border-line/30 overflow-hidden">
+                        <p className="m-0 truncate text-xs font-light text-text-main" title={habit.text}>
+                          {habit.text}{getAppearanceMode(habit) === 'quota' ? ` · ${getStandaloneQuotaCount(habit, history)}/${Math.max(1, habit.quotaTarget || 1)}` : ''}
+                        </p>
+                      </th>
+                      {days.map(date => renderHabitCell(habit, undefined, date, history, progressSnapshots))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <ResultLegend />
-          </div>
+          </>
         ) : (
-          <section className="overflow-x-auto pb-2" aria-label="Resultados mensuales">
+          <section className="overflow-auto max-h-[65vh] sm:max-h-[75vh] pb-2" aria-label="Resultados mensuales">
             <table className="w-max border-collapse text-xs">
               <thead>
-                <tr className="border-b border-border-line">
-                  <th className="sticky left-0 z-20 w-[230px] min-w-[230px] bg-base px-3 py-2.5 text-left text-[9px] font-mono uppercase tracking-wider text-text-dim">Elemento</th>
-                  <th className="sticky left-[230px] z-20 w-[86px] min-w-[86px] bg-base px-2 py-2.5 text-center text-[9px] font-mono uppercase tracking-wider text-text-dim">Cumplimiento</th>
+                <tr className="border-b border-border-line sticky top-0 z-30 bg-base">
+                  <th className="sticky top-0 left-0 z-40 w-[140px] sm:w-[230px] min-w-[140px] sm:min-w-[230px] max-w-[140px] sm:max-w-[230px] bg-base px-3 py-2.5 text-left text-[9px] font-mono uppercase tracking-wider text-text-dim border-r border-border-line/30">Elemento</th>
+                  <th className="sticky top-0 left-[140px] sm:left-[230px] z-40 w-[86px] min-w-[86px] bg-base px-2 py-2.5 text-center text-[9px] font-mono uppercase tracking-wider text-text-dim border-r border-border-line/30">Cumplimiento</th>
                   {MONTHS.map(month => <th key={month} className="w-[54px] min-w-[54px] px-1 py-2.5 text-center text-[9px] font-mono uppercase text-text-dim">{month}</th>)}
                 </tr>
               </thead>
               <tbody>
+                {allHabitsRoutines.routines.length > 0 && (
+                  <tr className="border-b border-border-line/40">
+                    <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[230px] min-w-[140px] sm:min-w-[230px] max-w-[140px] sm:max-w-[230px] bg-base px-3 py-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim border-r border-border-line/30">
+                      Rutinas
+                    </th>
+                    <td colSpan={MONTHS.length + 1} className="bg-base" />
+                  </tr>
+                )}
                 {allHabitsRoutines.routines.map(group => (
                   <React.Fragment key={group.routine.id}>
                     <MonthlyTaskRow
@@ -249,6 +358,14 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
                     ))}
                   </React.Fragment>
                 ))}
+                {allHabitsRoutines.standaloneHabits.length > 0 && (
+                  <tr className="border-b border-border-line/40">
+                    <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[230px] min-w-[140px] sm:min-w-[230px] max-w-[140px] sm:max-w-[230px] bg-base px-3 py-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim border-r border-border-line/30">
+                      Hábitos simples
+                    </th>
+                    <td colSpan={MONTHS.length + 1} className="bg-base" />
+                  </tr>
+                )}
                 {allHabitsRoutines.standaloneHabits.map(habit => (
                   <React.Fragment key={habit.id}>
                     <MonthlyTaskRow task={habit} history={history} snapshots={progressSnapshots} year={year} />
@@ -260,30 +377,124 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
         )}
       </section>
 
-      <ProjectWorkCalendar tasks={tasks} history={history} />
+      <ProjectWorkCalendar tasks={tasks} history={history} days={days} />
     </main>
   );
 }
 
-function ProjectWorkCalendar({ tasks, history }: { tasks: AppTask[]; history: HistoryRecord[] }) {
-  const today = new Date();
-  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
-  const monthDays = Array.from(
-    { length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() },
-    (_, index) => new Date(month.getFullYear(), month.getMonth(), index + 1),
+function TrackingDaysHeader({ days }: { days: Date[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border-line sticky top-0 z-30 bg-base">
+        <th className="sticky top-0 left-0 z-40 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2.5 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim border-r border-border-line/30">
+          Pasado → hoy
+        </th>
+        {days.map((date, index) => {
+          const isToday = index === days.length - 1;
+          const isFirstDayOfMonth = date.getDate() === 1;
+          const fullDateTitle = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+          const monthShort = MONTHS[date.getMonth()].toUpperCase();
+
+          return (
+            <th
+              key={formatDateOnly(date)}
+              className={cn(
+                "w-6 min-w-[24px] px-0 py-1 text-center font-normal text-text-dim h-full",
+                isFirstDayOfMonth && "border-l-2 border-[#c27150]/60 pl-0.5"
+              )}
+            >
+              <abbr
+                title={fullDateTitle}
+                className={cn(
+                  "no-underline text-[9px]",
+                  isToday ? "font-bold text-primary" : isFirstDayOfMonth ? "font-bold text-[#c27150]" : "text-text-dim"
+                )}
+              >
+                {date.toLocaleDateString('es-ES', { weekday: 'narrow' })}
+              </abbr>
+              {isFirstDayOfMonth ? (
+                <div className="flex flex-col items-center leading-none mt-0.5" title={fullDateTitle}>
+                  <span className="text-[7px] font-mono font-bold uppercase tracking-wider text-[#c27150] pb-0.5">
+                    {monthShort}
+                  </span>
+                  <time
+                    dateTime={formatDateOnly(date)}
+                    className="block font-mono text-[8px] font-bold text-[#c27150]"
+                  >
+                    1
+                  </time>
+                </div>
+              ) : (
+                <time
+                  dateTime={formatDateOnly(date)}
+                  className={cn('block font-mono text-[8px]', isToday ? 'font-bold text-primary' : 'text-text-dim')}
+                  title={fullDateTitle}
+                >
+                  {date.getDate()}
+                </time>
+              )}
+            </th>
+          );
+        })}
+      </tr>
+    </thead>
   );
+}
+
+function renderHabitCell(
+  habit: AppTask,
+  scheduleTask: AppTask | undefined,
+  date: Date,
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[],
+) {
+  const dateKey = formatDateOnly(date);
+  const quota = getAppearanceMode(habit) === 'quota';
+  const scheduled = isTaskScheduledOnDate(scheduleTask || habit, date);
+  const result = getDailyHabitResult(habit, history, snapshots, dateKey);
+  const activity = hasPositiveActivityOnDate([habit.id], history, date);
+  const isFirstDayOfMonth = date.getDate() === 1;
+
+  let cellNode: React.ReactNode;
+  if (!result) {
+    const isToday = dateKey === formatDateOnly(new Date());
+    const state: ResultCellState = quota
+      ? 'empty'
+      : scheduled ? 'planned' : 'empty';
+    const status = quota
+      ? 'sin cierre de cuota'
+      : scheduled ? isToday ? 'pendiente' : 'aparición programada' : 'sin agenda';
+    cellNode = <ResultCell state={state} activity={activity} label={`${dateKey}: ${status}${activity ? ', con actividad' : ''}`} />;
+  } else {
+    const state: ResultCellState = result.status === 'complete'
+      ? 'complete'
+      : result.status === 'partial'
+        ? 'partial'
+        : 'missed';
+    cellNode = <ResultCell state={state} activity={activity} label={`${dateKey}: ${result.status === 'complete' ? 'completo' : result.status === 'partial' ? `parcial, ${result.progressPercent}%` : 'no completado'}${activity ? ', con actividad' : ''}`} />;
+  }
+
+  return (
+    <td
+      key={dateKey}
+      className={cn(
+        "p-0 text-center align-middle h-full",
+        isFirstDayOfMonth && "border-l-2 border-[#c27150]/60 pl-0.5"
+      )}
+    >
+      {cellNode}
+    </td>
+  );
+}
+
+function ProjectWorkCalendar({ tasks, history, days }: { tasks: AppTask[]; history: HistoryRecord[]; days: Date[] }) {
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
   const activeProjects = tasks
     .filter(task => task.type === 'Proyecto' && !task.completed)
     .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
   const standaloneTasks = tasks
     .filter(task => task.type === 'Tarea' && !task.completed && !getProjectForTask(task.id, tasks))
     .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
-  const monthTitle = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(month);
-
-  const moveMonth = (offset: number) => {
-    setMonth(current => new Date(current.getFullYear(), current.getMonth() + offset, 1));
-  };
 
   const toggleProject = (projectId: string) => {
     setExpandedProjects(previous => {
@@ -314,8 +525,15 @@ function ProjectWorkCalendar({ tasks, history }: { tasks: AppTask[]; history: Hi
     const hours = getWorkedHoursForDate(taskIds, history, date);
     const state = getWorkDayState(planned, hours);
     const cellLabel = getCellLabel(label, taskIds, date, planned, hours);
+    const isFirstDayOfMonth = date.getDate() === 1;
     return (
-      <td key={formatDateOnly(date)} className="p-0 text-center align-middle">
+      <td
+        key={formatDateOnly(date)}
+        className={cn(
+          "p-0 text-center align-middle h-full",
+          isFirstDayOfMonth && "border-l-2 border-[#c27150]/60 pl-0.5"
+        )}
+      >
         <output
           aria-label={cellLabel}
           title={cellLabel}
@@ -336,109 +554,112 @@ function ProjectWorkCalendar({ tasks, history }: { tasks: AppTask[]; history: Hi
     <section aria-labelledby="project-work-title">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <section>
-          <h2 id="project-work-title" className="text-title mb-1">Trabajo mensual</h2>
-          <p className="text-xs text-text-dim">Programación y ejecución real de proyectos y tareas pendientes. Las ejecuciones de 0 h no pintan el día.</p>
+          <h2 id="project-work-title" className="text-title mb-1">Trabajo en curso</h2>
+          <p className="text-xs text-text-dim">Programación y ejecución real de proyectos y tareas pendientes en los últimos 30 días. Las ejecuciones de 0 h no pintan el día.</p>
         </section>
-        <nav aria-label="Cambiar mes de seguimiento" className="flex items-center gap-3">
-          <button type="button" onClick={() => moveMonth(-1)} className="border-0 bg-transparent px-2 py-1 text-lg text-text-dim hover:text-text-main" aria-label="Mes anterior">‹</button>
-          <time dateTime={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`} className="min-w-36 text-center text-xs font-mono uppercase tracking-wider text-text-main">
-            {monthTitle}
-          </time>
-          <button type="button" onClick={() => moveMonth(1)} className="border-0 bg-transparent px-2 py-1 text-lg text-text-dim hover:text-text-main" aria-label="Mes siguiente">›</button>
-        </nav>
       </header>
 
       {!hasRows ? <Empty text="No hay proyectos o tareas pendientes para seguir." /> : (
-        <section className="overflow-x-auto pb-2" aria-label={`Trabajo en ${monthTitle}`}>
+        <section className="overflow-auto max-h-[65vh] sm:max-h-[75vh] pb-2" aria-label="Trabajo en curso (30 días)">
           <table className="w-max border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-border-line">
-                <th className="sticky left-0 z-20 w-[190px] min-w-[190px] bg-base py-2.5 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim">Elemento</th>
-                {monthDays.map(date => (
-                  <th key={formatDateOnly(date)} className="w-6 min-w-[24px] px-0 py-1 text-center font-normal text-text-dim">
-                    <abbr title={date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} className="no-underline text-[9px]">
-                      {date.toLocaleDateString('es-ES', { weekday: 'narrow' })}
-                    </abbr>
-                    <time dateTime={formatDateOnly(date)} className="block font-mono text-[8px]">{date.getDate()}</time>
-                  </th>
-                ))}
-              </tr>
-            </thead>
+            <TrackingDaysHeader days={days} />
 
-            {activeProjects.map(project => {
-              const projectTaskIds = [
-                project.id,
-                ...tasks
-                  .filter(task => getProjectForTask(task.id, tasks)?.id === project.id)
-                  .map(task => task.id),
-              ];
-              const descendantIds = new Set(getDescendantTaskIds(project.id, tasks));
-              const pendingTasks = tasks
-                .filter(task => task.type === 'Tarea'
-                  && !task.completed
-                  && descendantIds.has(task.id)
-                  && getProjectForTask(task.id, tasks)?.id === project.id)
-                .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
-              const expanded = expandedProjects.has(project.id);
-
-              return (
-                <tbody key={project.id} className="border-b border-border-line/40">
-                  <tr>
-                    <th scope="row" className="sticky left-0 z-10 w-[190px] min-w-[190px] bg-base py-2 pr-2 text-left font-normal">
-                      <button
-                        type="button"
-                        onClick={() => toggleProject(project.id)}
-                        aria-expanded={expanded}
-                        className="flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left text-xs text-text-main"
-                      >
-                        <b aria-hidden="true" className="w-3 text-primary">{expanded ? '−' : '+'}</b>
-                        {project.text}
-                        <small className="ml-auto font-mono text-[8px] text-text-dim">{pendingTasks.length}</small>
-                      </button>
-                    </th>
-                    {monthDays.map(date => renderWorkCell(
-                      project.text,
-                      projectTaskIds,
-                      date,
-                      isAppearanceScheduledOnDate(project, date),
-                    ))}
-                  </tr>
-                  {expanded && pendingTasks.map(task => {
-                    const createdDate = getHistoryDateKey({ date: task.createdAt });
-                    return (
-                      <tr key={task.id}>
-                        <th scope="row" className="sticky left-0 z-10 w-[190px] min-w-[190px] bg-base py-2 pl-4 pr-2 text-left font-normal text-text-dim">↳ {task.text}</th>
-                        {monthDays.map(date => renderWorkCell(
-                          task.text,
-                          [task.id],
-                          date,
-                          formatDateOnly(date) >= createdDate && isAppearanceScheduledOnDate(project, date),
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              );
-            })}
-
-            {standaloneTasks.length > 0 && (
-              <tbody>
+            <tbody>
+              {activeProjects.length > 0 && (
                 <tr className="border-b border-border-line/40">
-                  <th colSpan={monthDays.length + 1} className="py-2 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim">Tareas sueltas</th>
+                  <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim font-light border-r border-border-line/30">
+                    Proyectos
+                  </th>
+                  {days.map(date => (
+                    <td key={formatDateOnly(date)} className={cn("p-0 text-center align-middle h-full", date.getDate() === 1 && "border-l-2 border-[#c27150]/60 pl-0.5")} />
+                  ))}
                 </tr>
-                {standaloneTasks.map(task => (
-                  <tr key={task.id} className="border-b border-border-line/30 last:border-0">
-                    <th scope="row" className="sticky left-0 z-10 w-[190px] min-w-[190px] bg-base py-2 pr-2 text-left font-normal text-text-main">{task.text}</th>
-                    {monthDays.map(date => renderWorkCell(
-                      task.text,
-                      [task.id],
-                      date,
-                      isAppearanceScheduledOnDate(task, date),
+              )}
+
+              {activeProjects.map(project => {
+                const projectTaskIds = [
+                  project.id,
+                  ...tasks
+                    .filter(task => getProjectForTask(task.id, tasks)?.id === project.id)
+                    .map(task => task.id),
+                ];
+                const descendantIds = new Set(getDescendantTaskIds(project.id, tasks));
+                const pendingTasks = tasks
+                  .filter(task => task.type === 'Tarea'
+                    && !task.completed
+                    && descendantIds.has(task.id)
+                    && getProjectForTask(task.id, tasks)?.id === project.id)
+                  .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
+                const expanded = expandedProjects.has(project.id);
+
+                return (
+                  <React.Fragment key={project.id}>
+                    <tr className="border-b border-border-line/30">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-normal border-r border-border-line/30 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => toggleProject(project.id)}
+                          aria-expanded={expanded}
+                          className="flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left text-xs text-text-main cursor-pointer"
+                        >
+                          <span aria-hidden="true" className="w-3 text-[11px] font-light text-text-dim">{expanded ? '−' : '+'}</span>
+                          <span className="truncate font-light text-xs text-text-main">{project.text}</span>
+                          <small className="ml-auto font-mono text-[8px] text-text-dim font-light">{pendingTasks.length}</small>
+                        </button>
+                      </th>
+                      {days.map(date => renderWorkCell(
+                        project.text,
+                        projectTaskIds,
+                        date,
+                        isAppearanceScheduledOnDate(project, date),
+                      ))}
+                    </tr>
+                    {expanded && pendingTasks.map(task => {
+                      const createdDate = getHistoryDateKey({ date: task.createdAt });
+                      return (
+                        <tr key={task.id} className="border-b border-border-line/20">
+                          <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pl-4 pr-2 text-left font-normal text-text-dim border-r border-border-line/30 overflow-hidden">
+                            <span className="truncate font-light text-xs text-text-dim">↳ {task.text}</span>
+                          </th>
+                          {days.map(date => renderWorkCell(
+                            task.text,
+                            [task.id],
+                            date,
+                            formatDateOnly(date) >= createdDate && isAppearanceScheduledOnDate(project, date),
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+
+              {standaloneTasks.length > 0 && (
+                <>
+                  <tr className="border-b border-border-line/40">
+                    <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-mono text-[9px] uppercase tracking-wider text-text-dim font-light border-r border-border-line/30">
+                      Tareas sueltas
+                    </th>
+                    {days.map(date => (
+                      <td key={formatDateOnly(date)} className={cn("p-0 text-center align-middle h-full", date.getDate() === 1 && "border-l-2 border-[#c27150]/60 pl-0.5")} />
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            )}
+                  {standaloneTasks.map(task => (
+                    <tr key={task.id} className="border-b border-border-line/30 last:border-0">
+                      <th scope="row" className="sticky left-0 z-10 w-[140px] sm:w-[190px] min-w-[140px] sm:min-w-[190px] max-w-[140px] sm:max-w-[190px] bg-base py-2 pr-2 text-left font-normal text-text-main border-r border-border-line/30 overflow-hidden">
+                        <span className="truncate font-light text-xs text-text-main">{task.text}</span>
+                      </th>
+                      {days.map(date => renderWorkCell(
+                        task.text,
+                        [task.id],
+                        date,
+                        isAppearanceScheduledOnDate(task, date),
+                      ))}
+                    </tr>
+                  ))}
+                </>
+              )}
+            </tbody>
           </table>
         </section>
       )}
@@ -466,58 +687,6 @@ function workStateClassName(state: WorkDayState): string {
   return 'border-border-line/30 bg-transparent text-text-dim';
 }
 
-function FrequentRoutineGroup({
-  group, days, tasks, history, snapshots, expanded, onToggle,
-}: {
-  group: RoutineGroup;
-  days: Date[];
-  tasks: AppTask[];
-  history: HistoryRecord[];
-  snapshots: ProgressSnapshot[];
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const { routine, habits } = group;
-  const cycleProgress = getRoutineCycleProgress(routine, tasks, history, snapshots);
-  const summary = getTaskTrackingSummary(routine, history, snapshots);
-  const habitIds = habits.map(habit => habit.id);
-  const row = (
-    <TrackingRow
-      label={(
-        <header className="min-w-0 pr-2">
-          <strong className="flex items-center gap-2 truncate text-xs text-text-main" title={routine.text}>
-            {habits.length > 0 && <b className="w-3 text-[11px] font-normal text-primary" aria-hidden="true">{expanded ? '−' : '+'}</b>}
-            {routine.text}
-          </strong>
-          <small className="mt-1 block font-mono text-[9px] uppercase tracking-wider text-primary">
-            Ciclo {cycleProgress}% · {summary.lastActivityDate ? `últ. ${formatShortDate(summary.lastActivityDate)}` : 'sin actividad'}
-          </small>
-        </header>
-      )}
-      days={days}
-      renderCell={date => (
-        <RoutineCycleCell
-          routine={routine}
-          habitIds={habitIds}
-          date={date}
-          history={history}
-          snapshots={snapshots}
-        />
-      )}
-    />
-  );
-
-  return (
-    <section className="border-b border-border-line/35 pb-2">
-      {habits.length > 0 ? (
-        <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full text-left bg-transparent border-0 p-0 cursor-pointer hover:bg-base-dim/20 transition-colors">
-          {row}
-        </button>
-      ) : row}
-      {expanded && habits.map(habit => <React.Fragment key={habit.id}><HabitTrackingRow habit={habit} scheduleTask={routine} days={days} history={history} snapshots={snapshots} nested /></React.Fragment>)}
-    </section>
-  );
-}
 
 function RoutineCycleCell({
   routine, habitIds, date, history, snapshots,
@@ -546,49 +715,6 @@ function RoutineCycleCell({
   return <ResultCell state={state} activity={activity} label={`${dateKey}: rutina ${status === 'complete' ? 'completa' : status === 'partial' ? `parcial, ${snapshot.progressPercent}%` : 'no completada'}`} />;
 }
 
-function HabitTrackingRow({
-  habit, scheduleTask, days, history, snapshots, nested = false,
-}: {
-  habit: AppTask;
-  scheduleTask?: AppTask;
-  days: Date[];
-  history: HistoryRecord[];
-  snapshots: ProgressSnapshot[];
-  nested?: boolean;
-}) {
-  const quota = getAppearanceMode(habit) === 'quota';
-  const quotaLabel = quota
-    ? ` · ${getStandaloneQuotaCount(habit, history)}/${Math.max(1, habit.quotaTarget || 1)}`
-    : '';
-  return (
-    <TrackingRow
-      label={<p className={cn('m-0 truncate text-xs text-text-main', nested && 'pl-5 text-text-dim')} title={habit.text}>{nested && '↳ '}{habit.text}{quotaLabel}</p>}
-      days={days}
-      renderCell={date => {
-        const dateKey = formatDateOnly(date);
-        const scheduled = isTaskScheduledOnDate(scheduleTask || habit, date);
-        const result = getDailyHabitResult(habit, history, snapshots, dateKey);
-        const activity = hasPositiveActivityOnDate([habit.id], history, date);
-        if (!result) {
-          const isToday = dateKey === formatDateOnly(new Date());
-          const state: ResultCellState = quota
-            ? 'empty'
-            : scheduled ? 'planned' : 'empty';
-          const status = quota
-            ? 'sin cierre de cuota'
-            : scheduled ? isToday ? 'pendiente' : 'aparición programada' : 'sin agenda';
-          return <ResultCell state={state} activity={activity} label={`${dateKey}: ${status}${activity ? ', con actividad' : ''}`} />;
-        }
-        const state: ResultCellState = result.status === 'complete'
-          ? 'complete'
-          : result.status === 'partial'
-            ? 'partial'
-            : 'missed';
-        return <ResultCell state={state} activity={activity} label={`${dateKey}: ${result.status === 'complete' ? 'completo' : result.status === 'partial' ? `parcial, ${result.progressPercent}%` : 'no completado'}${activity ? ', con actividad' : ''}`} />;
-      }}
-    />
-  );
-}
 
 function MonthlyTaskRow({
   task, history, snapshots, year, activityTaskIds, nested = false,
@@ -619,11 +745,11 @@ function MonthlyTaskRow({
 
   const labelContent = (
     <header className={cn('max-w-[210px]', nested && 'pl-4')}>
-      <strong className={cn("flex items-center gap-2 truncate font-normal text-xs", nested ? "text-text-dim" : "text-text-main")} title={task.text}>
-        {!nested && hasNested && <b className="w-3 text-[11px] font-normal text-primary" aria-hidden="true">{expanded ? '−' : '+'}</b>}
+      <span className={cn("flex items-center gap-2 truncate font-light text-xs", nested ? "text-text-dim" : "text-text-main")} title={task.text}>
+        {!nested && hasNested && <span className="w-3 text-[11px] font-light text-text-dim" aria-hidden="true">{expanded ? '−' : '+'}</span>}
         {nested && '↳ '}{task.text}
-      </strong>
-      <small className="block text-[9px] font-mono uppercase text-text-dim">{isRoutine ? 'Rutina' : 'Hábito'}</small>
+      </span>
+      <small className="block text-[9px] font-mono uppercase text-text-dim font-light">{isRoutine ? 'Rutina' : 'Hábito'}</small>
       <small className={cn('mt-0.5 block truncate text-[8px] font-mono', summary.pendingDate ? 'text-red-600' : 'text-text-dim')} title={scheduleMeta}>{scheduleMeta}</small>
     </header>
   );
@@ -636,10 +762,10 @@ function MonthlyTaskRow({
 
   return (
     <tr className="border-b border-border-line/40 last:border-0">
-      <th className="sticky left-0 z-10 w-[230px] min-w-[230px] px-3 py-2 text-left font-normal bg-base">
+      <th className="sticky left-0 z-10 w-[140px] sm:w-[230px] min-w-[140px] sm:min-w-[230px] max-w-[140px] sm:max-w-[230px] px-3 py-2 text-left font-normal bg-base border-r border-border-line/30 overflow-hidden">
         {label}
       </th>
-      <td className="sticky left-[230px] z-[9] w-[86px] min-w-[86px] px-2 py-2 text-center text-[9px] font-mono text-primary bg-base">{annualAverage === undefined ? '—' : `${annualAverage}%`}</td>
+      <td className="sticky left-[140px] sm:left-[230px] z-[9] w-[86px] min-w-[86px] px-2 py-2 text-center text-[9px] font-mono text-primary bg-base border-r border-border-line/30">{annualAverage === undefined ? '—' : `${annualAverage}%`}</td>
       {MONTHS.map((_, month) => <React.Fragment key={month}><MonthlyResultCell task={task} history={history} snapshots={snapshots} year={year} month={month} activityTaskIds={activityTaskIds} /></React.Fragment>)}
     </tr>
   );
@@ -709,48 +835,9 @@ function getResolvedResults(
     }));
 }
 
-function TrackingHeader({ days }: { days: Date[] }) {
-  return (
-    <header className="grid grid-cols-[190px_repeat(30,20px)] gap-1 items-end min-w-[980px] border-b border-border-line/40 pb-2">
-      <span className="text-[9px] font-mono uppercase tracking-wider text-text-dim">Pasado → hoy</span>
-      <ul className="contents list-none m-0 p-0">
-        {days.map((date, index) => {
-          const isToday = index === days.length - 1;
-          const fullDateTitle = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-          return (
-            <li key={formatDateOnly(date)} className="flex flex-col items-center justify-end text-center leading-tight">
-              <abbr
-                title={fullDateTitle}
-                className={cn('no-underline text-[9px]', isToday ? 'font-bold text-primary' : 'text-text-dim')}
-              >
-                {date.toLocaleDateString('es-ES', { weekday: 'narrow' })}
-              </abbr>
-              <time
-                dateTime={formatDateOnly(date)}
-                className={cn('block font-mono text-[8px]', isToday ? 'font-bold text-primary' : 'text-text-dim')}
-                title={fullDateTitle}
-              >
-                {date.getDate()}
-              </time>
-            </li>
-          );
-        })}
-      </ul>
-    </header>
-  );
-}
-
-function TrackingRow({ label, days, renderCell }: { label: React.ReactNode; days: Date[]; renderCell: (date: Date) => React.ReactNode }) {
-  return (
-    <ul className="grid grid-cols-[190px_repeat(30,20px)] gap-1 items-center min-w-[980px] py-1 m-0 p-0 list-none">
-      <li className="min-w-0">{label}</li>
-      {days.map(date => <li key={formatDateOnly(date)} className="flex items-center justify-center">{renderCell(date)}</li>)}
-    </ul>
-  );
-}
 
 function Cell({ state, title, value }: { state: TrackingCellState; title: string; value?: number }) {
-  return <output title={title} className={cn('w-5 h-5 border flex items-center justify-center text-[8px] font-mono', state === 'complete' && 'bg-emerald-600 border-emerald-600 text-white', state === 'executed' && 'bg-primary border-primary text-white', state === 'partial' && 'bg-amber-400/60 border-amber-500/50 text-text-main', state === 'failed' && 'bg-red-500/30 border-red-500/60 text-red-800', state === 'exceeded' && 'bg-red-700 border-red-700 text-white', state === 'absent' && 'bg-red-500/10 border-red-500/30', state === 'unconfirmed' && 'bg-transparent border-border-line/60', state === 'unscheduled' && 'bg-transparent border-border-line/30')}>{value}</output>;
+  return <output title={title} className={cn('mx-auto w-5 h-5 border flex items-center justify-center text-[8px] font-mono', state === 'complete' && 'bg-emerald-600 border-emerald-600 text-white', state === 'executed' && 'bg-primary border-primary text-white', state === 'partial' && 'bg-amber-400/60 border-amber-500/50 text-text-main', state === 'failed' && 'bg-red-500/30 border-red-500/60 text-red-800', state === 'exceeded' && 'bg-red-700 border-red-700 text-white', state === 'absent' && 'bg-red-500/10 border-red-500/30', state === 'unconfirmed' && 'bg-transparent border-border-line/60', state === 'unscheduled' && 'bg-transparent border-border-line/30')}>{value}</output>;
 }
 
 function ResultCell({

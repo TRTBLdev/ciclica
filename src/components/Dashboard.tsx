@@ -448,7 +448,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
         {/* Navigation Sidebar */}
         <div
           className={cn(
-            "hidden lg:flex flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-all duration-300 relative",
+            "hidden sm:flex flex-shrink-0 flex-col h-screen border-r border-border-line bg-base z-10 transition-all duration-300 relative",
             isSidebarCollapsed ? "w-[64px]" : "w-[200px]"
           )}
         >
@@ -577,7 +577,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
               {/* Desktop Panel */}
               <div
                 className={cn(
-                  "hidden lg:flex fixed top-[10vh] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200 transition-all duration-300",
+                  "hidden sm:flex fixed top-[10vh] w-[600px] max-h-[80vh] bg-base shadow-2xl z-50 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200 transition-all duration-300",
                   isSidebarCollapsed ? "left-[64px]" : "left-[200px]"
                 )}
               >
@@ -601,7 +601,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
               </div>
 
               {/* Mobile Panel (Bottom Sheet) */}
-              <div className="lg:hidden fixed bottom-[50px] left-0 right-0 max-h-[85vh] bg-base shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden flex-col animate-in slide-in-from-bottom duration-300">
+              <div className="sm:hidden fixed bottom-[50px] left-0 right-0 max-h-[85vh] bg-base shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden flex-col animate-in slide-in-from-bottom duration-300">
                 <Omnibar
                   activeTimer={activeTimer}
                   tasks={tasks}
@@ -630,8 +630,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           <div className={cn(
             "flex-1 h-screen bg-base overflow-y-auto w-full",
             activeTimer && !showOmnibar
-              ? "pb-[80px] lg:pb-0"
-              : "pb-[100px] lg:pb-0"
+              ? "pb-[80px] sm:pb-0"
+              : "pb-[100px] sm:pb-0"
           )}>
             <Suspense fallback={<ViewLoader />}>
               {currentView === 'hoy' && (
@@ -718,7 +718,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
           </div>
 
           {/* Mobile Tabs fixed at the bottom */}
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
+          <div className="sm:hidden fixed bottom-0 left-0 right-0 h-[50px] flex bg-base border-t border-border-line overflow-x-auto no-scrollbar z-50 shadow-md">
             <NavButton
               isMobile
               active={showOmnibar}
