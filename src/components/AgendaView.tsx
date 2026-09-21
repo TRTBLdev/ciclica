@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X, CalendarRange } from 'lucide-react';
 import { AppTask, Config, HistoryRecord, Separator } from '../types';
-import { cn, timeToMins, minsToTime, getEffectiveAllocation } from '../lib/utils';
+import { cn, timeToMins, minsToTime, getEffectiveAllocation, getAreaTextClasses } from '../lib/utils';
 import { getAppearanceDate, isAppearanceScheduledOnDate } from '../domain/appearance';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import GanttChart from './GanttChart';
+import { getTypeIcon } from './TaskItem';
 
 interface Props {
   config: Config | null;
@@ -433,8 +434,9 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
       <div
         key={task.id}
         onClick={() => handleItemClick(task)}
+        title={`${task.text} (${task.type})${task.category ? ` · ${task.category}` : ''}${task.subCategory ? ` / ${task.subCategory}` : ''}`}
         className={cn(
-          "flex flex-col gap-1.5 p-2 rounded-none border-l-3 border-t-0 border-r-0 border-b-0 cursor-pointer transition-all text-xs leading-snug group w-full min-w-0 overflow-hidden",
+          "flex flex-col gap-1 p-2 rounded-none border-l-3 border-t-0 border-r-0 border-b-0 cursor-pointer transition-all text-xs leading-snug group w-full min-w-0 overflow-hidden",
           getLeftBorderClass(areaColor),
           workedToday
             ? "opacity-50 grayscale-[40%] bg-transparent"
@@ -443,16 +445,17 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
               : "bg-transparent hover:bg-base-dim/20"
         )}
       >
-        {/* Title row + duration / span indicator top right */}
-        <div className="flex items-start justify-between gap-1.5 min-w-0 w-full">
-          <span className="font-medium text-text-main group-hover:text-primary transition-colors line-clamp-2 leading-tight min-w-0">
-            {task.text}
-          </span>
-          <div className="flex items-center gap-1 shrink-0 ml-auto">
+        {/* Header row: Type icon (colored by Area) + Allocation icon (left) | Time, Span, Duration (right) */}
+        <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+          <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+            {getTypeIcon(task.type, cn("w-3.5 h-3.5 stroke-[2] fill-none shrink-0", getAreaTextClasses(areaColor)))}
+            {allocation && (
+              <AllocationBadge allocation={allocation} iconOnly />
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0 ml-auto font-mono text-[9px] text-text-dim/80">
             {task.hora && (
-              <span className="font-mono text-[9px] text-text-dim/80 px-1 py-0.2 rounded-none">
-                {task.hora}
-              </span>
+              <span>{task.hora}</span>
             )}
             {spanLabel && (
               <span className="font-mono text-[8px] uppercase text-primary font-bold bg-primary/10 px-1 py-0.2 rounded-none border border-primary/20">
@@ -460,30 +463,22 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
               </span>
             )}
             {durationLabel && (
-              <span className="font-mono text-[9px] text-text-dim/80 px-1 py-0.2 rounded-none">
-                {durationLabel}
-              </span>
+              <span>{durationLabel}</span>
             )}
           </div>
         </div>
 
-        {/* Metadata Badges Row (Muji Minimalist: Type text without icon + Allocation Icon + Category Badge) */}
-        <div className="flex flex-wrap gap-1 items-center mt-0.5 min-w-0 w-full overflow-hidden">
-          {/* Type text only (no icon) */}
-          <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-text-dim px-1 py-0.2 rounded-none bg-base-dim/30 shrink-0">
-            {task.type}
-          </span>
+        {/* Title row: Full-width title */}
+        <span className="font-medium text-xs text-text-main group-hover:text-primary transition-colors line-clamp-3 leading-snug w-full min-w-0 break-words">
+          {task.text}
+        </span>
 
-          {/* Allocation icon only */}
-          {allocation && (
-            <AllocationBadge allocation={allocation} iconOnly />
-          )}
-
-          {/* Category / Area Badge */}
-          {task.category && (
-            <CategoryBadge area={task.category} subCategory={task.subCategory} config={config} />
-          )}
-        </div>
+        {/* Footer row: SubCategory pill (only if exists) */}
+        {task.subCategory && (
+          <div className="flex items-center mt-0.5 min-w-0">
+            <CategoryBadge area={task.category} subCategory={task.subCategory} config={config} hideArea={true} />
+          </div>
+        )}
       </div>
     );
   };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown, Layers } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
@@ -41,30 +41,14 @@ export function getTypeIcon(type: TaskType, className?: string) {
   };
 
   switch (type) {
-    case 'Tarea':
-      return (
-        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
-        </svg>
-      );
     case 'Proyecto':
-      return (
-        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-19.5 0A2.25 2.25 0 0 0 4.5 15h15a2.25 2.25 0 0 0 2.25-2.25m-19.5 0v.25A2.25 2.25 0 0 0 4.5 17.5h15a2.25 2.25 0 0 0 2.25-2.25v-.25m-19.5-6.5V5.25A2.25 2.25 0 0 1 4.5 3h5.25l1.5 2.25h8.25a2.25 2.25 0 0 1 2.25 2.25v1.5" />
-        </svg>
-      );
+      return <Layers className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0")} />;
     case 'Rutina':
-      return (
-        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001m-5.007 5.007v-5.007m-5.78-4.913a8.967 8.967 0 0 1 7.604 3.443m-7.604-3.443L6.75 4.5M1.5 12a8.986 8.986 0 0 0 4.568 7.828m0 0-.79-2.09M1.5 12h5m2.5 4.5a8.967 8.967 0 0 0 7.604-3.443m0 0 1.639 2.09" />
-        </svg>
-      );
+      return <Repeat className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0")} />;
     case 'Hábito':
-      return (
-        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none text-emerald-600 dark:text-emerald-500")} viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V6m0 0 3.5 3.5M12 6L8.5 9.5M12 11c3 0 5-2 5-5m-5 9c-3 0-5-2-5-5" />
-        </svg>
-      );
+      return <CheckCircle2 className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0 text-emerald-600 dark:text-emerald-500")} />;
+    case 'Tarea':
+      return <CheckCircle2 className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0")} />;
     case 'Pulso':
       return (
         <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
