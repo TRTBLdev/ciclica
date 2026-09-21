@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AppTask, HistoryRecord, IntentionItem } from '../types';
+import { AppTask, HistoryRecord, IntentionItem, ProgressSnapshot } from '../types';
 import {
   getTaskIdsForItem,
   calculateHoursProgress,
@@ -47,6 +47,19 @@ describe('getTaskIdsForItem', () => {
     const ids = getTaskIdsForItem(item, mockTasks);
     expect(ids).toEqual(['t1']);
   });
+
+  it('resolves at Routine level including child habits', () => {
+    const routineTasks: AppTask[] = [
+      { id: 'r1', userId: 'user', text: 'Rutina Mañana', type: 'Rutina', category: 'BODY', createdAt: '' },
+      { id: 'h1', userId: 'user', text: 'Agua', type: 'Hábito', parentId: 'r1', category: 'BODY', createdAt: '' },
+      { id: 'h2', userId: 'user', text: 'Estiramiento', type: 'Hábito', parentId: 'r1', category: 'BODY', createdAt: '' },
+    ];
+    const item: IntentionItem = { id: 'ii_r', targetType: 'consistency', taskId: 'r1' };
+    const ids = getTaskIdsForItem(item, routineTasks);
+    expect(ids).toContain('r1');
+    expect(ids).toContain('h1');
+    expect(ids).toContain('h2');
+  });
 });
 
 describe('calculateHoursProgress', () => {
@@ -90,6 +103,37 @@ describe('calculateConsistencyProgress', () => {
     expect(result.current).toBe(2); // June 15 and 16
     expect(result.target).toBe(4);
     expect(result.percent).toBe(50);
+  });
+
+  it('calculates cycle compliance for routines using routine-cycle snapshots and targetPercent', () => {
+    const routineTasks: AppTask[] = [
+      { id: 'r1', userId: 'user', text: 'Rutina Trimestral', type: 'Rutina', category: 'BODY', routineCycleFrequency: 3, routineCycleUnit: 'meses', createdAt: '' },
+      { id: 'h1', userId: 'user', text: 'Hábito 1', type: 'Hábito', parentId: 'r1', category: 'BODY', objetivoPorCiclo: 1, createdAt: '' },
+      { id: 'h2', userId: 'user', text: 'Hábito 2', type: 'Hábito', parentId: 'r1', category: 'BODY', objetivoPorCiclo: 10, createdAt: '' },
+    ];
+    const snapshots: ProgressSnapshot[] = [
+      {
+        id: 's1',
+        userId: 'user',
+        kind: 'routine-cycle',
+        taskId: 'r1',
+        periodStart: '2026-04-01',
+        periodEnd: '2026-06-30',
+        resolvedAt: '2026-06-30',
+        progressPercent: 100,
+        resultStatus: 'complete',
+        resolutionSource: 'cycle-close',
+        wasCompleted: true,
+        createdAt: '2026-06-30T23:59:59'
+      }
+    ];
+    const item: IntentionItem = { id: 'ii_r', targetType: 'consistency', taskId: 'r1', targetPercent: 80 };
+    const result = calculateConsistencyProgress(item, routineTasks, [], '2026-04-01', '2026-06-30', snapshots);
+    expect(result.unit).toBe('%');
+    expect(result.isCycleScore).toBe(true);
+    expect(result.current).toBe(100);
+    expect(result.target).toBe(80);
+    expect(result.percent).toBe(100);
   });
 });
 

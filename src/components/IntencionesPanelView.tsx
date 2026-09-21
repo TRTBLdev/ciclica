@@ -19,16 +19,18 @@ import {
   BookOpen,
   CheckSquare
 } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScale } from '../types';
+import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScale, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
 import { formatLocalDate, parseLocalDate, findIntentionForPeriod } from '../domain/periodUtils';
 import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
+import { calculateItemProgress } from '../domain/intentionProgress';
 import DedicationChart from './DedicationChart';
 
 interface Props {
   config: Config | null;
   tasks: AppTask[];
   history: HistoryRecord[];
+  progressSnapshots?: ProgressSnapshot[];
   intentions: Intention[];
   onAddIntention: (intention: Omit<Intention, 'id'>) => void;
   onUpdateIntention: (id: string, updates: Partial<Intention>) => void;
@@ -54,6 +56,7 @@ export default function IntencionesPanelView({
   config,
   tasks,
   history,
+  progressSnapshots = [],
   intentions,
   onAddIntention,
   onUpdateIntention,
@@ -397,142 +400,66 @@ export default function IntencionesPanelView({
 
   // Calculation helpers for real-time progress of commitments
   const calculateCommitmentProgress = (item: IntentionItem, periodStart: string, periodEnd: string) => {
-    if (item.targetType === 'consistency') {
-      const relevantHistory = history.filter(h => {
-        const d = getHistoryDateKey(h);
-        if (d < periodStart || d > periodEnd) return false;
-        if (item.taskId && h.taskId === item.taskId) return true;
-        // Check if history record is for a child habit of this routine
-        const orig = tasks.find(t => t.id === h.taskId);
-        return orig && orig.parentId === item.taskId;
-      });
+    const prog = calculateItemProgress(item, tasks, history, periodStart, periodEnd, intentions, progressSnapshots);
 
-      const uniqueDays = new Set(relevantHistory.map(getHistoryDateKey)).size;
-
-      // Calculate days elapsed in period up to today
-      const s = parseLocalDate(periodStart);
-      const e = parseLocalDate(periodEnd);
-      const now = new Date();
-      const effectiveEnd = now < e ? now : e;
-      const totalDaysElapsed = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      const actualPercent = Math.min(100, Math.round((uniqueDays / totalDaysElapsed) * 100));
-      const targetPercent = item.targetPercent ?? 80;
+    if (prog.type === 'consistency' && prog.consistency) {
+      const c = prog.consistency;
+      const isDone = c.current >= c.target;
+      const label = c.isCycleScore
+        ? `Cumplimiento de ciclo`
+        : c.unit === '%' && c.uniqueDays !== undefined && c.totalDaysElapsed !== undefined
+          ? `${c.uniqueDays} de ${c.totalDaysElapsed} días`
+          : `${c.current} de ${c.target} días`;
       return {
-        current: actualPercent,
-        target: targetPercent,
-        unit: '%',
-        label: `${actualPercent}% consistencia (${uniqueDays} de ${totalDaysElapsed} días)`,
-        percentProgress: Math.min(100, Math.round((actualPercent / targetPercent) * 100)),
-        isDone: actualPercent >= targetPercent
+        current: c.current,
+        target: c.target,
+        unit: c.unit,
+        label,
+        percentProgress: Math.round(c.percent),
+        isDone
       };
     }
 
-    if (item.targetType === 'hours') {
-      let taskIds: string[] = [];
-      if (item.taskId) {
-        taskIds = [item.taskId];
-      } else if (item.projectId) {
-        taskIds = [item.projectId, ...tasks.filter(t => t.parentId === item.projectId).map(t => t.id)];
-      } else if (item.areaName) {
-        taskIds = tasks.filter(t => t.category === item.areaName).map(t => t.id);
-      }
-
-      const relevantHistory = history.filter(h => {
-        const d = getHistoryDateKey(h);
-        return (
-          taskIds.includes(h.taskId) &&
-          d >= periodStart &&
-          d <= periodEnd &&
-          h.duration !== undefined &&
-          h.duration > 0
-        );
-      });
-
-      const totalHours = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
-
-      if (item.hoursPacing === 'weekly' && item.weeklyHours) {
+    if (prog.type === 'hours' && prog.hours) {
+      const h = prog.hours;
+      const isDone = h.current >= h.target;
+      let label = `${h.current.toFixed(1)} de ${h.target} h dedicadas`;
+      if (h.pacing === 'weekly' && h.weeklyHours) {
         const s = parseLocalDate(periodStart);
         const e = parseLocalDate(periodEnd);
-        const totalDays = Math.max(7, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const totalWeeks = Math.max(1, Math.round(totalDays / 7));
-        const targetTotalHours = item.weeklyHours * totalWeeks;
-
         const now = new Date();
         const effectiveEnd = now < e ? now : e;
         const elapsedDays = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
         const elapsedWeeks = Math.max(1, elapsedDays / 7);
-        const currentWeeklyAvg = totalHours / elapsedWeeks;
-
-        const percentProgress = targetTotalHours > 0 ? Math.min(100, Math.round((totalHours / targetTotalHours) * 100)) : 0;
-        return {
-          current: totalHours,
-          target: targetTotalHours,
-          unit: 'h',
-          label: `${totalHours.toFixed(1)} h (${currentWeeklyAvg.toFixed(1)} h/sem, meta: ${item.weeklyHours} h/sem)`,
-          percentProgress,
-          isDone: totalHours >= targetTotalHours
-        };
-      } else {
-        const targetHours = item.targetHours || 50;
-        const percentProgress = targetHours > 0 ? Math.min(100, Math.round((totalHours / targetHours) * 100)) : 0;
-        return {
-          current: totalHours,
-          target: targetHours,
-          unit: 'h',
-          label: `${totalHours.toFixed(1)} de ${targetHours} h dedicadas`,
-          percentProgress,
-          isDone: totalHours >= targetHours
-        };
+        const currentWeeklyAvg = h.current / elapsedWeeks;
+        label = `${h.current.toFixed(1)} h (${currentWeeklyAvg.toFixed(1)} h/sem, meta: ${h.weeklyHours} h/sem)`;
       }
-    }
-
-    if (item.targetType === 'counter') {
-      const current = item.currentCount || 0;
-      const target = item.targetCount || 500;
-      const unit = item.unitLabel || 'páginas';
-      const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-
-      let hoursSpent = 0;
-      if (item.taskId) {
-        const relevantHistory = history.filter(h => {
-          const d = getHistoryDateKey(h);
-          return (
-            h.taskId === item.taskId &&
-            d >= periodStart &&
-            d <= periodEnd &&
-            h.duration !== undefined &&
-            h.duration > 0
-          );
-        });
-        hoursSpent = relevantHistory.reduce((sum, h) => sum + (h.duration || 0), 0);
-      }
-
       return {
-        current,
-        target,
-        unit,
-        hoursSpent,
-        label: `${current} / ${target} ${unit}${hoursSpent > 0 ? ` · ${hoursSpent.toFixed(1)} h dedicadas` : ''}`,
-        percentProgress: percent,
-        isDone: current >= target
+        current: h.current,
+        target: h.target,
+        unit: 'h',
+        label,
+        percentProgress: Math.round(h.percent),
+        isDone
       };
     }
 
-    if (item.targetType === 'completion') {
-      if (item.taskId) {
-        // Milestone / Standalone task
-        const task = tasks.find(t => t.id === item.taskId);
-        const isDone = !!task?.completed;
-        return {
-          current: isDone ? 1 : 0,
-          target: 1,
-          unit: '',
-          label: isDone ? 'Completado' : 'Pendiente',
-          percentProgress: isDone ? 100 : 0,
-          isDone
-        };
-      } else if (item.projectId) {
-        // Whole Project
+    if (prog.type === 'counter' && prog.counter) {
+      const cnt = prog.counter;
+      return {
+        current: cnt.current,
+        target: cnt.target,
+        unit: cnt.unit,
+        hoursSpent: cnt.hoursSpent,
+        label: `${cnt.current} / ${cnt.target} ${cnt.unit}${cnt.hoursSpent > 0 ? ` · ${cnt.hoursSpent.toFixed(1)} h dedicadas` : ''}`,
+        percentProgress: cnt.percent,
+        isDone: cnt.isDone
+      };
+    }
+
+    if (prog.type === 'completion' && prog.completion) {
+      const cmp = prog.completion;
+      if (item.projectId && !item.taskId) {
         const subtasks = tasks.filter(t => t.parentId === item.projectId);
         const completed = subtasks.filter(t => t.completed).length;
         const total = subtasks.length;
@@ -546,6 +473,14 @@ export default function IntencionesPanelView({
           isDone: total > 0 && completed === total
         };
       }
+      return {
+        current: cmp.completed ? 1 : 0,
+        target: 1,
+        unit: '',
+        label: cmp.completed ? 'Completado' : 'Pendiente',
+        percentProgress: cmp.completed ? 100 : 0,
+        isDone: cmp.completed
+      };
     }
 
     return { current: 0, target: 1, unit: '', label: 'Sin datos', percentProgress: 0, isDone: false };
@@ -1298,7 +1233,7 @@ export default function IntencionesPanelView({
                                         </span>
                                       ) : (
                                         <span className="text-[10px] font-mono text-text-dim">
-                                          {prog.percentProgress}%
+                                          {prog.unit === '%' ? `${prog.current}% / ${prog.target}%` : `${prog.current} / ${prog.target} ${prog.unit}`}
                                         </span>
                                       )}
                                       <button
@@ -1466,7 +1401,11 @@ export default function IntencionesPanelView({
                                               <div key={item.id} className="flex justify-between items-center text-xs font-sans text-text-main py-0.5">
                                                 <span className="truncate pr-2">{taskObj?.text || item.areaName}</span>
                                                 <span className="text-[10px] font-mono text-text-dim shrink-0">
-                                                  {monthProg.label}
+                                                  {monthProg.isDone ? (
+                                                    <span className="text-emerald-600 font-medium">Cumplido</span>
+                                                  ) : (
+                                                    `${monthProg.current}% / ${monthProg.target}%`
+                                                  )}
                                                 </span>
                                               </div>
                                             );

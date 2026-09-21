@@ -62,7 +62,7 @@ export default function AreasView({ config, tasks, history, progressSnapshots, i
   return (
     <div className="animate-in fade-in flex flex-col h-full bg-base pt-4">
 
-      <AreasList config={config} areas={areas} tasks={tasks} history={history} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
+      <AreasList config={config} areas={areas} tasks={tasks} history={history} progressSnapshots={progressSnapshots} intentions={intentions} onSelect={setSelectedArea} onUpdate={handleUpdateAreas} />
     </div>
   );
 }
@@ -72,6 +72,7 @@ function AreasList({
   areas, 
   tasks, 
   history = [], 
+  progressSnapshots = [],
   intentions = [], 
   onSelect, 
   onUpdate 
@@ -80,6 +81,7 @@ function AreasList({
   areas: Record<string, string | AreaConfig>, 
   tasks: AppTask[], 
   history?: HistoryRecord[], 
+  progressSnapshots?: ProgressSnapshot[],
   intentions?: Intention[], 
   onSelect: (key: string) => void, 
   onUpdate: (areas: Record<string, string | AreaConfig>) => void 
@@ -241,7 +243,7 @@ function AreasList({
                     <span className="text-[9px] uppercase tracking-wider text-text-dim/80 font-bold">Progreso de Intención Activa:</span>
                     <div className="flex flex-col gap-2">
                       {areaIntentions.slice(0, 3).map(({ item, intention }) => {
-                        const progress = calculateItemProgress(item, tasks, history, intention.periodStart, intention.periodEnd, intentions);
+                        const progress = calculateItemProgress(item, tasks, history, intention.periodStart, intention.periodEnd, intentions, progressSnapshots);
                         let label = '';
                         const displayScaleLabel = INTENTION_SCALE_LABELS[intention.scale];
 
@@ -253,7 +255,7 @@ function AreasList({
                           <div key={item.id} className="flex flex-col gap-1 w-full text-[9px]">
                             <div className="flex justify-between items-center text-text-main/90">
                               <span className="truncate max-w-[170px]" title={`${displayScaleLabel}: ${label}`}>{displayScaleLabel}: {label}</span>
-                              <span className="font-bold text-right ml-2">{summary.compactValue} ({Math.round(summary.percent)}%)</span>
+                              <span className="font-bold text-right ml-2">{summary.compactValue}</span>
                             </div>
                             <div className="h-1.5 w-full bg-base-dim/40 rounded-full overflow-hidden border border-border-line/10">
                               <div 
@@ -387,7 +389,7 @@ function AreaDetail({
   });
 
   const getCommitmentSummary = (item: Parameters<typeof calculateItemProgress>[0], periodStart: string, periodEnd: string) => {
-    const progress = calculateItemProgress(item, tasks, history || [], periodStart, periodEnd, intentions);
+    const progress = calculateItemProgress(item, tasks, history || [], periodStart, periodEnd, intentions, progressSnapshots);
     return summarizeIntentionProgress(progress);
   };
   const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
@@ -592,7 +594,7 @@ function AreaDetail({
                                   {summary.typeLabel}
                                 </p>
                               </div>
-                              <span className="shrink-0 text-xs font-mono text-text-main">{Math.round(summary.percent)}%</span>
+                              <span className="shrink-0 text-xs font-mono text-text-main">{summary.compactValue}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-text-dim">
                               <span>{summary.value}</span>

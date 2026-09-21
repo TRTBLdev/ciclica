@@ -1,5 +1,7 @@
-import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem } from '../types';
+import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem, ProgressSnapshot } from '../types';
 import { getHistoryDateKey, getProjectTaskIds } from './workTracking';
+import { formatDateOnly, getCalendarCycleRange, parseDateOnly } from './recurrenceProgress';
+import { getHabitResultsInRange, getRoutineCycleProgress, getSnapshotResolvedAt } from './occurrenceResults';
 
 export type AreaCommitment = {
   intention: Intention;
@@ -45,6 +47,15 @@ export function getActiveAreaCommitments(
 
 export function getTaskIdsForItem(item: IntentionItem, tasks: AppTask[]): string[] {
   if (item.taskId) {
+    const task = tasks.find(t => t.id === item.taskId);
+    if (task?.type === 'Rutina') {
+      const childHabitIds = tasks.filter(t => t.parentId === item.taskId).map(t => t.id);
+      return [item.taskId, ...childHabitIds];
+    }
+    if (task?.type === 'Proyecto') {
+      const childTaskIds = tasks.filter(t => t.parentId === item.taskId).map(t => t.id);
+      return [item.taskId, ...childTaskIds];
+    }
     return [item.taskId];
   }
   if (item.projectId) {
@@ -131,13 +142,91 @@ export function calculateCounterProgress(
   };
 }
 
+export interface ConsistencyProgressResult {
+  current: number;
+  target: number;
+  percent: number;
+  unit: '%' | 'd';
+  isCycleScore?: boolean;
+  uniqueDays?: number;
+  totalDaysElapsed?: number;
+}
+
 export function calculateConsistencyProgress(
   item: IntentionItem,
   tasks: AppTask[],
   history: HistoryRecord[],
   periodStart: string,
-  periodEnd: string
-) {
+  periodEnd: string,
+  progressSnapshots: ProgressSnapshot[] = []
+): ConsistencyProgressResult {
+  const task = item.taskId ? tasks.find(t => t.id === item.taskId) : undefined;
+
+  // 1. Routine cycle compliance
+  if (task?.type === 'Rutina' && (item.targetPercent !== undefined || !item.targetDays)) {
+    const target = item.targetPercent ?? 80;
+
+    // Collect resolved routine-cycle snapshots in range
+    const resolvedSnapshots = progressSnapshots.filter(s =>
+      s.kind === 'routine-cycle' &&
+      s.taskId === task.id &&
+      getSnapshotResolvedAt(s) >= periodStart &&
+      getSnapshotResolvedAt(s) <= periodEnd
+    );
+
+    const scores = resolvedSnapshots.map(s => Math.max(0, Math.min(100, s.progressPercent)));
+
+    // Active cycle score if currently within or overlapping period
+    const today = new Date();
+    const activeCycle = getCalendarCycleRange(
+      task.routineCycleFrequency || 1,
+      task.routineCycleUnit || 'semanas',
+      today
+    );
+
+    const overlaps = activeCycle.start <= periodEnd && activeCycle.end >= periodStart;
+    const isAlreadySnapshotted = resolvedSnapshots.some(s => {
+      const at = getSnapshotResolvedAt(s);
+      return at >= activeCycle.start && at <= activeCycle.end;
+    });
+
+    if (overlaps && !isAlreadySnapshotted) {
+      const activeScore = getRoutineCycleProgress(task, tasks, history, progressSnapshots, today);
+      scores.push(activeScore);
+    }
+
+    const current = scores.length > 0
+      ? Math.round(scores.reduce((sum, val) => sum + val, 0) / scores.length)
+      : 0;
+    const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+    return {
+      current,
+      target,
+      percent,
+      unit: '%',
+      isCycleScore: true
+    };
+  }
+
+  // 2. Standalone habit with targetPercent
+  if (task?.type === 'Hábito' && item.targetPercent !== undefined && !item.targetDays) {
+    const target = item.targetPercent ?? 80;
+    const habitResults = getHabitResultsInRange(task, history, progressSnapshots, { start: periodStart, end: periodEnd });
+    if (habitResults.length > 0) {
+      const current = Math.round(habitResults.reduce((sum, r) => sum + r.progressPercent, 0) / habitResults.length);
+      const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+      return {
+        current,
+        target,
+        percent,
+        unit: '%',
+        isCycleScore: false
+      };
+    }
+  }
+
+  // 3. Fallback: unique active days against targetDays or total elapsed days
   const taskIds = getTaskIdsForItem(item, tasks);
   const relevantHistory = history.filter(h => {
     const recordDateStr = getHistoryDateKey(h);
@@ -148,12 +237,37 @@ export function calculateConsistencyProgress(
     );
   });
 
-  const uniqueDays = new Set(relevantHistory.map(getHistoryDateKey));
-  const current = uniqueDays.size;
-  const target = item.targetDays || 0;
-  const percent = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+  const uniqueDays = new Set(relevantHistory.map(getHistoryDateKey)).size;
 
-  return { current, target, percent };
+  if (item.targetDays && item.targetDays > 0) {
+    const target = item.targetDays;
+    const percent = Math.min(100, (uniqueDays / target) * 100);
+    return {
+      current: uniqueDays,
+      target,
+      percent,
+      unit: 'd',
+      uniqueDays
+    };
+  }
+
+  const target = item.targetPercent ?? 80;
+  const s = parseDateOnly(periodStart);
+  const e = parseDateOnly(periodEnd);
+  const now = new Date();
+  const effectiveEnd = now < e ? now : e;
+  const totalDaysElapsed = Math.max(1, Math.round((effectiveEnd.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  const current = Math.min(100, Math.round((uniqueDays / totalDaysElapsed) * 100));
+  const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+  return {
+    current,
+    target,
+    percent,
+    unit: '%',
+    uniqueDays,
+    totalDaysElapsed
+  };
 }
 
 export function calculateCompletionProgress(item: IntentionItem, tasks: AppTask[]) {
@@ -183,11 +297,12 @@ export function calculateItemProgress(
   history: HistoryRecord[],
   periodStart: string,
   periodEnd: string,
-  intentions: Intention[] = []
+  intentions: Intention[] = [],
+  progressSnapshots: ProgressSnapshot[] = []
 ): {
   type: 'hours' | 'consistency' | 'completion' | 'counter';
   hours?: { current: number; target: number; percent: number; weeklyHours?: number; pacing?: 'weekly' | 'total' };
-  consistency?: { current: number; target: number; percent: number };
+  consistency?: ConsistencyProgressResult;
   completion?: { completed: boolean; taskName: string };
   counter?: { current: number; target: number; percent: number; unit: string; hoursSpent: number; isDone: boolean };
 } {
@@ -221,7 +336,8 @@ export function calculateItemProgress(
         history,
         childIntention.periodStart,
         childIntention.periodEnd,
-        intentions
+        intentions,
+        progressSnapshots
       );
 
       if (childProgress.type === 'hours' && childProgress.hours) {
@@ -254,7 +370,8 @@ export function calculateItemProgress(
         consistency: {
           current: currentSum,
           target: targetDays,
-          percent: targetDays > 0 ? Math.min(100, (currentSum / targetDays) * 100) : 0
+          percent: targetDays > 0 ? Math.min(100, (currentSum / targetDays) * 100) : 0,
+          unit: 'd'
         }
       };
     } else if (item.targetType === 'counter') {
@@ -295,7 +412,7 @@ export function calculateItemProgress(
   if (item.targetType === 'consistency') {
     return {
       type: 'consistency',
-      consistency: calculateConsistencyProgress(item, tasks, history, periodStart, periodEnd)
+      consistency: calculateConsistencyProgress(item, tasks, history, periodStart, periodEnd, progressSnapshots)
     };
   }
   if (item.targetType === 'counter') {
@@ -316,15 +433,20 @@ export function summarizeIntentionProgress(progress: ReturnType<typeof calculate
     return {
       typeLabel: 'Horas',
       value: `${progress.hours.current.toFixed(1)} / ${progress.hours.target} h`,
-      compactValue: `${progress.hours.current}/${progress.hours.target}h`,
+      compactValue: `${progress.hours.current.toFixed(1)}/${progress.hours.target}h`,
       percent: progress.hours.percent
     };
   }
   if (progress.type === 'consistency' && progress.consistency) {
+    const isPercent = progress.consistency.unit === '%';
     return {
       typeLabel: 'Constancia',
-      value: `${progress.consistency.current} / ${progress.consistency.target} d`,
-      compactValue: `${progress.consistency.current}/${progress.consistency.target}d`,
+      value: isPercent
+        ? `${progress.consistency.current}% / ${progress.consistency.target}%`
+        : `${progress.consistency.current} / ${progress.consistency.target} d`,
+      compactValue: isPercent
+        ? `${progress.consistency.current}% / ${progress.consistency.target}%`
+        : `${progress.consistency.current}/${progress.consistency.target}d`,
       percent: progress.consistency.percent
     };
   }
