@@ -5,7 +5,12 @@ import { AppTask, Config, HistoryRecord, Intention, ProgressSnapshot } from '../
 import { migrateDatabase } from '../data/migration';
 import { attachHistoryContext, preserveHistoryBeforeTaskDeletion } from '../domain/historyContext';
 import { formatDateOnly, getCalendarCycleRange, isRoutineConfigured, parseDateOnly } from '../domain/recurrenceProgress';
-import { applyRecurringHistoryContext, reconcileSnapshotsAfterHistoryEdit } from '../domain/historyEditing';
+import {
+  applyRecurringHistoryContext,
+  reconcileSnapshotsAfterHistoryDelete,
+  reconcileSnapshotsAfterHistoryEdit,
+  sanitizeOrphanedSnapshots,
+} from '../domain/historyEditing';
 import {
   createHabitResultSnapshot,
   getAutomaticHabitProgress,
@@ -53,17 +58,19 @@ export function useData(userId: string) {
       history: rawHistory
     });
 
+    const sanitizedSnapshots = sanitizeOrphanedSnapshots(rawProgressSnapshots, migrated.tasks, migrated.history);
+
     setConfig(migrated.config);
     setTasks(migrated.tasks);
     setHistory(migrated.history);
-    setProgressSnapshots(rawProgressSnapshots);
+    setProgressSnapshots(sanitizedSnapshots);
     setIntentions(rawIntentions);
 
     // Persist migrated clean state.
     setLocal(keys.config, migrated.config);
     setLocal(keys.tasks, migrated.tasks);
     setLocal(keys.history, migrated.history);
-    setLocal(keys.progressSnapshots, rawProgressSnapshots);
+    setLocal(keys.progressSnapshots, sanitizedSnapshots);
     setLocal(keys.intentions, rawIntentions);
 
     setLoading(false);
@@ -338,11 +345,32 @@ export function useData(userId: string) {
   };
 
   const deleteHistory = async (historyId: string) => {
-    setHistory(prev => {
-      const next = prev.filter(h => h.id !== historyId);
-      setLocal(getDataKeys(effectiveUserId).history, next);
-      return next;
-    });
+    const recordToDelete = history.find(h => h.id === historyId);
+    const nextHistory = history.filter(h => h.id !== historyId);
+    setHistory(nextHistory);
+    setLocal(getDataKeys(effectiveUserId).history, nextHistory);
+
+    if (recordToDelete && recordToDelete.isCompletion) {
+      setProgressSnapshots(previous => {
+        const next = reconcileSnapshotsAfterHistoryDelete(previous, tasks, nextHistory, recordToDelete);
+        setLocal(getDataKeys(effectiveUserId).progressSnapshots, next);
+        return next;
+      });
+
+      const targetTask = tasks.find(t => t.id === recordToDelete.taskId);
+      if (targetTask && (targetTask.type === 'Hábito' || targetTask.type === 'Rutina' || targetTask.type === 'Tarea' || targetTask.type === 'Proyecto')) {
+        const remainingCompletions = nextHistory.filter(r => r.taskId === targetTask.id && r.isCompletion);
+        const sorted = [...remainingCompletions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const previousExecution = sorted[0]?.date || '';
+        if (targetTask.lastExecutedAt !== previousExecution) {
+          setTasks(prev => {
+            const nextTasks = prev.map(t => t.id === targetTask.id ? { ...t, lastExecutedAt: previousExecution } : t);
+            setLocal(getDataKeys(effectiveUserId).tasks, nextTasks);
+            return nextTasks;
+          });
+        }
+      }
+    }
   };
 
   const importLocalData = (importedTasks: AppTask[], importedHistory: HistoryRecord[], importedConfig: Config, importedIntentions?: Intention[], importedSnapshots?: ProgressSnapshot[]) => {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { AppTask, HistoryRecord, ProgressSnapshot } from '../types';
-import { applyRecurringHistoryContext, reconcileSnapshotsAfterHistoryEdit } from './historyEditing';
+import {
+  applyRecurringHistoryContext,
+  reconcileSnapshotsAfterHistoryDelete,
+  reconcileSnapshotsAfterHistoryEdit,
+  sanitizeOrphanedSnapshots,
+} from './historyEditing';
 
 const routine: AppTask = {
   id: 'routine',
@@ -107,4 +112,112 @@ describe('history editing', () => {
     expect(reconciled.find(snapshot => snapshot.taskId === habit.id)?.periodStart).toBe('2026-07-27');
     expect(routine.appearanceWeekdays).toEqual([1]);
   });
+
+  it('removes manual habit snapshot and recalibrates parent routine cycle upon history deletion', () => {
+    const reconciled = reconcileSnapshotsAfterHistoryDelete(
+      snapshots,
+      [routine, habit],
+      [], // No history left after deletion
+      original,
+    );
+
+    // Habit manual snapshot should be gone
+    expect(reconciled.some(s => s.taskId === habit.id)).toBe(false);
+    // Routine cycle should be updated to 0% progress / missed
+    const routineSnapshot = reconciled.find(s => s.id === 'old-cycle');
+    expect(routineSnapshot?.progressPercent).toBe(0);
+    expect(routineSnapshot?.resultStatus).toBe('missed');
+    expect(routineSnapshot?.wasCompleted).toBe(false);
+  });
+
+  it('removes standalone habit snapshot upon history deletion', () => {
+    const standaloneHabit: AppTask = {
+      id: 'standalone-habit',
+      userId: 'user',
+      text: 'Meditación',
+      type: 'Hábito',
+      createdAt: '2026-07-01T00:00:00.000Z',
+    };
+    const habitRecord: HistoryRecord = {
+      id: 'record-standalone',
+      userId: 'user',
+      taskId: standaloneHabit.id,
+      date: '2026-07-20T10:00:00.000Z',
+      createdAt: '2026-07-20T10:00:00.000Z',
+      isCompletion: true,
+      completionPercent: 100,
+    };
+    const habitSnapshot: ProgressSnapshot = {
+      id: 'snap-standalone',
+      userId: 'user',
+      kind: 'habit-period',
+      taskId: standaloneHabit.id,
+      periodStart: '2026-07-20',
+      periodEnd: '2026-07-20',
+      resolvedAt: '2026-07-20',
+      progressPercent: 100,
+      resultStatus: 'complete',
+      resolutionSource: 'manual',
+      wasCompleted: true,
+      createdAt: habitRecord.createdAt,
+    };
+
+    const reconciled = reconcileSnapshotsAfterHistoryDelete(
+      [habitSnapshot],
+      [standaloneHabit],
+      [],
+      habitRecord,
+    );
+
+    expect(reconciled).toEqual([]);
+  });
+
+  it('sanitizes orphaned manual snapshots while preserving legitimate ones', () => {
+    const standaloneHabit: AppTask = {
+      id: 'standalone-habit',
+      userId: 'user',
+      text: 'Meditación',
+      type: 'Hábito',
+      createdAt: '2026-07-01T00:00:00.000Z',
+    };
+    const orphanedManualSnapshot: ProgressSnapshot = {
+      id: 'orphan-manual',
+      userId: 'user',
+      kind: 'habit-period',
+      taskId: standaloneHabit.id,
+      periodStart: '2026-07-20',
+      periodEnd: '2026-07-20',
+      resolvedAt: '2026-07-20',
+      progressPercent: 100,
+      resultStatus: 'complete',
+      resolutionSource: 'manual',
+      wasCompleted: true,
+      createdAt: '2026-07-20T10:00:00.000Z',
+    };
+    const legitimatePeriodEndSnapshot: ProgressSnapshot = {
+      id: 'legit-period-end',
+      userId: 'user',
+      kind: 'habit-period',
+      taskId: standaloneHabit.id,
+      periodStart: '2026-07-19',
+      periodEnd: '2026-07-19',
+      resolvedAt: '2026-07-19',
+      progressPercent: 0,
+      resultStatus: 'missed',
+      resolutionSource: 'period-end',
+      wasCompleted: false,
+      createdAt: '2026-07-19T23:59:59.000Z',
+    };
+
+    // When history is empty, the manual one has no backing log and should be removed.
+    // The period-end one should be preserved.
+    const sanitized = sanitizeOrphanedSnapshots(
+      [orphanedManualSnapshot, legitimatePeriodEndSnapshot],
+      [standaloneHabit],
+      [],
+    );
+
+    expect(sanitized).toEqual([legitimatePeriodEndSnapshot]);
+  });
 });
+

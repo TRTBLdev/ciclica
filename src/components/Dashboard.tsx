@@ -11,7 +11,7 @@ import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
 import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
-import { resolveCompletionDuration } from '../domain/workTracking';
+import { getHistoryDateKey, resolveCompletionDuration } from '../domain/workTracking';
 import { resolveHabitChecklistCycleUpdate } from '../domain/habitParentChange';
 import { canCloseProject, getProjectPresentation } from '../domain/projectPresentation';
 import {
@@ -255,7 +255,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       && progressSnapshots.some(snapshot => snapshot.kind === 'habit-period'
         && snapshot.taskId === task.id
         && snapshot.periodStart === habitOccurrence.start
-        && snapshot.periodEnd === habitOccurrence.end)
+        && snapshot.periodEnd === habitOccurrence.end
+        && (snapshot.resolutionSource !== 'manual' || history.some(r => r.taskId === task.id && r.isCompletion && getHistoryDateKey(r) === (snapshot.resolvedAt || snapshot.periodEnd))))
     ) return;
     const habitLockKey = task.type === 'Hábito' ? `habit:${task.id}:${occurrenceKey}` : undefined;
     if (habitLockKey && completionLocksRef.current.has(habitLockKey)) return;

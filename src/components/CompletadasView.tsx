@@ -312,12 +312,17 @@ export default function CompletadasView({
     const task = taskById.get(h.taskId);
     if (task) {
       if (h.isCompletion !== false) {
+        const remainingCompletions = history.filter(r => r.id !== h.id && r.taskId === task.id && r.isCompletion);
+        const sorted = [...remainingCompletions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const previousExecution = sorted[0]?.date || '';
+
         if (task.type === 'Tarea' || task.type === 'Proyecto') {
-          onUpdateTask(task.id, { completed: false, view: 'Hoy' });
+          onUpdateTask(task.id, { completed: false, view: 'Hoy', lastExecutedAt: previousExecution });
         } else if (task.type === 'Hábito' || task.type === 'Rutina') {
           onUpdateTask(task.id, {
             completed: false,
-            fechaPlanificada: new Date().toISOString()
+            fechaPlanificada: new Date().toISOString(),
+            lastExecutedAt: previousExecution,
           });
 
           // If it's a routine, also revert its child habits to today
