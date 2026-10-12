@@ -18,7 +18,7 @@ import { getInheritedProjectContext, getProjectPresentation } from '../domain/pr
 import ItemDetails from './ItemDetails';
 import { HabitDurationSummary, RoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison } from './DurationSummaryMetric';
-import { isTaskDirectlyPaused } from '../domain/pause';
+import { isTaskDirectlyPaused, isTaskEffectivelyPaused } from '../domain/pause';
 
 
 const GripIcon = () => (

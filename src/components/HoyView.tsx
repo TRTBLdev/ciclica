@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot } from '../types';
-import { calculateBiologicalPhase } from '../domain/cycle';
+import { calculateBiologicalPhase, getImminentPeriodWarning } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
 import { extractSafeTime, timeToMins, minsToTime, isSameDay, cn, getAreaColorClasses } from '../lib/utils';
@@ -300,21 +300,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
     return 0;
   });
 
-  // Imminent period warning (1-2 days before estimated period start)
-  let daysUntilPeriod: number | null = null;
-  let showPeriodWarning = false;
-  if (config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && config?.cycleConfig?.lastCycleStartDate) {
-    const lastStart = new Date(config.cycleConfig.lastCycleStartDate);
-    const length = config.cycleConfig.cycleLengthDays || 28;
-    const nextStart = new Date(lastStart.getTime());
-    nextStart.setDate(nextStart.getDate() + length);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    nextStart.setHours(0, 0, 0, 0);
-    const diffMs = nextStart.getTime() - today.getTime();
-    daysUntilPeriod = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    showPeriodWarning = daysUntilPeriod >= 0 && daysUntilPeriod <= 2;
-  }
+  const periodWarning = getImminentPeriodWarning(config);
 
   const getPhaseIcon = (p: string) => {
     switch (p) {
@@ -566,11 +552,11 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
       </div>
 
       {/* Imminent Period Warning Alert */}
-      {showPeriodWarning && (
+      {periodWarning && (
         <div className="glass-matte p-4 rounded-2xl flex items-center gap-3 text-xs text-text-main animate-in slide-in-from-top-2 duration-200">
           <span className="text-lg">🩸</span>
           <div className="flex-1 text-left">
-            <span className="font-bold">Alerta de Transición Cíclica:</span> Se estima que tu periodo iniciará en <span className="font-bold font-mono">{daysUntilPeriod} {daysUntilPeriod === 1 ? 'día' : 'días'}</span>. Considera planificar tareas de menor esfuerzo mental para descansar.
+            <span className="font-bold">Alerta de Transición Cíclica:</span> Se estima que tu periodo iniciará en <span className="font-bold font-mono">{periodWarning.daysUntilPeriod} {periodWarning.daysUntilPeriod === 1 ? 'día' : 'días'}</span>. Considera planificar tareas de menor esfuerzo mental para descansar.
           </div>
         </div>
       )}

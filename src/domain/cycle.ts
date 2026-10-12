@@ -53,6 +53,55 @@ export function getCyclePeriods(flowLogs: Record<string, number> | undefined): P
   return periods;
 }
 
+function getMeanCycleLength(periods: PeriodGroup[], fallbackCycleLength: number): number {
+  if (periods.length < 2) return fallbackCycleLength;
+
+  let totalCycleDays = 0;
+  for (let index = 1; index < periods.length; index++) {
+    const currentStart = parseLocalDate(periods[index].startDate);
+    const previousStart = parseLocalDate(periods[index - 1].startDate);
+    totalCycleDays += Math.max(1, Math.floor((currentStart.getTime() - previousStart.getTime()) / DAY_MS));
+  }
+  return Math.round(totalCycleDays / (periods.length - 1));
+}
+
+function getConfiguredCycleStart(value: string | undefined): Date | null {
+  if (!value) return null;
+  const date = parseLocalDate(value.slice(0, 10));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Returns a period warning only when the next estimated period is one or two local days away.
+ * Recorded flow takes precedence over the legacy onboarding date.
+ */
+export function getImminentPeriodWarning(
+  config: Config | null,
+  at: Date = new Date(),
+): { daysUntilPeriod: 1 | 2 } | null {
+  const cycleConfig = config?.cycleConfig;
+  if (!cycleConfig || cycleConfig.menstruates === false || cycleConfig.trackingType !== 'menstrual') {
+    return null;
+  }
+
+  const periods = getCyclePeriods(cycleConfig.flowLogs);
+  const fallbackLength = Math.max(1, cycleConfig.cycleLengthDays || 28);
+  const latestPeriodStart = periods.length > 0
+    ? parseLocalDate(periods[periods.length - 1].startDate)
+    : getConfiguredCycleStart(cycleConfig.lastCycleStartDate);
+  if (!latestPeriodStart) return null;
+
+  const cycleLength = getMeanCycleLength(periods, fallbackLength);
+  const today = new Date(at);
+  today.setHours(0, 0, 0, 0);
+  const nextStart = new Date(latestPeriodStart);
+  nextStart.setHours(0, 0, 0, 0);
+  while (nextStart <= today) nextStart.setDate(nextStart.getDate() + cycleLength);
+
+  const daysUntilPeriod = Math.round((nextStart.getTime() - today.getTime()) / DAY_MS);
+  return daysUntilPeriod === 1 || daysUntilPeriod === 2 ? { daysUntilPeriod } : null;
+}
+
 export interface PastCycleInfo {
   startDate: string;
   endDate: string;
@@ -99,8 +148,6 @@ export function getCycleProjections(config: Config | null): CycleProjections | n
 
   // Calculate past cycles
   const pastCycles: PastCycleInfo[] = [];
-  let totalCycleDays = 0;
-  let cycleCountForMean = 0;
   let totalPeriodDays = 0;
 
   for (let i = 0; i < periods.length; i++) {
@@ -115,8 +162,6 @@ export function getCycleProjections(config: Config | null): CycleProjections | n
     if (i < periods.length - 1) {
       const nextStartDate = parseLocalDate(periods[i + 1].startDate);
       cycleLength = Math.max(1, Math.floor((nextStartDate.getTime() - startDate.getTime()) / DAY_MS));
-      totalCycleDays += cycleLength;
-      cycleCountForMean++;
     }
 
     pastCycles.push({
@@ -128,7 +173,7 @@ export function getCycleProjections(config: Config | null): CycleProjections | n
     });
   }
 
-  const meanCycleLength = cycleCountForMean > 0 ? Math.round(totalCycleDays / cycleCountForMean) : fallbackCycleLength;
+  const meanCycleLength = getMeanCycleLength(periods, fallbackCycleLength);
   const meanPeriodLength = periods.length > 0 ? Math.round(totalPeriodDays / periods.length) : fallbackPeriodLength;
 
   // Reverse pastCycles so newest is first
@@ -217,47 +262,18 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
   }
 
   if (trackingType === 'menstrual' && flowLogs && Object.keys(flowLogs).length > 0) {
-    const logEntries = Object.entries(flowLogs)
-      .filter(([dateStr, intensity]) => {
-        if (intensity <= 0) return false;
-        const d = parseLocalDate(dateStr);
-        return !isNaN(d.getTime()); // Ensure it's a valid date
-      })
-      .sort((a, b) => parseLocalDate(a[0]).getTime() - parseLocalDate(b[0]).getTime());
+    const periods = getCyclePeriods(flowLogs);
+    if (periods.length === 0) return 'expresiva';
 
-    if (logEntries.length === 0) return 'expresiva';
-
-    const cycleStartDates: Date[] = [];
-    let lastDate: Date | null = null;
-
-    logEntries.forEach(([dateStr]) => {
-      const currentDate = parseLocalDate(dateStr);
-      if (!lastDate) {
-        cycleStartDates.push(currentDate);
-      } else {
-        const diffDays = Math.floor((currentDate.getTime() - lastDate.getTime()) / DAY_MS);
-        if (diffDays >= 10) {
-          cycleStartDates.push(currentDate);
-        }
-      }
-      lastDate = currentDate;
-    });
-
-    const activeCycleStart = new Date(cycleStartDates[cycleStartDates.length - 1].getTime());
     const today = new Date(todayDate);
     today.setHours(0, 0, 0, 0);
+    const activePeriod = [...periods].reverse().find(period => parseLocalDate(period.startDate) <= today)
+      || periods[0];
+    const activeCycleStart = parseLocalDate(activePeriod.startDate);
     activeCycleStart.setHours(0, 0, 0, 0);
 
     const daysIntoCycle = Math.floor((today.getTime() - activeCycleStart.getTime()) / DAY_MS);
-
-    let calculatedCycleLength = cycleLengthDays || 28;
-    if (cycleStartDates.length >= 2) {
-      let totalIntervalDays = 0;
-      for (let i = 1; i < cycleStartDates.length; i++) {
-        totalIntervalDays += Math.floor((cycleStartDates[i].getTime() - cycleStartDates[i - 1].getTime()) / DAY_MS);
-      }
-      calculatedCycleLength = Math.round(totalIntervalDays / (cycleStartDates.length - 1));
-    }
+    const calculatedCycleLength = getMeanCycleLength(periods, cycleLengthDays || 28);
 
     const configuredPeriodLength = config.cycleConfig.periodLengthDays || 5;
     let cursor = new Date(activeCycleStart.getTime());
@@ -274,10 +290,8 @@ export function calculateBiologicalPhase(config: Config | null, todayDate = new 
 
     const menstrualPhaseLength = Math.max(configuredPeriodLength, consecutiveFlowDays);
 
-    // Wraparound: if days exceed cycle length, project into current cycle using modulo
-    const effectiveDays = daysIntoCycle >= calculatedCycleLength
-      ? daysIntoCycle % calculatedCycleLength
-      : daysIntoCycle;
+    // Normalize both past and future projected dates inside their corresponding cycle.
+    const effectiveDays = ((daysIntoCycle % calculatedCycleLength) + calculatedCycleLength) % calculatedCycleLength;
 
     if (effectiveDays < menstrualPhaseLength) return 'reflexiva';
     if (effectiveDays < calculatedCycleLength * 0.40) return 'dinamica';

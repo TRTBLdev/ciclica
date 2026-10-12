@@ -29,10 +29,22 @@ interface DedicationChartProps {
   config: Config;
 }
 
+function isSameLocalDay(first: Date, second: Date): boolean {
+  return first.getFullYear() === second.getFullYear()
+    && first.getMonth() === second.getMonth()
+    && first.getDate() === second.getDate();
+}
+
 export default function DedicationChart({ tasks, history, periodStart, periodEnd, config }: DedicationChartProps) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const today = new Date();
+  const getHistoryPhase = (date: Date) => calculateBiologicalPhase(
+    config,
+    date,
+    !isSameLocalDay(date, today),
+  );
 
   const toggleArea = (area: string) => {
     setExpandedAreas(prev => ({ ...prev, [area]: !prev[area] }));
@@ -69,7 +81,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     const originalTask = tasks.find(t => t.id === h.taskId);
     if (originalTask) {
       const dateObj = parseLocalDate(getHistoryDateKey(h));
-      const phase = calculateBiologicalPhase(config, dateObj);
+      const phase = getHistoryPhase(dateObj);
       if (phaseBreakdown[phase]) {
         const energy = getTaskEnergyBreakdown(originalTask, tasks, h.duration || 0);
         phaseBreakdown[phase].vital += energy.support;
@@ -94,7 +106,7 @@ export default function DedicationChart({ tasks, history, periodStart, periodEnd
     const filteredHistory = periodHistory.filter(h => {
       if (!selectedPhase) return true;
       const dateObj = parseLocalDate(getHistoryDateKey(h));
-      const phase = calculateBiologicalPhase(config, dateObj);
+      const phase = getHistoryPhase(dateObj);
       return phase === selectedPhase;
     });
 
