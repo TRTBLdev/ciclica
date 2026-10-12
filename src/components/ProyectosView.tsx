@@ -32,6 +32,7 @@ interface Props {
   history?: HistoryRecord[];
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   activeTimer?: { taskId: string; isRunning: boolean } | null;
@@ -39,7 +40,7 @@ interface Props {
   focusTaskId?: string | null;
 }
 
-export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
+export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onDuplicateTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
   const [showCompleted, setShowCompleted] = useState(false);
@@ -333,6 +334,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         onToggleProject={() => onToggleTask(proj)}
         onEdit={() => startEdit(proj)}
         onDelete={() => onDeleteTask(proj.id)}
+        onDuplicate={onDuplicateTask ? () => onDuplicateTask(proj.id) : undefined}
         onUpdateNotes={(notes) => onUpdateTask(proj.id, { notes })}
         onMoveUp={sortBy === 'manual' ? () => handleMoveProjUp(proj) : undefined}
         onMoveDown={sortBy === 'manual' ? () => handleMoveProjDown(proj) : undefined}
@@ -367,6 +369,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       onUpdate={onUpdateTask}
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
+                      onDuplicateTask={onDuplicateTask}
                       isSubtask
                       hideAreaCategory
                       activeTimer={activeTimer}
@@ -429,7 +432,8 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   onDelete={() => onDeleteTask(sub.id)}
                   onUpdate={onUpdateTask}
                   onAddTask={onAddTask}
-                  onDeleteTask={onDeleteTask}
+                    onDeleteTask={onDeleteTask}
+                    onDuplicateTask={onDuplicateTask}
                   isSubtask
                   hideAreaCategory
                   activeTimer={activeTimer}
@@ -720,6 +724,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                     onUpdate={onUpdateTask}
                     onAddTask={onAddTask}
                     onDeleteTask={onDeleteTask}
+                    onDuplicateTask={onDuplicateTask}
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     showMoveArrows={sortBy === 'manual'}
@@ -774,6 +779,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       onUpdate={onUpdateTask}
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
+                      onDuplicateTask={onDuplicateTask}
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
                       showMoveArrows={sortBy === 'manual'}

@@ -19,6 +19,7 @@ import {
   getHabitResultsInRange,
   getRoutineCycleProgress,
 } from '../domain/occurrenceResults';
+import { duplicateTaskTree } from '../domain/taskDuplication';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
@@ -233,6 +234,19 @@ export function useData(userId: string) {
     const newTask = { id: newId, ...taskData, userId: effectiveUserId } as AppTask;
     setTasks(prev => {
       const next = [...prev, newTask];
+      setLocal(getDataKeys(effectiveUserId).tasks, next);
+      return next;
+    });
+  };
+
+  const duplicateTask = async (taskId: string) => {
+    setTasks(previous => {
+      const copies = duplicateTaskTree(taskId, previous, {
+        now: new Date().toISOString(),
+      }).map(task => ({ ...task, userId: effectiveUserId }));
+      if (copies.length === 0) return previous;
+
+      const next = [...previous, ...copies];
       setLocal(getDataKeys(effectiveUserId).tasks, next);
       return next;
     });
@@ -575,5 +589,5 @@ export function useData(userId: string) {
     });
   };
 
-  return { config, tasks, history, progressSnapshots, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
+  return { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
 }

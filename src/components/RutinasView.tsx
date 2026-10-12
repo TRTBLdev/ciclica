@@ -25,6 +25,7 @@ interface Props {
   progressSnapshots: ProgressSnapshot[];
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   focusTaskId?: string | null;
@@ -45,6 +46,7 @@ export default function RutinasView({
   progressSnapshots,
   onToggleTask,
   onDeleteTask,
+  onDuplicateTask,
   onUpdateTask,
   onAddTask,
   focusTaskId,
@@ -728,6 +730,14 @@ export default function RutinasView({
                                   </>
                                 )}
                                 <div className="h-[1px] bg-border-line/40 my-1"></div>
+                                {onDuplicateTask && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onDuplicateTask(routine.id); setOpenMenuRoutineId(null); }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                  >
+                                    Duplicar
+                                  </button>
+                                )}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -849,6 +859,7 @@ export default function RutinasView({
                                 onUpdate={onUpdateTask}
                                 onAddTask={onAddTask}
                                 onDeleteTask={onDeleteTask}
+                                onDuplicateTask={onDuplicateTask}
                                 isSubtask
                                 hideAreaCategory={false}
                                 showMoveArrows={sortBy === 'manual'}
@@ -909,6 +920,7 @@ export default function RutinasView({
                     onUpdate={onUpdateTask}
                     onAddTask={onAddTask}
                     onDeleteTask={onDeleteTask}
+                    onDuplicateTask={onDuplicateTask}
                     isSubtask={false}
                     hideAreaCategory={false}
                     showMoveArrows={sortBy === 'manual'}
@@ -1060,6 +1072,14 @@ export default function RutinasView({
                                 <Edit2 className="w-3 h-3 text-text-dim" />
                                 Editar
                               </button>
+                              {onDuplicateTask && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onDuplicateTask(t.id); setOpenMenuPulsoId(null); }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                >
+                                  Duplicar
+                                </button>
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

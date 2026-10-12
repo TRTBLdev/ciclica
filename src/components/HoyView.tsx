@@ -30,6 +30,7 @@ interface Props {
   onToggleTask: (task: AppTask) => void;
   onAddEvent: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onTogglePulseSafeDay: (taskId: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
@@ -39,7 +40,7 @@ interface Props {
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
   const [currentDay, setCurrentDay] = useState(() => formatDateOnly(new Date()));
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
@@ -807,6 +808,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                                   <Edit2 className="w-3 h-3 text-text-dim" />
                                   Editar
                                 </button>
+                                {onDuplicateTask && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onDuplicateTask(t.id); setOpenMenuPulsoId(null); }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                  >
+                                    Duplicar
+                                  </button>
+                                )}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -949,6 +958,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                     onToggleTask={onToggleTask}
                     allTasks={tasks}
                     onDeleteTask={onDeleteTask}
+                    onDuplicateTask={onDuplicateTask}
                     onUpdateTask={onUpdateTask}
                     onAddTask={onAddTask}
                     activeTimer={activeTimer}
@@ -1024,6 +1034,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onUpdate={onUpdateTask}
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
+                          onDuplicateTask={onDuplicateTask}
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
@@ -1099,6 +1110,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onUpdate={onUpdateTask}
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
+                          onDuplicateTask={onDuplicateTask}
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
@@ -1131,6 +1143,7 @@ function TimelineRenderer({
   onToggleTask,
   allTasks,
   onDeleteTask,
+  onDuplicateTask,
   onUpdateTask,
   onAddTask,
   activeTimer,
@@ -1146,6 +1159,7 @@ function TimelineRenderer({
   onToggleTask: (task: AppTask) => void,
   allTasks: AppTask[],
   onDeleteTask: (id: string) => void,
+  onDuplicateTask?: (id: string) => void,
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void,
   onAddTask: (task: Omit<AppTask, 'id'>) => void,
   activeTimer?: { taskId: string; isRunning: boolean } | null,
@@ -1295,6 +1309,7 @@ function TimelineRenderer({
                 onUpdate={onUpdateTask}
                 onAddTask={onAddTask}
                 onDeleteTask={onDeleteTask}
+                onDuplicateTask={onDuplicateTask}
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
                 onNavigate={onNavigate}

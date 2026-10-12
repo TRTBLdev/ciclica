@@ -70,6 +70,7 @@ interface Props {
   onUpdate?: (id: string, updates: Partial<AppTask>) => void;
   onAddTask?: (task: Omit<AppTask, 'id'>) => void;
   onDeleteTask?: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   isSubtask?: boolean;
   hideAreaCategory?: boolean;
   activeTimer?: { taskId: string; isRunning: boolean } | null;
@@ -98,6 +99,7 @@ export default function TaskItem({
   onUpdate,
   onAddTask,
   onDeleteTask,
+  onDuplicateTask,
   isSubtask = false,
   hideAreaCategory = false,
   activeTimer,
@@ -560,6 +562,7 @@ export default function TaskItem({
         onToggleProject={() => onToggle(task)}
         onEdit={onUpdate ? () => setIsEditing(true) : undefined}
         onDelete={onDelete}
+        onDuplicate={onDuplicateTask ? () => onDuplicateTask(task.id) : undefined}
         onUpdateNotes={onUpdate ? (notes) => onUpdate(task.id, { notes }) : undefined}
         onMoveUp={onMoveUp || (showMoveArrows ? handleMoveUp : undefined)}
         onMoveDown={onMoveDown || (showMoveArrows ? handleMoveDown : undefined)}
@@ -579,6 +582,7 @@ export default function TaskItem({
                 onUpdate={onUpdate}
                 onAddTask={onAddTask}
                 onDeleteTask={onDeleteTask}
+                onDuplicateTask={onDuplicateTask}
                 isSubtask
                 hideAreaCategory
                 activeTimer={activeTimer}
@@ -1173,6 +1177,15 @@ export default function TaskItem({
                       Ir a ubicación
                     </button>
                   )}
+                  {onDuplicateTask && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDuplicateTask(task.id); setIsMenuOpen(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <Layers className="w-3 h-3 text-text-dim" />
+                      Duplicar
+                    </button>
+                  )}
                   <div className="h-[1px] bg-border-line/40 my-1"></div>
                   <button
                     onClick={(e) => {
@@ -1284,6 +1297,7 @@ export default function TaskItem({
                       onUpdate={onUpdate}
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
+                      onDuplicateTask={onDuplicateTask}
                       isSubtask
                       hideAreaCategory={true}
                       activeTimer={activeTimer}

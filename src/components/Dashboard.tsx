@@ -63,7 +63,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, progressSnapshots, intentions, loading, addTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
+  const { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -644,6 +644,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onToggleTask={handleToggleTask}
                   onAddEvent={handleAddEvent}
                   onDeleteTask={deleteTask}
+                  onDuplicateTask={duplicateTask}
                   onUpdateTask={handleUpdateTask}
                   onTogglePulseSafeDay={handleTogglePulseSafeDay}
                   onAddTask={addTask}
@@ -670,6 +671,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onUpdateConfig={updateConfig}
                   onToggleTask={handleToggleTask}
                   onDeleteTask={deleteTask}
+                  onDuplicateTask={duplicateTask}
                   onAddTask={addTask}
                   onUpdateTask={handleUpdateTask}
                   activeTimer={activeTimer}

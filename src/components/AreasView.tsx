@@ -17,13 +17,14 @@ interface Props {
   onUpdateConfig: (c: Partial<Config>) => void;
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onNavigate?: (view: 'hoy' | 'proyectos' | 'calendario' | 'areas' | 'completadas' | 'rutinas' | 'reportes' | 'syllabus' | 'configuracion', taskId?: string) => void;
   focusTaskId?: string | null;
 }
 
-export default function AreasView({ config, tasks, history, progressSnapshots, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
+export default function AreasView({ config, tasks, history, progressSnapshots, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onDuplicateTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const areas = config?.areas || {};
 
@@ -52,6 +53,7 @@ export default function AreasView({ config, tasks, history, progressSnapshots, i
         onUpdateAreas={handleUpdateAreas}
         onToggleTask={onToggleTask}
         onDeleteTask={onDeleteTask}
+        onDuplicateTask={onDuplicateTask}
         onAddTask={onAddTask}
         onUpdateTask={onUpdateTask}
         onNavigate={onNavigate}
@@ -327,6 +329,7 @@ function AreaDetail({
   onUpdateAreas,
   onToggleTask,
   onDeleteTask,
+  onDuplicateTask,
   onAddTask,
   onUpdateTask,
   onNavigate
@@ -343,6 +346,7 @@ function AreaDetail({
   onUpdateAreas: (a: Record<string, string | AreaConfig>) => void,
   onToggleTask: (task: AppTask) => void,
   onDeleteTask: (id: string) => void,
+  onDuplicateTask?: (id: string) => void,
   onAddTask: (task: Omit<AppTask, 'id'>) => void,
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void,
   onNavigate?: (view: 'hoy' | 'proyectos' | 'calendario' | 'areas' | 'completadas' | 'rutinas' | 'reportes' | 'syllabus' | 'configuracion', taskId?: string) => void;
@@ -703,6 +707,7 @@ function AreaDetail({
                           onUpdate={onUpdateTask}
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
+                          onDuplicateTask={onDuplicateTask}
                           onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
                           routineDurationSummary={routineDurationSummaries.get(r.id)}
                         />
@@ -722,6 +727,7 @@ function AreaDetail({
                                 onUpdate={onUpdateTask}
                                 onAddTask={onAddTask}
                                 onDeleteTask={onDeleteTask}
+                                onDuplicateTask={onDuplicateTask}
                                 durationSummary={habitDurationSummaries.get(h.id)}
                               />
                             ))}
@@ -769,6 +775,7 @@ function AreaDetail({
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}
                        onDeleteTask={onDeleteTask}
+                       onDuplicateTask={onDuplicateTask}
                        onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', hab.id) : undefined}
                        durationSummary={habitDurationSummaries.get(hab.id)}
                      />
@@ -812,6 +819,7 @@ function AreaDetail({
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}
                        onDeleteTask={onDeleteTask}
+                       onDuplicateTask={onDuplicateTask}
                        onNavigateToLocation={onNavigate ? () => onNavigate('proyectos', t.id) : undefined}
                      />
                   ))

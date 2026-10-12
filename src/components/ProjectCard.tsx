@@ -28,6 +28,7 @@ interface Props {
   onToggleProject: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onDuplicate?: () => void;
   onUpdateNotes?: (notes: string) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -76,13 +77,14 @@ function ProjectActions({
   project,
   onEdit,
   onDelete,
+  onDuplicate,
   onMoveUp,
   onMoveDown,
   canMoveUp,
   canMoveDown,
-}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
+}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onDuplicate' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
   const [open, setOpen] = useState(false);
-  if (!onEdit && !onDelete && !onMoveUp && !onMoveDown) return null;
+  if (!onEdit && !onDelete && !onDuplicate && !onMoveUp && !onMoveDown) return null;
 
   return (
     <nav className="relative" aria-label={`Acciones de ${project.text}`}>
@@ -119,6 +121,20 @@ function ProjectActions({
                   className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
                 >
                   Editar
+                </button>
+              </li>
+            )}
+            {onDuplicate && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDuplicate();
+                    setOpen(false);
+                  }}
+                  className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
+                >
+                  Duplicar
                 </button>
               </li>
             )}
@@ -178,6 +194,7 @@ export default function ProjectCard({
   onToggleProject,
   onEdit,
   onDelete,
+  onDuplicate,
   onMoveUp,
   onMoveDown,
   canMoveUp = false,
@@ -281,6 +298,7 @@ export default function ProjectCard({
               project={project}
               onEdit={onEdit}
               onDelete={onDelete}
+              onDuplicate={onDuplicate}
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
               canMoveUp={canMoveUp}

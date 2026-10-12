@@ -15,6 +15,7 @@ interface Props {
   onUpdateConfig: (c: Partial<Config>) => void;
   onToggleTask: (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => void;
   onDeleteTask: (id: string) => void;
+  onDuplicateTask?: (id: string) => void;
   onAddTask: (task: Partial<AppTask>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   activeTimer: any;
@@ -32,6 +33,7 @@ export default function EstrategiaView({
   onUpdateConfig,
   onToggleTask,
   onDeleteTask,
+  onDuplicateTask,
   onAddTask,
   onUpdateTask,
   activeTimer,
@@ -119,6 +121,7 @@ export default function EstrategiaView({
               onUpdateConfig={onUpdateConfig}
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
+              onDuplicateTask={onDuplicateTask}
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               onNavigate={onNavigate}
@@ -135,6 +138,7 @@ export default function EstrategiaView({
               history={history}
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
+              onDuplicateTask={onDuplicateTask}
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               activeTimer={activeTimer}
@@ -153,6 +157,7 @@ export default function EstrategiaView({
               progressSnapshots={progressSnapshots}
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
+              onDuplicateTask={onDuplicateTask}
               onUpdateTask={onUpdateTask}
               onAddTask={onAddTask}
               focusTaskId={focusTaskId}
