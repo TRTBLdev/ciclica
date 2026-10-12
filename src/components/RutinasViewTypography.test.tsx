@@ -46,7 +46,7 @@ describe('routine card metric typography', () => {
         onAddTask={() => undefined}
       />,
     );
-    const routineProgressOutput = markup.match(/<output class="([^"]*)"[^>]*>[^<]*apar\.[^<]*<\/output>/);
+    const routineProgressOutput = markup.match(/<output class="([^"]*)"[^>]*>[^<]*pendiente[^<]*<\/output>/);
 
     expect(routineProgressOutput).not.toBeNull();
     expect(routineProgressOutput?.[1]).toContain('font-mono');

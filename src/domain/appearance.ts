@@ -148,6 +148,27 @@ export function getRoutineCycleRangeForTask(routine: AppTask, at: string | Date 
   return getCalendarCycleRange(routine.routineCycleFrequency || 1, routine.routineCycleUnit || 'semanas', at);
 }
 
+export function getNextRoutineAppearanceDate(
+  routine: AppTask,
+  snapshots: ProgressSnapshot[],
+  at: string | Date = new Date(),
+): string | undefined {
+  if (routine.type !== 'Rutina' || !getAppearanceMode(routine) || !getAppearanceDate(routine)) return undefined;
+
+  const today = formatDateOnly(parseDateOnly(at));
+  const cycle = getRoutineCycleRangeForTask(routine, at);
+  const cycleClosed = snapshots.some(snapshot => snapshot.kind === 'routine-cycle'
+    && snapshot.taskId === routine.id
+    && snapshot.periodStart === cycle.start
+    && snapshot.periodEnd === cycle.end);
+  const todayResolved = snapshots.some(snapshot => snapshot.kind === 'routine-appearance'
+    && snapshot.taskId === routine.id
+    && snapshot.periodStart === today);
+  const cursor = parseDateOnly(cycleClosed ? cycle.end : today);
+  if (cycleClosed || todayResolved) cursor.setDate(cursor.getDate() + 1);
+  return getNextAppearanceDate(routine, cursor);
+}
+
 function recordBelongsToCycle(record: HistoryRecord, routineId: string, range: DateRange): boolean {
   if (record.routineId && record.routineId !== routineId) return false;
   if (record.routineCycleStart) return record.routineCycleStart === range.start;

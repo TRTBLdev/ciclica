@@ -46,9 +46,17 @@ export function getTypeIcon(type: TaskType, className?: string) {
     case 'Rutina':
       return <Repeat className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0")} />;
     case 'Hábito':
-      return <CheckCircle2 className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0 text-emerald-600 dark:text-emerald-500")} />;
+      return (
+        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none text-emerald-600 dark:text-emerald-500")} viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V6m0 0 3.5 3.5M12 6L8.5 9.5M12 11c3 0 5-2 5-5m-5 9c-3 0-5-2-5-5" />
+        </svg>
+      );
     case 'Tarea':
-      return <CheckCircle2 className={getClassName("w-3.5 h-3.5 stroke-[2] shrink-0")} />;
+      return (
+        <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
+        </svg>
+      );
     case 'Pulso':
       return (
         <svg className={getClassName("w-3.5 h-3.5 stroke-[2] fill-none")} viewBox="0 0 24 24" stroke="currentColor">
@@ -356,8 +364,10 @@ export default function TaskItem({
     ? formatDateOnly(new Date(new Date().setDate(new Date().getDate() + 1)))
     : todayKey;
   const quotaReached = getAppearanceMode(task) === 'quota' && getStandaloneQuotaCount(task, history || []) >= Math.max(1, task.quotaTarget || 1);
-  const quotaRange = quotaReached ? getQuotaRange(task) : undefined;
-  const dayAfterQuota = quotaRange ? (() => {
+  const quotaRange = !parentRoutine && task.type === 'Hábito' && getAppearanceMode(task) === 'quota'
+    ? getQuotaRange(task)
+    : undefined;
+  const dayAfterQuota = quotaReached && quotaRange ? (() => {
     const value = new Date(`${quotaRange.end}T12:00:00`);
     value.setDate(value.getDate() + 1);
     return formatDateOnly(value);
@@ -464,6 +474,10 @@ export default function TaskItem({
       {childCycleCount}/{childCycleTarget}{childTargetReached ? ' · Logrado' : ''}
     </span>
   ) : null;
+  const standaloneDateMetadata: Array<React.ReactNode | null> = !parentRoutine && task.type === 'Hábito' ? [
+    nextAppearanceDate ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
+    quotaRange ? <CompactDate label="Cierra" value={quotaRange.end} /> : null,
+  ] : [];
 
   const contextualMetadata: Array<React.ReactNode | null> = context === 'today' ? [
     isProjectChild ? null : task.hora || null,
@@ -476,7 +490,8 @@ export default function TaskItem({
     nextAppearanceDate && !isProjectChild ? <CompactDate label="Próx." value={nextAppearanceDate} /> : null,
     task.dependencyId ? `Dep. #${task.dependencyId.slice(-4)}` : null,
   ] : context === 'routine' ? [
-    childQuotaMetadata || `Ciclo ${routineProgress}%`,
+    ...standaloneDateMetadata,
+    childQuotaMetadata || (parentRoutine || task.type !== 'Hábito' ? `Ciclo ${routineProgress}%` : null),
     checklistTotal > 0 ? `pasos ${completedChecklistItems}/${checklistTotal}` : null,
     recurringDuration ? null : trackedHours > 0 ? `${trackedHours.toFixed(2)}h` : null,
   ] : [
@@ -487,11 +502,20 @@ export default function TaskItem({
   ];
   const itemTemporalIndicators = getItemTemporalIndicators(task, allTasks, history || []);
   const temporalMetadata = itemTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />);
-  const compactMetadata = recurringDurationMetadata
-    ? [
+  const routineStandaloneMetadata = context === 'routine' && !parentRoutine
+    ? limitCardMetadata<React.ReactNode>([
+      ...contextualMetadata,
+      ...temporalMetadata,
       recurringDurationMetadata,
-      ...limitCardMetadata<React.ReactNode>([...temporalMetadata, ...contextualMetadata], 2),
-    ]
+    ], 3)
+    : null;
+  const compactMetadata = routineStandaloneMetadata
+    ? routineStandaloneMetadata
+    : recurringDurationMetadata
+      ? [
+        recurringDurationMetadata,
+        ...limitCardMetadata<React.ReactNode>([...temporalMetadata, ...contextualMetadata], 2),
+      ]
     : limitCardMetadata<React.ReactNode>([
       ...temporalMetadata,
       ...contextualMetadata,

@@ -13,8 +13,9 @@ import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import ItemDetails from './ItemDetails';
 import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
-import { getAppearanceDate, getItemTemporalIndicators, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
+import { getAppearanceDate, getItemTemporalIndicators, getNextRoutineAppearanceDate, getRoutineCycleRangeForTask, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
 import TemporalIndicator from './ui/TemporalIndicator';
+import CompactDate from './ui/CompactDate';
 import { getRoutineCycleProgress, getRoutineHabitCycleState, isRoutineReadyToClose } from '../domain/occurrenceResults';
 import { buildHabitDurationSummaryIndex, getRoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison, SECONDARY_METRIC_TYPOGRAPHY_CLASS } from './DurationSummaryMetric';
@@ -583,16 +584,23 @@ export default function RutinasView({
                 const routineReady = configured
                   ? isRoutineReadyToClose(routine, tasks, history || [], progressSnapshots)
                   : false;
-                const opportunityCount = configured ? getRoutineOpportunityDates(routine).length : 0;
                 const cycleClosed = configured ? isRoutineCycleClosed(routine, progressSnapshots) : false;
-                const cycleFrequency = routine.routineCycleFrequency || 1;
-                const cycleUnit = cycleFrequency === 1
-                  ? routine.routineCycleUnit === 'días' ? 'día' : routine.routineCycleUnit === 'semanas' ? 'semana' : 'mes'
-                  : routine.routineCycleUnit;
+                const nextRoutineAppearance = configured
+                  ? getNextRoutineAppearanceDate(routine, progressSnapshots)
+                  : undefined;
+                const routineCycleEnd = configured
+                  ? getRoutineCycleRangeForTask(routine).end
+                  : undefined;
                 const routineTemporalIndicators = getItemTemporalIndicators(routine, tasks, history || []);
                 const hasRoutineDuration = routineDurationSummary.currentActualHours > 0
                   || routineDurationSummary.estimatedHours > 0;
-                const routineMetadata = [
+                const routineMetadata = limitCardMetadata<React.ReactNode>([
+                  <output className={cn(SECONDARY_METRIC_TYPOGRAPHY_CLASS, 'h-5 whitespace-nowrap')}>
+                    {routineProgress || 0}% · {remainingHabitLabel}
+                  </output>,
+                  nextRoutineAppearance ? <CompactDate label="Próx." value={nextRoutineAppearance} /> : null,
+                  routineCycleEnd ? <CompactDate label="Cierra" value={routineCycleEnd} /> : null,
+                  ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
                   ...(hasRoutineDuration ? [
                     <DurationComparison
                       key="duration-comparison"
@@ -601,13 +609,7 @@ export default function RutinasView({
                       className="shrink-0 whitespace-nowrap"
                     />,
                   ] : []),
-                  ...limitCardMetadata<React.ReactNode>([
-                    <output className={cn(SECONDARY_METRIC_TYPOGRAPHY_CLASS, 'h-5 whitespace-nowrap')}>
-                      {routineProgress || 0}% · {remainingHabitLabel} · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}
-                    </output>,
-                    ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
-                  ], hasRoutineDuration ? 2 : 3),
-                ];
+                ], 4);
 
                 if (editingRoutineId === routine.id) {
                   return (

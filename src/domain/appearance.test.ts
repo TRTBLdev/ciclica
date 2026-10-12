@@ -10,6 +10,7 @@ import {
   getHabitTemporalIndicators,
   getItemTemporalIndicators,
   getMinimumRoutineOpportunityCount,
+  getNextRoutineAppearanceDate,
   getProjectDateSummary,
   getRoutineCycleProgressFromHistory,
   getRoutineOpportunityDates,
@@ -38,6 +39,65 @@ const record = (overrides: Partial<HistoryRecord>): HistoryRecord => ({
 });
 
 describe('appearance schedules', () => {
+  it('finds the effective next routine appearance around resolved and closed dates', () => {
+    const routine = task({
+      id: 'routine_next',
+      type: 'Rutina',
+      appearanceMode: 'interval',
+      appearanceFrequency: 1,
+      appearanceFrequencyUnit: 'días',
+      fechaAparicion: '2026-10-01',
+      routineCycleFrequency: 1,
+      routineCycleUnit: 'semanas',
+    });
+
+    expect(getNextRoutineAppearanceDate(routine, [], '2026-10-11')).toBe('2026-10-11');
+    expect(getNextRoutineAppearanceDate(routine, [{
+      id: 'appearance_today',
+      userId: 'local_user',
+      kind: 'routine-appearance',
+      taskId: routine.id,
+      taskSnapshotText: routine.text,
+      periodStart: '2026-10-11',
+      periodEnd: '2026-10-11',
+      progressPercent: 100,
+      createdAt: '2026-10-11T12:00:00.000Z',
+    }], '2026-10-11')).toBe('2026-10-12');
+    expect(getNextRoutineAppearanceDate(routine, [{
+      id: 'cycle_closed',
+      userId: 'local_user',
+      kind: 'routine-cycle',
+      taskId: routine.id,
+      taskSnapshotText: routine.text,
+      periodStart: '2026-10-05',
+      periodEnd: '2026-10-11',
+      progressPercent: 100,
+      createdAt: '2026-10-11T12:00:00.000Z',
+    }], '2026-10-11')).toBe('2026-10-12');
+
+    const monthlyRoutine = {
+      ...routine,
+      id: 'routine_monthly_next',
+      routineCycleUnit: 'meses' as const,
+    };
+    expect(getNextRoutineAppearanceDate(monthlyRoutine, [{
+      id: 'monthly_cycle_closed',
+      userId: 'local_user',
+      kind: 'routine-cycle',
+      taskId: monthlyRoutine.id,
+      taskSnapshotText: monthlyRoutine.text,
+      periodStart: '2026-10-01',
+      periodEnd: '2026-10-31',
+      progressPercent: 100,
+      createdAt: '2026-10-31T12:00:00.000Z',
+    }], '2026-10-15')).toBe('2026-11-01');
+  });
+
+  it('does not expose a routine date before its own appearance is configured', () => {
+    const routine = task({ id: 'routine_unconfigured', type: 'Rutina' });
+    expect(getNextRoutineAppearanceDate(routine, [], '2026-10-11')).toBeUndefined();
+  });
+
   it('configures appearance only for items that do not inherit a container schedule', () => {
     const project = task({ id: 'project', type: 'Proyecto' });
     const routine = task({ id: 'routine', type: 'Rutina' });
