@@ -15,6 +15,7 @@ import { getPulseLogValue, getPulseOccurrenceCount, hasPulseSafeDayConfirmation,
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 import {
   buildHabitDurationSummaryIndex,
   buildRoutineDurationSummaryIndex,
@@ -31,6 +32,8 @@ interface Props {
   onAddEvent: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask?: (id: string) => void;
+  onResumeTask?: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onTogglePulseSafeDay: (taskId: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
@@ -40,7 +43,7 @@ interface Props {
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onPauseTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
   const [currentDay, setCurrentDay] = useState(() => formatDateOnly(new Date()));
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
@@ -145,7 +148,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
 
   let filteredBacklogTasks = tasks.filter(t => getTodayPlacement(t, tasks, history, progressSnapshots, currentDay) === 'backlog');
 
-  let filteredPulsos = tasks.filter(t => t.type === 'Pulso');
+  let filteredPulsos = tasks.filter(t => t.type === 'Pulso' && !isTaskEffectivelyPaused(t, tasks));
 
   // Apply filters
   if (filterArea !== 'Todas') {
@@ -178,8 +181,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   const todayTasks = filteredTodayTasks;
   const backlogTasks = filteredBacklogTasks;
   const pulsos = filteredPulsos;
-  const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed);
-  const activeRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
+  const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
+  const activeRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
 
   const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
 
@@ -816,6 +819,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                                     Duplicar
                                   </button>
                                 )}
+                                {onPauseTask && !t.completed && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onPauseTask(t.id); setOpenMenuPulsoId(null); }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                  >
+                                    Pausar
+                                  </button>
+                                )}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -959,6 +970,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                     allTasks={tasks}
                     onDeleteTask={onDeleteTask}
                     onDuplicateTask={onDuplicateTask}
+                    onPauseTask={onPauseTask}
                     onUpdateTask={onUpdateTask}
                     onAddTask={onAddTask}
                     activeTimer={activeTimer}
@@ -1035,6 +1047,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
                           onDuplicateTask={onDuplicateTask}
+                          onPauseTask={onPauseTask}
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
@@ -1111,6 +1124,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
                           onDuplicateTask={onDuplicateTask}
+                          onPauseTask={onPauseTask}
                           activeTimer={activeTimer}
                           onStartTimer={onStartTimer}
                           onNavigate={onNavigate}
@@ -1144,6 +1158,7 @@ function TimelineRenderer({
   allTasks,
   onDeleteTask,
   onDuplicateTask,
+  onPauseTask,
   onUpdateTask,
   onAddTask,
   activeTimer,
@@ -1160,6 +1175,7 @@ function TimelineRenderer({
   allTasks: AppTask[],
   onDeleteTask: (id: string) => void,
   onDuplicateTask?: (id: string) => void,
+  onPauseTask?: (id: string) => void,
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void,
   onAddTask: (task: Omit<AppTask, 'id'>) => void,
   activeTimer?: { taskId: string; isRunning: boolean } | null,
@@ -1310,6 +1326,7 @@ function TimelineRenderer({
                 onAddTask={onAddTask}
                 onDeleteTask={onDeleteTask}
                 onDuplicateTask={onDuplicateTask}
+                onPauseTask={onPauseTask}
                 activeTimer={activeTimer}
                 onStartTimer={onStartTimer}
                 onNavigate={onNavigate}

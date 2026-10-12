@@ -90,4 +90,11 @@ describe('duplicateTaskTree', () => {
 
     expect(copy).toMatchObject({ targetCount: 8, unitLabel: 'veces', polaridad: 'Abandonar', currentCount: 0 });
   });
+
+  it('does not copy pause intervals', () => {
+    const source = baseTask({ pauseIntervals: [{ startedAt: '2026-10-10T10:00:00.000Z' }] });
+    const [copy] = duplicateTaskTree(source.id, [source], { ...ids() });
+
+    expect(copy.pauseIntervals).toBeUndefined();
+  });
 });

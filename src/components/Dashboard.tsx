@@ -11,7 +11,8 @@ import { UserSession } from '../App';
 import { ToastProvider } from './ToastProvider';
 import { formatDateOnly, getChecklistProgress } from '../domain/recurrenceProgress';
 import { canTrackTask, getAppearanceMode, getChildHabitCycleCount, getRoutineCycleRangeForTask, isRoutineCycleClosed, wasChildHabitCompletedInAppearance } from '../domain/appearance';
-import { getHistoryDateKey, resolveCompletionDuration } from '../domain/workTracking';
+import { getDescendantTaskIds, getHistoryDateKey, resolveCompletionDuration } from '../domain/workTracking';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 import { resolveHabitChecklistCycleUpdate } from '../domain/habitParentChange';
 import { canCloseProject, getProjectPresentation } from '../domain/projectPresentation';
 import {
@@ -51,7 +52,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     let targetView: typeof currentView = 'hoy';
     if (view === 'hoy' || view === 'foco') targetView = 'hoy';
     else if (view === 'sintonia' || view === 'brujula' || view === 'syllabus') targetView = 'sintonia';
-    else if (view === 'estrategia' || view === 'areas' || view === 'proyectos' || view === 'rutinas') targetView = 'estrategia';
+    else if (view === 'estrategia' || view === 'areas' || view === 'proyectos' || view === 'rutinas' || view === 'pausados') targetView = 'estrategia';
     else if (view === 'bitacora' || view === 'calendario' || view === 'reportes' || view === 'completadas' || view === 'agenda') targetView = 'bitacora';
     else if (view === 'configuracion' || view === 'ajustes') targetView = 'configuracion';
 
@@ -63,7 +64,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     }
   };
 
-  const { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
+  const { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, pauseTask, resumeTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention } = useData(user.uid);
 
   useEffect(() => {
     if (config?.theme === 'kyoto-dusk') {
@@ -190,6 +191,18 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     setActiveTimer(null);
   };
 
+  const handlePauseTask = async (taskId: string) => {
+    const affectedIds = new Set([taskId, ...getDescendantTaskIds(taskId, tasks)]);
+    if (activeTimer && affectedIds.has(activeTimer.taskId)) {
+      handleStopTimer(false);
+    }
+    await pauseTask(taskId);
+  };
+
+  const handleResumeTask = async (taskId: string) => {
+    await resumeTask(taskId);
+  };
+
   if (loading) {
     return (
       <div className="absolute inset-0 bg-slate-50/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
@@ -199,6 +212,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   }
 
   const handleToggleTask = async (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => {
+    if (isTaskEffectivelyPaused(task, tasks)) return;
     const now = new Date();
     const todayKey = formatDateOnly(now);
     const occurrenceKey = overrideEndTime ? formatDateOnly(new Date(overrideEndTime)) : todayKey;
@@ -207,9 +221,11 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
       : undefined;
 
     if (task.type === 'Proyecto' && !task.completed) {
-      const pendingCount = getProjectPresentation(task, tasks, history, now).pendingCount;
+      const projectPresentation = getProjectPresentation(task, tasks, history, now);
+      const pendingCount = projectPresentation.pendingCount;
+      const pausedCount = projectPresentation.pausedCount || 0;
       if (!canCloseProject(task.id, tasks)) {
-        window.alert(`No puedes cerrar este proyecto: quedan ${pendingCount} tareas pendientes. Complétalas o muévelas a otro proyecto.`);
+        window.alert(`No puedes cerrar este proyecto: quedan ${pendingCount} tareas pendientes${pausedCount ? ` y ${pausedCount} en pausa` : ''}. Complétalas, reanúdalas o muévelas a otro proyecto.`);
         return;
       }
     }
@@ -597,6 +613,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onAddTask={addTask}
                   onUpdateTask={handleUpdateTask}
                   onDeleteTask={deleteTask}
+                  onPauseTask={handlePauseTask}
+                  onResumeTask={handleResumeTask}
                   onNavigate={handleNavigate}
                 />
               </div>
@@ -618,6 +636,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onAddTask={addTask}
                   onUpdateTask={handleUpdateTask}
                   onDeleteTask={deleteTask}
+                  onPauseTask={handlePauseTask}
+                  onResumeTask={handleResumeTask}
                   onNavigate={handleNavigate}
                 />
               </div>
@@ -645,6 +665,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onAddEvent={handleAddEvent}
                   onDeleteTask={deleteTask}
                   onDuplicateTask={duplicateTask}
+                  onPauseTask={handlePauseTask}
+                  onResumeTask={handleResumeTask}
                   onUpdateTask={handleUpdateTask}
                   onTogglePulseSafeDay={handleTogglePulseSafeDay}
                   onAddTask={addTask}
@@ -672,6 +694,8 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onToggleTask={handleToggleTask}
                   onDeleteTask={deleteTask}
                   onDuplicateTask={duplicateTask}
+                  onPauseTask={handlePauseTask}
+                  onResumeTask={handleResumeTask}
                   onAddTask={addTask}
                   onUpdateTask={handleUpdateTask}
                   activeTimer={activeTimer}

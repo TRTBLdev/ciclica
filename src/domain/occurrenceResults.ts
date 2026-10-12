@@ -15,6 +15,7 @@ import {
   parseDateOnly,
 } from './recurrenceProgress';
 import { getHistoryDateKey } from './workTracking';
+import { isTaskEffectivelyPaused } from './pause';
 
 const MAX_LOOKBACK_DAYS = 3660;
 
@@ -292,7 +293,10 @@ export function getRoutineCycleProgress(
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
 ): number {
-  const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
+  if (isTaskEffectivelyPaused(routine, tasks, at)) return 0;
+  const habits = tasks.filter(task => task.type === 'Hábito'
+    && task.parentId === routine.id
+    && !isTaskEffectivelyPaused(task, tasks, at));
   if (!habits.length) return 0;
   const total = habits.reduce(
     (sum, habit) => sum + getRoutineHabitContribution(routine, habit, history, snapshots, at),
@@ -312,6 +316,7 @@ export function getRoutineHabitCycleState(
   history: HistoryRecord[],
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
+  allTasks: AppTask[] = [routine, ...habits],
 ): RoutineHabitCycleState {
   const cycle = getCalendarCycleRange(
     routine.routineCycleFrequency || 1,
@@ -321,7 +326,8 @@ export function getRoutineHabitCycleState(
   const pending: AppTask[] = [];
   const completed: AppTask[] = [];
 
-  habits.forEach(habit => {
+  if (isTaskEffectivelyPaused(routine, allTasks, at)) return { orderedHabits: [], remainingCount: 0 };
+  habits.filter(habit => !isTaskEffectivelyPaused(habit, allTasks, at)).forEach(habit => {
     const target = Math.max(1, habit.objetivoPorCiclo || 1);
     const resultCount = getHabitResultsInRange(habit, history, snapshots, cycle)
       .filter(result => result.status !== 'missed').length;
@@ -343,7 +349,10 @@ export function isRoutineReadyToClose(
 ): boolean {
   const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
   return habits.length > 0
-    && getRoutineHabitCycleState(routine, habits, history, snapshots, at).remainingCount === 0;
+    && getRoutineHabitCycleState(routine, habits, history, snapshots, at, tasks).remainingCount === 0
+    && tasks.some(task => task.type === 'Hábito'
+      && task.parentId === routine.id
+      && !isTaskEffectivelyPaused(task, tasks, at));
 }
 
 export function hasPositiveActivityOnDate(

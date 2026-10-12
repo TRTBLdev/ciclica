@@ -8,6 +8,7 @@ import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
 import GanttChart from './GanttChart';
 import { getTypeIcon } from './TaskItem';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 
 interface Props {
   config: Config | null;
@@ -233,6 +234,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
   const eligibleTasks = useMemo(() => {
     return tasks.filter(t =>
       !t.completed &&
+      !isTaskEffectivelyPaused(t, tasks) &&
       t.type !== 'Pulso' &&
       !(t.type === 'Hábito' && t.parentId) &&
       !(t.parentId && tasks.some(p => p.id === t.parentId && (p.type === 'Proyecto' || p.type === 'Rutina')))

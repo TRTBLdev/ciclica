@@ -20,6 +20,7 @@ import {
   getRoutineCycleProgress,
 } from '../domain/occurrenceResults';
 import { duplicateTaskTree } from '../domain/taskDuplication';
+import { isTaskEffectivelyPaused, pauseTaskRecord, resumeTaskRecord, wasTaskPausedAtPeriodEnd } from '../domain/pause';
 
 export function useData(userId: string) {
   const [config, setConfig] = useState<Config | null>(null);
@@ -101,6 +102,7 @@ export function useData(userId: string) {
       .forEach(habit => {
         const ranges = getExpiredHabitOccurrenceRanges(habit, tasks, yesterday);
         ranges.forEach((range, index) => {
+          if (wasTaskPausedAtPeriodEnd(habit, tasks, range.end)) return;
           if (progressSnapshots.some(snapshot => snapshot.kind === 'habit-period'
             && snapshot.taskId === habit.id
             && snapshot.periodStart === range.start
@@ -118,7 +120,8 @@ export function useData(userId: string) {
           );
         });
 
-        if (habit.checklistCycleStart && habit.checklistCycleStart < calendarDay) {
+        if (habit.checklistCycleStart && habit.checklistCycleStart < calendarDay
+          && !isTaskEffectivelyPaused(habit, tasks)) {
           const currentRange = getHabitOccurrenceRange(habit, tasks, calendarDay);
           if (habit.checklistCycleStart !== currentRange.start) {
             changes.push({
@@ -139,9 +142,10 @@ export function useData(userId: string) {
       while (cursor <= yesterday && safety < 7300) {
         const dateKey = formatDateOnly(cursor);
         const cycle = getCalendarCycleRange(routine.routineCycleFrequency, routine.routineCycleUnit, cursor);
-        if (cycle.end === dateKey) {
+        if (cycle.end === dateKey && !wasTaskPausedAtPeriodEnd(routine, tasks, cycle.end)) {
           const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
           habits.forEach(habit => {
+            if (wasTaskPausedAtPeriodEnd(habit, tasks, cycle.end)) return;
             const target = Math.max(1, habit.objetivoPorCiclo || 1);
             const cycleSnapshots = [...progressSnapshots, ...additions];
             const closed = getHabitResultsInRange(habit, history, cycleSnapshots, cycle)
@@ -247,6 +251,36 @@ export function useData(userId: string) {
       if (copies.length === 0) return previous;
 
       const next = [...previous, ...copies];
+      setLocal(getDataKeys(effectiveUserId).tasks, next);
+      return next;
+    });
+  };
+
+  const pauseTask = async (taskId: string) => {
+    const startedAt = new Date().toISOString();
+    setTasks(previous => {
+      const task = previous.find(candidate => candidate.id === taskId);
+      if (!task) return previous;
+      const updated = pauseTaskRecord(task, startedAt);
+      if (updated === task) return previous;
+      const next = previous.map(candidate => candidate.id === taskId
+        ? { ...updated, updatedAt: startedAt }
+        : candidate);
+      setLocal(getDataKeys(effectiveUserId).tasks, next);
+      return next;
+    });
+  };
+
+  const resumeTask = async (taskId: string) => {
+    const endedAt = new Date().toISOString();
+    setTasks(previous => {
+      const task = previous.find(candidate => candidate.id === taskId);
+      if (!task) return previous;
+      const updated = resumeTaskRecord(task, endedAt);
+      if (updated === task) return previous;
+      const next = previous.map(candidate => candidate.id === taskId
+        ? { ...updated, updatedAt: endedAt }
+        : candidate);
       setLocal(getDataKeys(effectiveUserId).tasks, next);
       return next;
     });
@@ -589,5 +623,5 @@ export function useData(userId: string) {
     });
   };
 
-  return { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
+  return { config, tasks, history, progressSnapshots, intentions, loading, addTask, duplicateTask, pauseTask, resumeTask, updateTask, updateTasks, addHistory, addHistoryRecords, addProgressSnapshots, deleteTask, updateConfig, updateHistory, deleteHistory, importLocalData, mergeLocalData, clearPartialData, addIntention, updateIntention, deleteIntention };
 }

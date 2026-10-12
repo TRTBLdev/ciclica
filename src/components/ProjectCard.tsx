@@ -29,6 +29,8 @@ interface Props {
   onEdit?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
   onUpdateNotes?: (notes: string) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -78,13 +80,16 @@ function ProjectActions({
   onEdit,
   onDelete,
   onDuplicate,
+  onPause,
+  onResume,
+  onUpdateNotes,
   onMoveUp,
   onMoveDown,
   canMoveUp,
   canMoveDown,
-}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onDuplicate' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
+}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onDuplicate' | 'onPause' | 'onResume' | 'onUpdateNotes' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
   const [open, setOpen] = useState(false);
-  if (!onEdit && !onDelete && !onDuplicate && !onMoveUp && !onMoveDown) return null;
+  if (!onEdit && !onDelete && !onDuplicate && !onPause && !onResume && !onMoveUp && !onMoveDown) return null;
 
   return (
     <nav className="relative" aria-label={`Acciones de ${project.text}`}>
@@ -135,6 +140,34 @@ function ProjectActions({
                   className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
                 >
                   Duplicar
+                </button>
+              </li>
+            )}
+            {onPause && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPause();
+                    setOpen(false);
+                  }}
+                  className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
+                >
+                  Pausar
+                </button>
+              </li>
+            )}
+            {onResume && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResume();
+                    setOpen(false);
+                  }}
+                  className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
+                >
+                  Reanudar
                 </button>
               </li>
             )}
@@ -195,6 +228,9 @@ export default function ProjectCard({
   onEdit,
   onDelete,
   onDuplicate,
+  onPause,
+  onResume,
+  onUpdateNotes,
   onMoveUp,
   onMoveDown,
   canMoveUp = false,
@@ -205,11 +241,12 @@ export default function ProjectCard({
 }: Props) {
   const isStrategy = variant === 'strategy';
   const isBacklog = variant === 'backlog';
-  const closeBlocked = !project.completed && presentation.pendingCount > 0;
+  const pausedCount = presentation.pausedCount || 0;
+  const closeBlocked = !project.completed && (presentation.pendingCount > 0 || pausedCount > 0);
   const statusLabel = project.completed
     ? `Reabrir proyecto ${project.text}`
     : closeBlocked
-      ? `No se puede cerrar: quedan ${presentation.pendingCount} tareas pendientes`
+      ? `No se puede cerrar: quedan ${presentation.pendingCount} tareas pendientes${pausedCount ? ` y ${pausedCount} en pausa` : ''}`
       : `Cerrar proyecto ${project.text}`;
 
   return (
@@ -276,6 +313,7 @@ export default function ProjectCard({
             <ul className="mt-2 flex list-none flex-wrap items-center gap-x-3 gap-y-1 p-0 font-mono text-[10px] text-text-dim">
               <li>{isBacklog ? 'Sin programación' : variant === 'timeline' ? project.hora : 'Flexible'}</li>
               <li>Pendientes {presentation.pendingCount}</li>
+              {(presentation.pausedCount || 0) > 0 && <li>En pausa {presentation.pausedCount}</li>}
               {presentation.openEstimate > 0 && <li>Estimación {formatProjectHours(presentation.openEstimate)}</li>}
             </ul>
           )}
@@ -299,6 +337,8 @@ export default function ProjectCard({
               onEdit={onEdit}
               onDelete={onDelete}
               onDuplicate={onDuplicate}
+              onPause={onPause}
+              onResume={onResume}
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
               canMoveUp={canMoveUp}

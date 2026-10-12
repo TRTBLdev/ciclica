@@ -103,6 +103,7 @@ export function duplicateTaskTree(
     delete clone.completed;
     delete clone.lastExecutedAt;
     delete clone.checklistCycleStart;
+    delete clone.pauseIntervals;
 
     const isRoot = index === 0;
     const currentCount = original.type === 'Pulso' || original.currentCount !== undefined ? 0 : undefined;

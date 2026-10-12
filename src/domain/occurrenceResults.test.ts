@@ -238,4 +238,13 @@ describe('recurring occurrence results', () => {
     expect(isSameRecurringClosureSlot(quota, [quota], '2026-07-20', '2026-07-21')).toBe(false);
     expect(isSameRecurringClosureSlot(quota, [quota], '2026-07-20', '2026-07-20')).toBe(true);
   });
+
+  it('excludes a paused child from the active routine cycle progress', () => {
+    const routine = task({ id: 'routine-paused', type: 'Rutina', routineCycleFrequency: 1, routineCycleUnit: 'semanas', fechaAparicion: '2026-07-20', frecuencia: 1, frecuenciaUnidad: 'semanas' });
+    const pausedHabit = task({ id: 'paused-habit', parentId: routine.id, objetivoPorCiclo: 1, pauseIntervals: [{ startedAt: '2026-07-21T10:00:00.000Z' }] });
+    const activeHabit = task({ id: 'active-habit', parentId: routine.id, objetivoPorCiclo: 1 });
+    const snapshot = { ...createHabitResultSnapshot(activeHabit, { start: '2026-07-20', end: '2026-07-26' }, 100, '2026-07-22', 'manual'), id: 'active-snapshot' };
+
+    expect(getRoutineCycleProgress(routine, [routine, pausedHabit, activeHabit], [], [snapshot], '2026-07-23')).toBe(100);
+  });
 });

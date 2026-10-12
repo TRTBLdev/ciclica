@@ -62,6 +62,11 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export interface PauseInterval {
+  startedAt: string;
+  endedAt?: string;
+}
+
 export interface AppTask {
   id: string; // Document ID
   userId: string;
@@ -113,6 +118,8 @@ export interface AppTask {
   completionMode?: 'auto' | 'manual';
   notes?: string;
   checklist?: ChecklistItem[];
+  /** Historical intervals during which this item was paused. An open interval means currently paused. */
+  pauseIntervals?: PauseInterval[];
   /** Routine-cycle key owning the current child-habit checklist state. */
   checklistCycleStart?: string;
   createdAt: string;

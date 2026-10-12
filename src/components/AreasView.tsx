@@ -7,6 +7,7 @@ import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import { buildHabitDurationSummaryIndex, buildRoutineDurationSummaryIndex } from '../domain/habitDuration';
 import { formatDateOnly } from '../domain/recurrenceProgress';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 
 interface Props {
   config: Config | null;
@@ -18,13 +19,14 @@ interface Props {
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask?: (id: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onNavigate?: (view: 'hoy' | 'proyectos' | 'calendario' | 'areas' | 'completadas' | 'rutinas' | 'reportes' | 'syllabus' | 'configuracion', taskId?: string) => void;
   focusTaskId?: string | null;
 }
 
-export default function AreasView({ config, tasks, history, progressSnapshots, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onDuplicateTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
+export default function AreasView({ config, tasks, history, progressSnapshots, intentions = [], onUpdateConfig, onToggleTask, onDeleteTask, onDuplicateTask, onPauseTask, onAddTask, onUpdateTask, onNavigate, focusTaskId }: Props) {
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const areas = config?.areas || {};
 
@@ -54,6 +56,7 @@ export default function AreasView({ config, tasks, history, progressSnapshots, i
         onToggleTask={onToggleTask}
         onDeleteTask={onDeleteTask}
         onDuplicateTask={onDuplicateTask}
+        onPauseTask={onPauseTask}
         onAddTask={onAddTask}
         onUpdateTask={onUpdateTask}
         onNavigate={onNavigate}
@@ -199,9 +202,9 @@ function AreasList({
             {areaEntries.map(([key, val], index) => {
             const categories = (val && typeof val === 'object' && 'categories' in val) ? (val.categories || []) : [];
             const areaColor = typeof val === 'string' ? val : ((val && typeof val === 'object' && 'color' in val && val.color) || 'slate');
-            const activeProjects = tasks.filter(t => t.category === key && t.type === 'Proyecto' && !t.completed);
-            const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
-            const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed);
+            const activeProjects = tasks.filter(t => t.category === key && t.type === 'Proyecto' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
+            const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
+            const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
 
             const areaIntentions = getActiveAreaCommitments(key, intentions, tasks);
 
@@ -330,6 +333,7 @@ function AreaDetail({
   onToggleTask,
   onDeleteTask,
   onDuplicateTask,
+  onPauseTask,
   onAddTask,
   onUpdateTask,
   onNavigate
@@ -347,6 +351,7 @@ function AreaDetail({
   onToggleTask: (task: AppTask) => void,
   onDeleteTask: (id: string) => void,
   onDuplicateTask?: (id: string) => void,
+  onPauseTask?: (id: string) => void,
   onAddTask: (task: Omit<AppTask, 'id'>) => void,
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void,
   onNavigate?: (view: 'hoy' | 'proyectos' | 'calendario' | 'areas' | 'completadas' | 'rutinas' | 'reportes' | 'syllabus' | 'configuracion', taskId?: string) => void;
@@ -377,8 +382,8 @@ function AreaDetail({
     [tasks, habitDurationSummaries],
   );
 
-  const routinesInArea = tasks.filter(t => t.type === 'Rutina' && t.category === areaName);
-  const projectsInArea = tasks.filter(t => t.type === 'Proyecto' && t.category === areaName);
+  const routinesInArea = tasks.filter(t => t.type === 'Rutina' && t.category === areaName && !isTaskEffectivelyPaused(t, tasks));
+  const projectsInArea = tasks.filter(t => t.type === 'Proyecto' && t.category === areaName && !isTaskEffectivelyPaused(t, tasks));
   const activeCommitments = getActiveAreaCommitments(areaName, intentions, tasks);
   const commitmentGroups = (['phase', 'cycle', 'quarter', 'year'] as const)
     .map(scale => ({
@@ -396,8 +401,8 @@ function AreaDetail({
     const progress = calculateItemProgress(item, tasks, history || [], periodStart, periodEnd, intentions, progressSnapshots);
     return summarizeIntentionProgress(progress);
   };
-  const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
-  const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
+  const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
+  const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
 
   const handleAddEditCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -708,6 +713,7 @@ function AreaDetail({
                           onAddTask={onAddTask}
                           onDeleteTask={onDeleteTask}
                           onDuplicateTask={onDuplicateTask}
+                          onPauseTask={onPauseTask}
                           onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
                           routineDurationSummary={routineDurationSummaries.get(r.id)}
                         />
@@ -728,6 +734,7 @@ function AreaDetail({
                                 onAddTask={onAddTask}
                                 onDeleteTask={onDeleteTask}
                                 onDuplicateTask={onDuplicateTask}
+                                onPauseTask={onPauseTask}
                                 durationSummary={habitDurationSummaries.get(h.id)}
                               />
                             ))}
@@ -764,7 +771,7 @@ function AreaDetail({
                   <p className="text-xs text-primary pl-6 italic">Sin hábitos asignados.</p>
                 ) : (
                   habitsInArea.map(hab => (
-                    <TaskItem
+                  <TaskItem
                        key={hab.id}
                        task={hab}
                        config={config}
@@ -775,7 +782,8 @@ function AreaDetail({
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}
                        onDeleteTask={onDeleteTask}
-                       onDuplicateTask={onDuplicateTask}
+                    onDuplicateTask={onDuplicateTask}
+                    onPauseTask={onPauseTask}
                        onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', hab.id) : undefined}
                        durationSummary={habitDurationSummaries.get(hab.id)}
                      />
@@ -819,7 +827,8 @@ function AreaDetail({
                        onUpdate={onUpdateTask}
                        onAddTask={onAddTask}
                        onDeleteTask={onDeleteTask}
-                       onDuplicateTask={onDuplicateTask}
+                      onDuplicateTask={onDuplicateTask}
+                      onPauseTask={onPauseTask}
                        onNavigateToLocation={onNavigate ? () => onNavigate('proyectos', t.id) : undefined}
                      />
                   ))

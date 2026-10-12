@@ -12,6 +12,7 @@ import { getAppearanceDate, getDeadlineDate } from '../domain/appearance';
 import ProjectCard from './ProjectCard';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
 import DurationEstimateField from './DurationEstimateField';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 
 // Helper to find parent project of any task recursively
 const getProjectForTask = (taskId: string, allTasks: AppTask[]): AppTask | null => {
@@ -33,6 +34,7 @@ interface Props {
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask?: (id: string) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   activeTimer?: { taskId: string; isRunning: boolean } | null;
@@ -40,7 +42,7 @@ interface Props {
   focusTaskId?: string | null;
 }
 
-export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onDuplicateTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
+export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onDuplicateTask, onPauseTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
   const [showCompleted, setShowCompleted] = useState(false);
@@ -169,7 +171,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     projects = projects.filter(p => projectMatchesEnergyFilter(p, tasks, filterAllocation));
   }
 
-  const activeProjs = sortTasks(projects.filter(p => !p.completed), sortBy);
+  const activeProjs = sortTasks(projects.filter(p => !p.completed && !isTaskEffectivelyPaused(p, tasks)), sortBy);
   const compProjs = sortTasks(projects.filter(p => p.completed), sortBy);
 
   // Standalone tasks (Tareas Simples)
@@ -191,7 +193,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
     standaloneTasks = standaloneTasks.filter(t => t.allocationType === filterAllocation);
   }
 
-  const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed), sortBy);
+  const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed && !isTaskEffectivelyPaused(t, tasks)), sortBy);
   const completedStandaloneTasks = sortTasks(standaloneTasks.filter(t => t.completed), sortBy);
 
   const startEdit = (proj: AppTask) => {
@@ -294,7 +296,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   const renderProjBlock = (projList: AppTask[]) => projList.map(proj => {
     const rawSubtasks = tasks.filter(t => t.parentId === proj.id);
     const subtasks = sortTasks(rawSubtasks, sortBy);
-    const pendingSubtasks = subtasks.filter(subtask => !subtask.completed);
+    const pendingSubtasks = subtasks.filter(subtask => !subtask.completed && !isTaskEffectivelyPaused(subtask, tasks));
     const completedSubtasks = subtasks.filter(subtask => subtask.completed);
     const presentation = getProjectPresentation(proj, tasks, history || []);
 
@@ -335,6 +337,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         onEdit={() => startEdit(proj)}
         onDelete={() => onDeleteTask(proj.id)}
         onDuplicate={onDuplicateTask ? () => onDuplicateTask(proj.id) : undefined}
+        onPause={onPauseTask && !proj.completed ? () => onPauseTask(proj.id) : undefined}
         onUpdateNotes={(notes) => onUpdateTask(proj.id, { notes })}
         onMoveUp={sortBy === 'manual' ? () => handleMoveProjUp(proj) : undefined}
         onMoveDown={sortBy === 'manual' ? () => handleMoveProjDown(proj) : undefined}
@@ -370,6 +373,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
                       onDuplicateTask={onDuplicateTask}
+                      onPauseTask={onPauseTask}
                       isSubtask
                       hideAreaCategory
                       activeTimer={activeTimer}
@@ -434,6 +438,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   onAddTask={onAddTask}
                     onDeleteTask={onDeleteTask}
                     onDuplicateTask={onDuplicateTask}
+                    onPauseTask={onPauseTask}
                   isSubtask
                   hideAreaCategory
                   activeTimer={activeTimer}
@@ -725,6 +730,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                     onAddTask={onAddTask}
                     onDeleteTask={onDeleteTask}
                     onDuplicateTask={onDuplicateTask}
+                    onPauseTask={onPauseTask}
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     showMoveArrows={sortBy === 'manual'}
@@ -780,6 +786,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
                       onDuplicateTask={onDuplicateTask}
+                      onPauseTask={onPauseTask}
                       activeTimer={activeTimer}
                       onStartTimer={onStartTimer}
                       showMoveArrows={sortBy === 'manual'}

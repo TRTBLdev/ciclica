@@ -28,6 +28,7 @@ import {
   getWorkedHoursForDate,
   WorkDayState,
 } from '../domain/workTracking';
+import { isTaskEffectivelyPaused, wasTaskPausedAtPeriodEnd } from '../domain/pause';
 
 interface Props {
   config: Config | null;
@@ -73,8 +74,9 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
   void config;
   const today = new Date();
   const days = getRecentDates(30, today).reverse();
-  const pulses = tasks.filter(task => task.type === 'Pulso');
-  const trackable = tasks.filter(task => task.type === 'Hábito' || (task.type === 'Rutina' && isRoutineConfigured(task)));
+  const pulses = tasks.filter(task => task.type === 'Pulso' && !isTaskEffectivelyPaused(task, tasks));
+  const trackable = tasks.filter(task => !isTaskEffectivelyPaused(task, tasks)
+    && (task.type === 'Hábito' || (task.type === 'Rutina' && isRoutineConfigured(task))));
   const allHabitsRoutines = buildRoutineGroups(trackable, () => true);
   const year = today.getFullYear();
   const [trackingView, setTrackingView] = useState<'30days' | 'annual'>('30days');
@@ -490,10 +492,10 @@ function renderHabitCell(
 function ProjectWorkCalendar({ tasks, history, days }: { tasks: AppTask[]; history: HistoryRecord[]; days: Date[] }) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
   const activeProjects = tasks
-    .filter(task => task.type === 'Proyecto' && !task.completed)
+    .filter(task => task.type === 'Proyecto' && !task.completed && !isTaskEffectivelyPaused(task, tasks))
     .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
   const standaloneTasks = tasks
-    .filter(task => task.type === 'Tarea' && !task.completed && !getProjectForTask(task.id, tasks))
+    .filter(task => task.type === 'Tarea' && !task.completed && !isTaskEffectivelyPaused(task, tasks) && !getProjectForTask(task.id, tasks))
     .sort((a, b) => (a.order || 0) - (b.order || 0) || a.text.localeCompare(b.text));
 
   const toggleProject = (projectId: string) => {
@@ -611,7 +613,7 @@ function ProjectWorkCalendar({ tasks, history, days }: { tasks: AppTask[]; histo
                         project.text,
                         projectTaskIds,
                         date,
-                        isAppearanceScheduledOnDate(project, date),
+                        isAppearanceScheduledOnDate(project, date) && !wasTaskPausedAtPeriodEnd(project, tasks, date),
                       ))}
                     </tr>
                     {expanded && pendingTasks.map(task => {
@@ -625,7 +627,9 @@ function ProjectWorkCalendar({ tasks, history, days }: { tasks: AppTask[]; histo
                             task.text,
                             [task.id],
                             date,
-                            formatDateOnly(date) >= createdDate && isAppearanceScheduledOnDate(project, date),
+                            formatDateOnly(date) >= createdDate
+                              && isAppearanceScheduledOnDate(project, date)
+                              && !wasTaskPausedAtPeriodEnd(task, tasks, date),
                           ))}
                         </tr>
                       );
@@ -653,7 +657,7 @@ function ProjectWorkCalendar({ tasks, history, days }: { tasks: AppTask[]; histo
                         task.text,
                         [task.id],
                         date,
-                        isAppearanceScheduledOnDate(task, date),
+                        isAppearanceScheduledOnDate(task, date) && !wasTaskPausedAtPeriodEnd(task, tasks, date),
                       ))}
                     </tr>
                   ))}

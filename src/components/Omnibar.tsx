@@ -10,6 +10,7 @@ import { getTypeIcon } from './TaskItem';
 import { canTrackTask } from '../domain/appearance';
 import LinkedText from './ui/LinkedText';
 import { getOmnibarSearchResults, getTrackableDescendants } from '../domain/omnibarSearch';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 
 interface OmnibarProps {
   activeTimer: {
@@ -32,6 +33,8 @@ interface OmnibarProps {
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onDeleteTask: (id: string) => void;
+  onPauseTask?: (id: string) => void;
+  onResumeTask?: (id: string) => void;
   isMinimized?: boolean;
   onToggleMinimize?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
@@ -71,6 +74,8 @@ export default function Omnibar({
   onAddTask,
   onUpdateTask,
   onDeleteTask,
+  onPauseTask,
+  onResumeTask,
   isMinimized = false,
   onToggleMinimize,
   onNavigate,
@@ -211,6 +216,10 @@ export default function Omnibar({
 
   const handleItemClick = (t: AppTask) => {
     if (!onNavigate) return;
+    if (isTaskEffectivelyPaused(t, tasks)) {
+      onNavigate('pausados', t.id);
+      return;
+    }
     const parentRoutine = t.parentId
       ? tasks.find(candidate => candidate.id === t.parentId && candidate.type === 'Rutina')
       : undefined;
@@ -642,6 +651,7 @@ export default function Omnibar({
                           <strong className="truncate text-xs text-text-main font-medium flex items-center gap-2" title={t.text}>
                             {getTypeIcon(t.type, "w-3.5 h-3.5 stroke-[2] fill-none shrink-0")}
                             {t.text}
+                            {isTaskEffectivelyPaused(t, tasks) && <small className="font-mono text-[8px] uppercase text-text-dim">En pausa</small>}
                           </strong>
                           {(t.category || t.subCategory) && (
                             <small className="scale-75 origin-left -mt-0.5 opacity-70">
@@ -679,6 +689,11 @@ export default function Omnibar({
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(t.id); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none transition-colors" title="Eliminar">
                         <Trash2 className="w-3.5 h-3.5 text-text-dim hover:text-red-500" />
                       </button>
+                      {isTaskEffectivelyPaused(t, tasks) ? (
+                        onResumeTask && <button onClick={(e) => { e.stopPropagation(); onResumeTask(t.id); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none" title="Reanudar"><Play className="w-3.5 h-3.5 text-text-dim hover:text-primary" /></button>
+                      ) : (
+                        onPauseTask && !t.completed && <button onClick={(e) => { e.stopPropagation(); onPauseTask(t.id); }} className="p-1.5 flex items-center justify-center bg-transparent cursor-pointer border-none outline-none" title="Pausar"><Pause className="w-3.5 h-3.5 text-text-dim hover:text-primary" /></button>
+                      )}
                         </nav>
                       </header>
                       {isContainer && isExpanded && (

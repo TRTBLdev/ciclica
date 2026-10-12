@@ -19,6 +19,7 @@ import CompactDate from './ui/CompactDate';
 import { getRoutineCycleProgress, getRoutineHabitCycleState, isRoutineReadyToClose } from '../domain/occurrenceResults';
 import { buildHabitDurationSummaryIndex, getRoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison, SECONDARY_METRIC_TYPOGRAPHY_CLASS } from './DurationSummaryMetric';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 interface Props {
   config: Config | null;
   tasks: AppTask[];
@@ -27,6 +28,7 @@ interface Props {
   onToggleTask: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask?: (id: string) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask: (task: Omit<AppTask, 'id'>) => void;
   focusTaskId?: string | null;
@@ -48,6 +50,7 @@ export default function RutinasView({
   onToggleTask,
   onDeleteTask,
   onDuplicateTask,
+  onPauseTask,
   onUpdateTask,
   onAddTask,
   focusTaskId,
@@ -174,9 +177,9 @@ export default function RutinasView({
     }
   }, [focusTaskId, tasks]);
 
-  let filteredRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed);
-  let filteredStandaloneHabits = tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId)));
-  let filteredPulsos = tasks.filter(t => t.type === 'Pulso');
+  let filteredRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
+  let filteredStandaloneHabits = tasks.filter(t => t.type === 'Hábito' && (!t.parentId || !tasks.some(p => p.id === t.parentId)) && !isTaskEffectivelyPaused(t, tasks));
+  let filteredPulsos = tasks.filter(t => t.type === 'Pulso' && !isTaskEffectivelyPaused(t, tasks));
 
   // Filter Area
   if (filterArea !== 'Todas') {
@@ -564,13 +567,16 @@ export default function RutinasView({
               routines.map(routine => {
                 const isExpanded = expandedRoutines.includes(routine.id);
 
-                const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
+                const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito' && !isTaskEffectivelyPaused(t, tasks));
+                const pausedSubtaskCount = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito' && isTaskEffectivelyPaused(t, tasks)).length;
                 const sortedSubtasks = sortTasks(rawSubtasks, sortBy);
                 const habitCycleState = getRoutineHabitCycleState(
                   routine,
                   sortedSubtasks,
                   history || [],
                   progressSnapshots,
+                  new Date(),
+                  tasks,
                 );
                 const subtasks = habitCycleState.orderedHabits;
                 const remainingHabitLabel = habitCycleState.remainingCount === 0 && subtasks.length > 0
@@ -600,6 +606,7 @@ export default function RutinasView({
                   </output>,
                   nextRoutineAppearance ? <CompactDate label="Próx." value={nextRoutineAppearance} /> : null,
                   routineCycleEnd ? <CompactDate label="Cierra" value={routineCycleEnd} /> : null,
+                  pausedSubtaskCount > 0 ? <span className="font-mono text-[10px] text-text-dim">{pausedSubtaskCount} en pausa</span> : null,
                   ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
                   ...(hasRoutineDuration ? [
                     <DurationComparison
@@ -750,6 +757,14 @@ export default function RutinasView({
                                     Duplicar
                                   </button>
                                 )}
+                                {onPauseTask && !routine.completed && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onPauseTask(routine.id); setOpenMenuRoutineId(null); }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                  >
+                                    Pausar
+                                  </button>
+                                )}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -872,6 +887,7 @@ export default function RutinasView({
                                 onAddTask={onAddTask}
                                 onDeleteTask={onDeleteTask}
                                 onDuplicateTask={onDuplicateTask}
+                                onPauseTask={onPauseTask}
                                 isSubtask
                                 hideAreaCategory={false}
                                 showMoveArrows={sortBy === 'manual'}
@@ -933,6 +949,7 @@ export default function RutinasView({
                     onAddTask={onAddTask}
                     onDeleteTask={onDeleteTask}
                     onDuplicateTask={onDuplicateTask}
+                    onPauseTask={onPauseTask}
                     isSubtask={false}
                     hideAreaCategory={false}
                     showMoveArrows={sortBy === 'manual'}
@@ -1090,6 +1107,14 @@ export default function RutinasView({
                                   className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                                 >
                                   Duplicar
+                                </button>
+                              )}
+                              {onPauseTask && !t.completed && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onPauseTask(t.id); setOpenMenuPulsoId(null); }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                                >
+                                  Pausar
                                 </button>
                               )}
                               <button

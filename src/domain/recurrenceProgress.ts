@@ -1,4 +1,5 @@
 import { AppTask, ProgressSnapshot, RecurrenceUnit } from '../types';
+import { isTaskEffectivelyPaused } from './pause';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -179,8 +180,10 @@ export function getRoutineCycleProgress(
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
 ): number {
-  if (!isRoutineConfigured(routine)) return 0;
-  const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
+  if (!isRoutineConfigured(routine) || isTaskEffectivelyPaused(routine, tasks, at)) return 0;
+  const habits = tasks.filter(task => task.type === 'Hábito'
+    && task.parentId === routine.id
+    && !isTaskEffectivelyPaused(task, tasks, at));
   if (habits.length === 0) return 0;
   const cycle = getCalendarCycleRange(routine.routineCycleFrequency, routine.routineCycleUnit, at);
   const total = habits.reduce(

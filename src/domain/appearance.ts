@@ -1,6 +1,7 @@
 import { AppTask, HistoryRecord, ProgressSnapshot, RecurrenceUnit, TaskType } from '../types';
 import { DateRange, formatDateOnly, getCalendarCycleRange, getIsoWeekday, parseDateOnly } from './recurrenceProgress';
 import { getHistoryDateKey, getProjectForTask } from './workTracking';
+import { isTaskDirectlyPaused, isTaskEffectivelyPaused } from './pause';
 import {
   getHabitResultsInRange,
   getRoutineCycleProgress as getResolvedRoutineCycleProgress,
@@ -114,7 +115,7 @@ export function isItemAppearingOnDate(
   history: HistoryRecord[],
   at: string | Date = new Date(),
 ): boolean {
-  if (task.completed || task.type === 'Pulso') return false;
+  if (task.completed || task.type === 'Pulso' || isTaskDirectlyPaused(task, at)) return false;
   if (task.type === 'Hábito' && task.parentId) return false;
   const dateKey = formatDateOnly(parseDateOnly(at));
   if (task.type === 'Hábito' && history.some(record => isVerifiedHabitCompletion(task, record) && getHistoryDateKey(record) === dateKey)) return false;
@@ -129,6 +130,7 @@ export function isItemAppearingOnDate(
 }
 
 export function getNextAppearanceDate(task: AppTask, from: string | Date = new Date()): string | undefined {
+  if (isTaskDirectlyPaused(task, from)) return undefined;
   const mode = getAppearanceMode(task);
   if (!mode) return undefined;
   const cursor = parseDateOnly(from);
@@ -214,7 +216,8 @@ export function canTrackTask(
   history: HistoryRecord[],
   at: string | Date = new Date(),
 ): boolean {
-  if (task.completed || task.type === 'Pulso' || task.type === 'Rutina' || task.type === 'Proyecto') return false;
+  if (task.completed || task.type === 'Pulso' || task.type === 'Rutina' || task.type === 'Proyecto'
+    || isTaskEffectivelyPaused(task, tasks, at)) return false;
   if (task.type !== 'Hábito' || !task.parentId) return true;
   const routine = tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina');
   if (!routine) return false;
@@ -229,10 +232,13 @@ export function getRoutineCycleProgressFromHistory(
   at: string | Date = new Date(),
   snapshots: ProgressSnapshot[] = [],
 ): number {
+  if (isTaskEffectivelyPaused(routine, tasks, at)) return 0;
   if (snapshots.length) {
     return getResolvedRoutineCycleProgress(routine, tasks, history, snapshots, at);
   }
-  const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
+  const habits = tasks.filter(task => task.type === 'Hábito'
+    && task.parentId === routine.id
+    && !isTaskEffectivelyPaused(task, tasks, at));
   if (!habits.length) return 0;
   const total = habits.reduce((sum, habit) => {
     const target = Math.max(1, habit.objetivoPorCiclo || 1);
@@ -299,7 +305,7 @@ export function getTodayPlacement(
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
 ): TodayPlacement {
-  if (task.completed || task.type === 'Pulso') return null;
+  if (task.completed || task.type === 'Pulso' || isTaskEffectivelyPaused(task, tasks, at)) return null;
   const parentProject = task.parentId ? getProjectForTask(task.parentId, tasks) : null;
   if (parentProject) return null;
   if (task.type === 'Proyecto' && !getAppearanceMode(task)) return 'backlog';

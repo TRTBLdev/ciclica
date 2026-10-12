@@ -12,6 +12,7 @@ import {
 import { EnergyAllocation, getTaskEnergyBreakdown } from './energyAllocation';
 import { formatDateOnly, parseDateOnly } from './recurrenceProgress';
 import { getDescendantTaskIds, getProjectForTask } from './workTracking';
+import { isTaskEffectivelyPaused } from './pause';
 
 const WEEKDAY_LABELS: Record<number, string> = {
   1: 'Lun',
@@ -35,6 +36,8 @@ export interface ProjectPresentation {
   pendingTasks: AppTask[];
   completedTasks: AppTask[];
   pendingCount: number;
+  pausedTasks?: AppTask[];
+  pausedCount?: number;
   completedCount: number;
   totalCount: number;
   progress: number;
@@ -81,6 +84,7 @@ export function getProjectEnergySummary(projectId: string, tasks: AppTask[]): Pr
     descendantIds.has(task.id)
     && task.type === 'Tarea'
     && !task.completed
+    && !isTaskEffectivelyPaused(task, tasks)
   ));
 
   const energy = pendingTasks.reduce((summary, task) => {
@@ -111,9 +115,10 @@ export function getProjectPresentation(
   const descendantIds = new Set(getDescendantTaskIds(project.id, tasks));
   const descendants = tasks.filter(task => descendantIds.has(task.id));
   const projectTasks = descendants.filter(task => task.type === 'Tarea');
-  const pendingTasks = projectTasks.filter(task => !task.completed);
+  const pendingTasks = projectTasks.filter(task => !task.completed && !isTaskEffectivelyPaused(task, tasks));
+  const pausedTasks = projectTasks.filter(task => !task.completed && isTaskEffectivelyPaused(task, tasks));
   const completedTasks = projectTasks.filter(task => task.completed);
-  const totalCount = projectTasks.length;
+  const totalCount = pendingTasks.length + completedTasks.length;
   const completedCount = completedTasks.length;
   const dateSummary = getProjectDateSummary(project, tasks, history, at);
   const nextAppearanceDate = getNextAppearanceDate(project, at);
@@ -134,6 +139,8 @@ export function getProjectPresentation(
     pendingTasks,
     completedTasks,
     pendingCount: pendingTasks.length,
+    pausedTasks,
+    pausedCount: pausedTasks.length,
     completedCount,
     totalCount,
     progress: totalCount > 0

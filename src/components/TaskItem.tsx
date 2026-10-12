@@ -18,6 +18,7 @@ import { getInheritedProjectContext, getProjectPresentation } from '../domain/pr
 import ItemDetails from './ItemDetails';
 import { HabitDurationSummary, RoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison } from './DurationSummaryMetric';
+import { isTaskDirectlyPaused } from '../domain/pause';
 
 
 const GripIcon = () => (
@@ -79,6 +80,8 @@ interface Props {
   onAddTask?: (task: Omit<AppTask, 'id'>) => void;
   onDeleteTask?: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask?: (id: string) => void;
+  onResumeTask?: (id: string) => void;
   isSubtask?: boolean;
   hideAreaCategory?: boolean;
   activeTimer?: { taskId: string; isRunning: boolean } | null;
@@ -108,6 +111,8 @@ export default function TaskItem({
   onAddTask,
   onDeleteTask,
   onDuplicateTask,
+  onPauseTask,
+  onResumeTask,
   isSubtask = false,
   hideAreaCategory = false,
   activeTimer,
@@ -202,8 +207,8 @@ export default function TaskItem({
   const effectiveCanMoveUp = canMoveUp !== undefined ? canMoveUp : !isFirstItem;
   const effectiveCanMoveDown = canMoveDown !== undefined ? canMoveDown : !isLastItem;
 
-  const handleMoveUp = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleMoveUp = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setIsMenuOpen(false);
     if (onMoveUp) {
       onMoveUp();
@@ -227,8 +232,8 @@ export default function TaskItem({
     onUpdate(task.id, { order: newOrder });
   };
 
-  const handleMoveDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleMoveDown = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setIsMenuOpen(false);
     if (onMoveDown) {
       onMoveDown();
@@ -336,6 +341,7 @@ export default function TaskItem({
 
 
   const locked = isLocked();
+  const directlyPaused = isTaskDirectlyPaused(task);
   const parentTask = task.parentId ? allTasks.find(t => t.id === task.parentId) : null;
   const isActualSubtask = !!(parentTask && parentTask.type !== 'Proyecto');
   const displayCategory = inheritedProject?.category || task.category || (parentTask ? parentTask.category : '');
@@ -587,6 +593,8 @@ export default function TaskItem({
         onEdit={onUpdate ? () => setIsEditing(true) : undefined}
         onDelete={onDelete}
         onDuplicate={onDuplicateTask ? () => onDuplicateTask(task.id) : undefined}
+        onPause={onPauseTask && !task.completed ? () => onPauseTask(task.id) : undefined}
+        onResume={onResumeTask && directlyPaused ? () => onResumeTask(task.id) : undefined}
         onUpdateNotes={onUpdate ? (notes) => onUpdate(task.id, { notes }) : undefined}
         onMoveUp={onMoveUp || (showMoveArrows ? handleMoveUp : undefined)}
         onMoveDown={onMoveDown || (showMoveArrows ? handleMoveDown : undefined)}
@@ -607,6 +615,8 @@ export default function TaskItem({
                 onAddTask={onAddTask}
                 onDeleteTask={onDeleteTask}
                 onDuplicateTask={onDuplicateTask}
+                onPauseTask={onPauseTask}
+                onResumeTask={onResumeTask}
                 isSubtask
                 hideAreaCategory
                 activeTimer={activeTimer}
@@ -1210,6 +1220,22 @@ export default function TaskItem({
                       Duplicar
                     </button>
                   )}
+                  {onPauseTask && !task.completed && !isTaskEffectivelyPaused(task, allTasks) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPauseTask(task.id); setIsMenuOpen(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      Pausar
+                    </button>
+                  )}
+                  {onResumeTask && directlyPaused && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onResumeTask(task.id); setIsMenuOpen(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      Reanudar
+                    </button>
+                  )}
                   <div className="h-[1px] bg-border-line/40 my-1"></div>
                   <button
                     onClick={(e) => {
@@ -1322,6 +1348,8 @@ export default function TaskItem({
                       onAddTask={onAddTask}
                       onDeleteTask={onDeleteTask}
                       onDuplicateTask={onDuplicateTask}
+                      onPauseTask={onPauseTask}
+                      onResumeTask={onResumeTask}
                       isSubtask
                       hideAreaCategory={true}
                       activeTimer={activeTimer}

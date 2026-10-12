@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Shapes, Layers, Repeat } from 'lucide-react';
+import { Shapes, Layers, Repeat, PauseCircle } from 'lucide-react';
 import { Config, AppTask, HistoryRecord, Intention, ProgressSnapshot } from '../types';
 import { cn } from '../lib/utils';
 import AreasView from './AreasView';
 import ProyectosView from './ProyectosView';
 import RutinasView from './RutinasView';
+import PausedView from './PausedView';
+import { isTaskEffectivelyPaused } from '../domain/pause';
 
 interface Props {
   config: Config | null;
@@ -16,6 +18,8 @@ interface Props {
   onToggleTask: (task: AppTask, overrideDuration?: number, overrideStartTime?: string, overrideEndTime?: string) => void;
   onDeleteTask: (id: string) => void;
   onDuplicateTask?: (id: string) => void;
+  onPauseTask: (id: string) => void;
+  onResumeTask: (id: string) => void;
   onAddTask: (task: Partial<AppTask>) => void;
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   activeTimer: any;
@@ -34,6 +38,8 @@ export default function EstrategiaView({
   onToggleTask,
   onDeleteTask,
   onDuplicateTask,
+  onPauseTask,
+  onResumeTask,
   onAddTask,
   onUpdateTask,
   activeTimer,
@@ -42,7 +48,7 @@ export default function EstrategiaView({
   onNavigate,
 }: Props) {
   // Tabs: 'areas' | 'proyectos' | 'rutinas'
-  const [activeTab, setActiveTab] = useState<'areas' | 'proyectos' | 'rutinas'>('areas');
+  const [activeTab, setActiveTab] = useState<'areas' | 'proyectos' | 'rutinas' | 'pausados'>('areas');
 
   // Automatically switch tab if there is a focusTaskId that matches a specific type
   useEffect(() => {
@@ -52,6 +58,10 @@ export default function EstrategiaView({
       } else {
         const targetTask = tasks.find(t => t.id === focusTaskId);
         if (targetTask) {
+          if (isTaskEffectivelyPaused(targetTask, tasks)) {
+            setActiveTab('pausados');
+            return;
+          }
           if (
             targetTask.type === 'Rutina' ||
             targetTask.type === 'Hábito' ||
@@ -86,7 +96,8 @@ export default function EstrategiaView({
           {[
             { id: 'areas', label: 'Áreas', icon: <Shapes className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
             { id: 'proyectos', label: 'Proyectos', icon: <Layers className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
-            { id: 'rutinas', label: 'Rutinas', icon: <Repeat className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
+            { id: 'rutinas', label: 'Rutinas', icon: <Repeat className="w-3.5 h-3.5 silhouette-icon text-text-main" /> },
+            { id: 'pausados', label: 'En pausa', icon: <PauseCircle className="w-3.5 h-3.5 silhouette-icon text-text-main" /> }
           ].map(t => {
             const isActive = activeTab === t.id;
             return (
@@ -122,6 +133,7 @@ export default function EstrategiaView({
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
               onDuplicateTask={onDuplicateTask}
+              onPauseTask={onPauseTask}
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               onNavigate={onNavigate}
@@ -139,6 +151,7 @@ export default function EstrategiaView({
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
               onDuplicateTask={onDuplicateTask}
+              onPauseTask={onPauseTask}
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               activeTimer={activeTimer}
@@ -158,6 +171,7 @@ export default function EstrategiaView({
               onToggleTask={onToggleTask}
               onDeleteTask={onDeleteTask}
               onDuplicateTask={onDuplicateTask}
+              onPauseTask={onPauseTask}
               onUpdateTask={onUpdateTask}
               onAddTask={onAddTask}
               focusTaskId={focusTaskId}
@@ -165,6 +179,18 @@ export default function EstrategiaView({
               onStartTimer={onStartTimer}
             />
           </div>
+        )}
+        {activeTab === 'pausados' && (
+          <PausedView
+            config={config}
+            tasks={tasks}
+            history={history}
+            onDeleteTask={onDeleteTask}
+            onDuplicateTask={onDuplicateTask}
+            onUpdateTask={onUpdateTask}
+            onResumeTask={onResumeTask}
+            onNavigate={onNavigate}
+          />
         )}
       </div>
     </div>
