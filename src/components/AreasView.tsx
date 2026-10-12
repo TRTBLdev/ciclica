@@ -8,6 +8,7 @@ import CategoryBadge from './ui/CategoryBadge';
 import { buildHabitDurationSummaryIndex, buildRoutineDurationSummaryIndex } from '../domain/habitDuration';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import { isTaskEffectivelyPaused } from '../domain/pause';
+import { getAreaCardCounts } from '../domain/areaSummary';
 
 interface Props {
   config: Config | null;
@@ -202,9 +203,7 @@ function AreasList({
             {areaEntries.map(([key, val], index) => {
             const categories = (val && typeof val === 'object' && 'categories' in val) ? (val.categories || []) : [];
             const areaColor = typeof val === 'string' ? val : ((val && typeof val === 'object' && 'color' in val && val.color) || 'slate');
-            const activeProjects = tasks.filter(t => t.category === key && t.type === 'Proyecto' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
-            const activeHabits = tasks.filter(t => t.category === key && t.type === 'Hábito' && !t.completed && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type!=='Rutina'));
-            const activeRoutines = tasks.filter(t => t.category === key && t.type === 'Rutina' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
+            const counts = getAreaCardCounts(key, tasks);
 
             const areaIntentions = getActiveAreaCommitments(key, intentions, tasks);
 
@@ -226,19 +225,24 @@ function AreasList({
 
                 <div className="flex flex-col gap-2 w-full mb-6 text-xs font-mono text-text-dim">
                   <div className="flex justify-between items-center w-full">
-                    <span className="tracking-wide">RUTINAS</span>
-                    <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
-                    <span className="text-text-main font-bold">{activeRoutines.length.toString().padStart(2, '0')}</span>
-                  </div>
-                  <div className="flex justify-between items-center w-full">
                     <span className="tracking-wide">PROYECTOS</span>
                     <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
-                    <span className="text-text-main font-bold">{activeProjects.length.toString().padStart(2, '0')}</span>
+                    <span className="text-text-main font-bold">{counts.projects.toString().padStart(2, '0')}</span>
+                  </div>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="tracking-wide">TAREAS</span>
+                    <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
+                    <span className="text-text-main font-bold">{counts.tasks.toString().padStart(2, '0')}</span>
+                  </div>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="tracking-wide">RUTINAS</span>
+                    <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
+                    <span className="text-text-main font-bold">{counts.routines.toString().padStart(2, '0')}</span>
                   </div>
                   <div className="flex justify-between items-center w-full">
                     <span className="tracking-wide">HÁBITOS</span>
                     <div className="flex-grow border-b border-dotted border-border-line mx-2"></div>
-                    <span className="text-text-main font-bold">{activeHabits.length.toString().padStart(2, '0')}</span>
+                    <span className="text-text-main font-bold">{counts.habits.toString().padStart(2, '0')}</span>
                   </div>
                 </div>
 
