@@ -6,6 +6,7 @@ import {
   getExpiredHabitOccurrenceRanges,
   getHabitOccurrenceRange,
   getRoutineCycleProgress,
+  getRoutineHabitCycleState,
   isSameRecurringClosureSlot,
   isRoutineReadyToClose,
 } from './occurrenceResults';
@@ -119,6 +120,96 @@ describe('recurring occurrence results', () => {
     ];
     expect(getRoutineCycleProgress(routine, [routine, first, second], [], snapshots, '2026-07-23')).toBe(88);
     expect(isRoutineReadyToClose(routine, [routine, first, second], [], snapshots, '2026-07-23')).toBe(true);
+  });
+
+  it('moves habits that reached their cycle quota to the end and reports those remaining', () => {
+    const routine = task({
+      id: 'routine',
+      type: 'Rutina',
+      routineCycleFrequency: 1,
+      routineCycleUnit: 'semanas',
+    });
+    const first = task({ id: 'first', parentId: routine.id, objetivoPorCiclo: 1 });
+    const second = task({ id: 'second', parentId: routine.id, objetivoPorCiclo: 2 });
+    const third = task({ id: 'third', parentId: routine.id, objetivoPorCiclo: 1 });
+    const snapshots: ProgressSnapshot[] = [
+      { ...createHabitResultSnapshot(first, { start: '2026-07-20', end: '2026-07-26' }, 100, '2026-07-20', 'manual'), id: 'first_done' },
+      { ...createHabitResultSnapshot(second, { start: '2026-07-20', end: '2026-07-26' }, 100, '2026-07-20', 'manual'), id: 'second_one' },
+    ];
+
+    const state = getRoutineHabitCycleState(
+      routine,
+      [first, second, third],
+      [],
+      snapshots,
+      '2026-07-23',
+    );
+
+    expect(state.remainingCount).toBe(2);
+    expect(state.orderedHabits.map(habit => habit.id)).toEqual(['second', 'third', 'first']);
+  });
+
+  it('preserves the relative order within pending and completed habit groups', () => {
+    const routine = task({
+      id: 'routine',
+      type: 'Rutina',
+      routineCycleFrequency: 1,
+      routineCycleUnit: 'semanas',
+    });
+    const completedLater = task({ id: 'completed-later', parentId: routine.id });
+    const pendingLater = task({ id: 'pending-later', parentId: routine.id });
+    const completedFirst = task({ id: 'completed-first', parentId: routine.id });
+    const pendingFirst = task({ id: 'pending-first', parentId: routine.id });
+    const snapshots: ProgressSnapshot[] = [completedLater, completedFirst].map(habit => ({
+      ...createHabitResultSnapshot(habit, { start: '2026-07-20', end: '2026-07-26' }, 100, '2026-07-20', 'manual'),
+      id: `${habit.id}_done`,
+    }));
+
+    const state = getRoutineHabitCycleState(
+      routine,
+      [completedLater, pendingLater, completedFirst, pendingFirst],
+      [],
+      snapshots,
+      '2026-07-23',
+    );
+
+    expect(state.orderedHabits.map(habit => habit.id)).toEqual([
+      'pending-later',
+      'pending-first',
+      'completed-later',
+      'completed-first',
+    ]);
+  });
+
+  it('returns a previously completed habit to pending when a new cycle starts', () => {
+    const routine = task({
+      id: 'routine',
+      type: 'Rutina',
+      routineCycleFrequency: 1,
+      routineCycleUnit: 'semanas',
+    });
+    const habit = task({ id: 'habit', parentId: routine.id });
+    const previousCycleSnapshot: ProgressSnapshot = {
+      ...createHabitResultSnapshot(
+        habit,
+        { start: '2026-07-13', end: '2026-07-19' },
+        100,
+        '2026-07-19',
+        'manual',
+      ),
+      id: 'previous_cycle',
+    };
+
+    const state = getRoutineHabitCycleState(
+      routine,
+      [habit],
+      [],
+      [previousCycleSnapshot],
+      '2026-07-20',
+    );
+
+    expect(state.remainingCount).toBe(1);
+    expect(state.orderedHabits).toEqual([habit]);
   });
 
   it('enumerates expired occurrences once so rollover can remain idempotent', () => {

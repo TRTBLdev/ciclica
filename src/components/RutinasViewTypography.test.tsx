@@ -54,5 +54,6 @@ describe('routine card metric typography', () => {
     expect(routineProgressOutput?.[1]).toContain('leading-5');
     expect(routineProgressOutput?.[1]).toContain('text-text-dim');
     expect(routineProgressOutput?.[1]).toContain('tabular-nums');
+    expect(routineProgressOutput?.[0]).toContain('1 hábito pendiente');
   });
 });

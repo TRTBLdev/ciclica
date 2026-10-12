@@ -301,6 +301,39 @@ export function getRoutineCycleProgress(
   return Math.round(total / habits.length);
 }
 
+export interface RoutineHabitCycleState {
+  orderedHabits: AppTask[];
+  remainingCount: number;
+}
+
+export function getRoutineHabitCycleState(
+  routine: AppTask,
+  habits: AppTask[],
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[],
+  at: string | Date = new Date(),
+): RoutineHabitCycleState {
+  const cycle = getCalendarCycleRange(
+    routine.routineCycleFrequency || 1,
+    routine.routineCycleUnit || 'semanas',
+    at,
+  );
+  const pending: AppTask[] = [];
+  const completed: AppTask[] = [];
+
+  habits.forEach(habit => {
+    const target = Math.max(1, habit.objetivoPorCiclo || 1);
+    const resultCount = getHabitResultsInRange(habit, history, snapshots, cycle)
+      .filter(result => result.status !== 'missed').length;
+    (resultCount >= target ? completed : pending).push(habit);
+  });
+
+  return {
+    orderedHabits: [...pending, ...completed],
+    remainingCount: pending.length,
+  };
+}
+
 export function isRoutineReadyToClose(
   routine: AppTask,
   tasks: AppTask[],
@@ -308,17 +341,9 @@ export function isRoutineReadyToClose(
   snapshots: ProgressSnapshot[],
   at: string | Date = new Date(),
 ): boolean {
-  const cycle = getCalendarCycleRange(
-    routine.routineCycleFrequency || 1,
-    routine.routineCycleUnit || 'semanas',
-    at,
-  );
   const habits = tasks.filter(task => task.type === 'Hábito' && task.parentId === routine.id);
-  return habits.length > 0 && habits.every(habit => {
-    const target = Math.max(1, habit.objetivoPorCiclo || 1);
-    return getHabitResultsInRange(habit, history, snapshots, cycle)
-      .filter(result => result.status !== 'missed').length >= target;
-  });
+  return habits.length > 0
+    && getRoutineHabitCycleState(routine, habits, history, snapshots, at).remainingCount === 0;
 }
 
 export function hasPositiveActivityOnDate(

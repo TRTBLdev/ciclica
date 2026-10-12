@@ -15,7 +15,7 @@ import ItemDetails from './ItemDetails';
 import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
 import { getAppearanceDate, getItemTemporalIndicators, getRoutineOpportunityDates, isRoutineCycleClosed, limitCardMetadata } from '../domain/appearance';
 import TemporalIndicator from './ui/TemporalIndicator';
-import { getRoutineCycleProgress, isRoutineReadyToClose } from '../domain/occurrenceResults';
+import { getRoutineCycleProgress, getRoutineHabitCycleState, isRoutineReadyToClose } from '../domain/occurrenceResults';
 import { buildHabitDurationSummaryIndex, getRoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison, SECONDARY_METRIC_TYPOGRAPHY_CLASS } from './DurationSummaryMetric';
 interface Props {
@@ -564,7 +564,17 @@ export default function RutinasView({
                 const isExpanded = expandedRoutines.includes(routine.id);
 
                 const rawSubtasks = tasks.filter(t => t.parentId === routine.id && t.type === 'Hábito');
-                const subtasks = sortTasks(rawSubtasks, sortBy);
+                const sortedSubtasks = sortTasks(rawSubtasks, sortBy);
+                const habitCycleState = getRoutineHabitCycleState(
+                  routine,
+                  sortedSubtasks,
+                  history || [],
+                  progressSnapshots,
+                );
+                const subtasks = habitCycleState.orderedHabits;
+                const remainingHabitLabel = habitCycleState.remainingCount === 0 && subtasks.length > 0
+                  ? 'ciclo completo'
+                  : `${habitCycleState.remainingCount} ${habitCycleState.remainingCount === 1 ? 'hábito pendiente' : 'hábitos pendientes'}`;
                 const routineDurationSummary = getRoutineDurationSummary(subtasks, habitDurationSummaries);
                 const configured = isRoutineConfigured(routine);
                 const routineProgress = configured
@@ -592,10 +602,10 @@ export default function RutinasView({
                     />,
                   ] : []),
                   ...limitCardMetadata<React.ReactNode>([
-                    ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
                     <output className={cn(SECONDARY_METRIC_TYPOGRAPHY_CLASS, 'h-5 whitespace-nowrap')}>
-                      {routineProgress || 0}% · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}
+                      {routineProgress || 0}% · {remainingHabitLabel} · {opportunityCount} apar. · {cycleFrequency} {cycleUnit}
                     </output>,
+                    ...routineTemporalIndicators.map(indicator => <TemporalIndicator indicator={indicator} />),
                   ], hasRoutineDuration ? 2 : 3),
                 ];
 
