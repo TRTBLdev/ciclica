@@ -661,6 +661,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   tasks={tasks}
                   history={history}
                   progressSnapshots={progressSnapshots}
+                  intentions={intentions}
                   onToggleTask={handleToggleTask}
                   onAddEvent={handleAddEvent}
                   onDeleteTask={deleteTask}

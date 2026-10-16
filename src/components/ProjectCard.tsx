@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config } from '../types';
+import { Target } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatRelativeCalendarDate } from '../domain/appearance';
 import { ProjectPresentation } from '../domain/projectPresentation';
@@ -39,6 +40,7 @@ interface Props {
   children?: React.ReactNode;
   completedSection?: React.ReactNode;
   className?: string;
+  commitmentLabels?: string[];
 }
 
 function FolderIcon({ completed = false }: { completed?: boolean }) {
@@ -238,6 +240,7 @@ export default function ProjectCard({
   children,
   completedSection,
   className,
+  commitmentLabels = [],
 }: Props) {
   const isStrategy = variant === 'strategy';
   const isBacklog = variant === 'backlog';
@@ -282,6 +285,15 @@ export default function ProjectCard({
                 {project.text}
               </button>
             </h3>
+            {commitmentLabels.length > 0 && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
+                title={`Aporta a: ${commitmentLabels.join(', ')}`}
+                aria-label={`Aporta a: ${commitmentLabels.join(', ')}`}
+              >
+                <Target className="h-2.5 w-2.5" /> {commitmentLabels.length}
+              </span>
+            )}
             {(project.category || project.subCategory) && (
               <ul className="m-0 flex list-none items-center gap-1.5 p-0" aria-label="Clasificación del proyecto">
                 <li><CategoryBadge area={project.category} subCategory={project.subCategory} config={config} /></li>

@@ -739,7 +739,8 @@ export default function IntencionesPanelView({
                             type="button"
                             onClick={() => {
                               setAddingCommitmentQ(q.key);
-                              setSelectedTaskId(routines[0]?.id || projects[0]?.id || '');
+                              setSelectedRoutineHabitId(routines[0]?.id || '');
+                              setSelectedProjectId(projects[0]?.id || '');
                             }}
                             className="inline-flex items-center gap-1 text-xs font-sans text-text-dim hover:text-text-main cursor-pointer"
                           >
@@ -1264,7 +1265,19 @@ export default function IntencionesPanelView({
                                             type="button"
                                             onClick={() => {
                                               const newCount = (item.currentCount || 0) + pagesToAdd;
-                                              handleUpdateItemInQuarter(q.start, q.end, item.id, { currentCount: newCount });
+                                              const now = new Date();
+                                              handleUpdateItemInQuarter(q.start, q.end, item.id, {
+                                                currentCount: newCount,
+                                                counterEntries: [
+                                                  ...(item.counterEntries || []),
+                                                  {
+                                                    id: `counter_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`,
+                                                    date: formatLocalDate(now),
+                                                    delta: pagesToAdd,
+                                                    createdAt: now.toISOString(),
+                                                  },
+                                                ],
+                                              });
                                               setLoggingPagesItemId(null);
                                             }}
                                             className="px-2 py-0.5 bg-text-main text-base text-[10px] font-mono font-medium cursor-pointer"

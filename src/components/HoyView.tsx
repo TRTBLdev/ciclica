@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot } from '../types';
+import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot, Intention } from '../types';
 import { calculateBiologicalPhase, getImminentPeriodWarning } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
@@ -16,6 +16,8 @@ import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
 import { isTaskEffectivelyPaused } from '../domain/pause';
+import { getCommitmentLabelsForTask, getTodayCommitmentSummaries } from '../domain/commitmentProgress';
+import CommitmentProgressPanel from './CommitmentProgressPanel';
 import {
   buildHabitDurationSummaryIndex,
   buildRoutineDurationSummaryIndex,
@@ -28,6 +30,7 @@ interface Props {
   tasks: AppTask[];
   history: HistoryRecord[];
   progressSnapshots: ProgressSnapshot[];
+  intentions?: Intention[];
   onToggleTask: (task: AppTask) => void;
   onAddEvent: (task: AppTask) => void;
   onDeleteTask: (id: string) => void;
@@ -43,7 +46,7 @@ interface Props {
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, progressSnapshots, onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onPauseTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+export default function HoyView({ config, tasks, history, progressSnapshots, intentions = [], onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onPauseTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
   const [currentDay, setCurrentDay] = useState(() => formatDateOnly(new Date()));
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
@@ -65,6 +68,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
   const [showBacklog, setShowBacklog] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showFlowLogger, setShowFlowLogger] = useState(false);
+  const [pendingCommitmentFocusId, setPendingCommitmentFocusId] = useState<string | null>(null);
   const [sortFlexiblesBy, setSortFlexiblesBy] = useState('manual');
   const [sortBacklogBy, setSortBacklogBy] = useState('manual');
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -79,6 +83,43 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
     () => buildRoutineDurationSummaryIndex(tasks, habitDurationSummaries),
     [tasks, habitDurationSummaries],
   );
+  const todayCommitments = React.useMemo(
+    () => getTodayCommitmentSummaries(intentions, tasks, history, progressSnapshots, currentDay),
+    [intentions, tasks, history, progressSnapshots, currentDay],
+  );
+
+  const selectCommitmentAction = (task: AppTask) => {
+    const element = document.getElementById(`task-item-${task.id}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('ring-1', 'ring-primary', 'transition-all', 'duration-500');
+      window.setTimeout(() => element.classList.remove('ring-1', 'ring-primary'), 2000);
+      return;
+    }
+
+    const placement = getTodayPlacement(task, tasks, history, progressSnapshots, currentDay);
+    if (placement === 'timeline') setShowTimeline(true);
+    if (placement === 'flexible') setShowFlexible(true);
+    if (placement === 'timeline' || placement === 'flexible') {
+      setPendingCommitmentFocusId(task.id);
+      return;
+    }
+
+    const parent = task.parentId ? tasks.find(candidate => candidate.id === task.parentId) : undefined;
+    const origin = task.type === 'Rutina' || parent?.type === 'Rutina' ? 'rutinas' : 'proyectos';
+    onNavigate?.(origin, task.id);
+  };
+
+  React.useEffect(() => {
+    if (!pendingCommitmentFocusId) return;
+    const element = document.getElementById(`task-item-${pendingCommitmentFocusId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('ring-1', 'ring-primary', 'transition-all', 'duration-500');
+      window.setTimeout(() => element.classList.remove('ring-1', 'ring-primary'), 2000);
+    }
+    setPendingCommitmentFocusId(null);
+  }, [pendingCommitmentFocusId, showTimeline, showFlexible]);
 
   React.useEffect(() => {
     const timer = window.setInterval(() => {
@@ -561,6 +602,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
         </div>
       )}
 
+      <CommitmentProgressPanel
+        summaries={todayCommitments}
+        title="Compromisos de hoy"
+        description="Acciones del día que contribuyen a tus compromisos trimestrales."
+        collapsible
+        onSelectAction={selectCommitmentAction}
+      />
+
 
 
 
@@ -964,6 +1013,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                     history={history}
                     onUpdateConfig={onUpdateConfig}
                     onNavigate={onNavigate}
+                    intentions={intentions}
                     habitDurationSummaries={habitDurationSummaries}
                     routineDurationSummaries={routineDurationSummaries}
                   />
@@ -1043,6 +1093,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, onT
                           canMoveUp={idx > 0}
                           canMoveDown={idx < arr.length - 1}
                           context="today"
+                          commitmentLabels={getCommitmentLabelsForTask(intentions, tasks, t.id, currentDay, currentDay)}
                           durationSummary={habitDurationSummaries.get(t.id)}
                           routineDurationSummary={routineDurationSummaries.get(t.id)}
                         />
@@ -1152,6 +1203,7 @@ function TimelineRenderer({
   history = [],
   onUpdateConfig,
   onNavigate,
+  intentions,
   habitDurationSummaries,
   routineDurationSummaries,
 }: {
@@ -1169,6 +1221,7 @@ function TimelineRenderer({
   history?: HistoryRecord[],
   onUpdateConfig?: (c: Partial<Config>) => void,
   onNavigate?: (view: string, taskId?: string) => void,
+  intentions: Intention[],
   habitDurationSummaries: Map<string, HabitDurationSummary>,
   routineDurationSummaries: Map<string, RoutineDurationSummary>,
 }) {
@@ -1317,6 +1370,7 @@ function TimelineRenderer({
                 onStartTimer={onStartTimer}
                 onNavigate={onNavigate}
                 context="today"
+                commitmentLabels={getCommitmentLabelsForTask(intentions, allTasks, t.id, formatDateOnly(new Date()), formatDateOnly(new Date()))}
                 durationSummary={habitDurationSummaries.get(t.id)}
                 routineDurationSummary={routineDurationSummaries.get(t.id)}
               />

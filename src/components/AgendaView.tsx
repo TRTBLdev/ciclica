@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X, CalendarRange } from 'lucide-react';
-import { AppTask, Config, HistoryRecord, Separator } from '../types';
+import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X, CalendarRange, Target } from 'lucide-react';
+import { AppTask, Config, HistoryRecord, Separator, Intention, ProgressSnapshot } from '../types';
 import { cn, timeToMins, minsToTime, getEffectiveAllocation, getAreaTextClasses } from '../lib/utils';
 import { getAppearanceDate, isAppearanceScheduledOnDate } from '../domain/appearance';
 import CategoryBadge from './ui/CategoryBadge';
@@ -9,11 +9,15 @@ import UniversalItemForm from './UniversalItemForm';
 import GanttChart from './GanttChart';
 import { getTypeIcon } from './TaskItem';
 import { isTaskEffectivelyPaused } from '../domain/pause';
+import { getCommitmentLabelsForTask, getWeeklyCommitmentSummaries } from '../domain/commitmentProgress';
+import CommitmentProgressPanel from './CommitmentProgressPanel';
 
 interface Props {
   config: Config | null;
   tasks: AppTask[];
   history?: HistoryRecord[];
+  intentions?: Intention[];
+  progressSnapshots?: ProgressSnapshot[];
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask?: (task: Partial<AppTask>) => void;
   onDeleteTask?: (id: string) => void;
@@ -112,7 +116,7 @@ function getIsoWeekday(d: Date): number {
   return day === 0 ? 7 : day;
 }
 
-export default function AgendaView({ config, tasks, history = [], onUpdateTask, onAddTask, onDeleteTask, onNavigate }: Props) {
+export default function AgendaView({ config, tasks, history = [], intentions = [], progressSnapshots = [], onUpdateTask, onAddTask, onDeleteTask, onNavigate }: Props) {
   // --- Navigation ---
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
@@ -155,6 +159,15 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
       return d;
     });
   }, [weekStart]);
+
+  const weeklyCommitments = useMemo(() => getWeeklyCommitmentSummaries(
+    intentions,
+    tasks,
+    history,
+    progressSnapshots,
+    formatDateISO(weekDays[0]),
+    formatDateISO(weekDays[6]),
+  ), [intentions, tasks, history, progressSnapshots, weekDays]);
 
   const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
   const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -427,6 +440,13 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
     const workedToday = isTaskWorkedToday(task, history);
     const urgent = isTaskUrgent(task);
     const allocation = getEffectiveAllocation(task, tasks);
+    const commitmentLabels = getCommitmentLabelsForTask(
+      intentions,
+      tasks,
+      task.id,
+      formatDateISO(weekDays[0]),
+      formatDateISO(weekDays[6]),
+    );
 
     const spanLabel = spanCount > 1
       ? `${dayNames[spannedDays[0]]} — ${dayNames[spannedDays[spannedDays.length - 1]]}`
@@ -453,6 +473,15 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
             {getTypeIcon(task.type, cn("w-3.5 h-3.5 stroke-[2] fill-none shrink-0", getAreaTextClasses(areaColor)))}
             {allocation && (
               <AllocationBadge allocation={allocation} iconOnly />
+            )}
+            {commitmentLabels.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1 border border-primary/30 px-1 py-0.5 font-mono text-[8px] uppercase tracking-wider text-primary"
+                title={`Aporta a: ${commitmentLabels.join(', ')}`}
+                aria-label={`Aporta a: ${commitmentLabels.join(', ')}`}
+              >
+                <Target className="h-3 w-3" aria-hidden="true" /> {commitmentLabels.length}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-auto font-mono text-[9px] text-text-dim/80">
@@ -548,6 +577,13 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
           );
         })}
       </div>
+
+      <CommitmentProgressPanel
+        summaries={weeklyCommitments}
+        title="Compromisos de la semana"
+        collapsible
+        description="Ejecución de los compromisos trimestrales dentro de la semana visible."
+      />
 
       {/* Unified Weekly Pending Banner (Single row for the whole week) */}
       <div className="border-b border-border-line/30 bg-base">
@@ -771,7 +807,7 @@ export default function AgendaView({ config, tasks, history = [], onUpdateTask, 
                 tasks={tasks}
                 history={history}
                 onUpdateTask={onUpdateTask}
-                scale="cuarto"
+                scale="quarter"
                 periodStart={ganttPeriod.start}
                 periodEnd={ganttPeriod.end}
               />

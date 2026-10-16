@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown, Layers } from 'lucide-react';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown, Layers, Target } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
@@ -99,6 +99,7 @@ interface Props {
   context?: 'today' | 'backlog' | 'routine' | 'project' | 'default';
   durationSummary?: HabitDurationSummary;
   routineDurationSummary?: RoutineDurationSummary;
+  commitmentLabels?: string[];
 }
 
 export default function TaskItem({
@@ -130,6 +131,7 @@ export default function TaskItem({
   context = 'default',
   durationSummary,
   routineDurationSummary,
+  commitmentLabels = [],
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
@@ -600,6 +602,7 @@ export default function TaskItem({
         onMoveDown={onMoveDown || (showMoveArrows ? handleMoveDown : undefined)}
         canMoveUp={effectiveCanMoveUp}
         canMoveDown={effectiveCanMoveDown}
+        commitmentLabels={commitmentLabels}
       >
         <ul className="m-0 list-none space-y-1 p-0" aria-label={`Tareas pendientes de ${task.text}`}>
           {getSubtasksWithOrders().map(sub => (
@@ -1028,6 +1031,15 @@ export default function TaskItem({
                   <span>{task.text}</span>
                 </p>
                 {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
+                {commitmentLabels.length > 0 && (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
+                    title={`Aporta a: ${commitmentLabels.join(', ')}`}
+                    aria-label={`Aporta a: ${commitmentLabels.join(', ')}`}
+                  >
+                    <Target className="h-2.5 w-2.5" /> {commitmentLabels.length}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-between w-full mt-2 gap-y-1.5 gap-x-2 md:pr-4">

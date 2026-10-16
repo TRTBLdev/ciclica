@@ -376,6 +376,8 @@ export default function BitacoraView({
               config={config}
               tasks={tasks}
               history={history}
+              intentions={intentions}
+              progressSnapshots={progressSnapshots}
               onUpdateTask={onUpdateTask}
               onAddTask={onAddTask}
               onDeleteTask={onDeleteTask}

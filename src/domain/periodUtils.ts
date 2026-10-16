@@ -312,6 +312,9 @@ export function getYearRange(todayDate = new Date()) {
 }
 
 export function generatePeriodLabel(scale: IntentionScale, start: string, end: string, phaseName?: BiologicalPhase, qKey?: string): string {
+  if (scale === 'phase') {
+    return `Semana · ${formatRangeText(start, end)}`;
+  }
   if (scale === 'cycle') {
     return `Mes · ${formatRangeText(start, end)}`;
   }

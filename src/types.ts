@@ -157,14 +157,14 @@ export interface HistoryRecord {
 
 export type ProgressSnapshotKind = 'routine-appearance' | 'routine-cycle' | 'habit-period';
 export type RecurringResultStatus = 'complete' | 'partial' | 'missed';
-export type RecurringResolutionSource = 'manual' | 'period-end';
+export type RecurringResolutionSource = 'manual' | 'period-end' | 'cycle-close';
 
 export interface ProgressSnapshot {
   id: string;
   userId: string;
   kind: ProgressSnapshotKind;
   taskId: string;
-  taskSnapshotText: string;
+  taskSnapshotText?: string;
   periodStart: string; // YYYY-MM-DD
   periodEnd: string;   // YYYY-MM-DD
   targetPercent?: number;
@@ -181,7 +181,7 @@ export interface ProgressSnapshot {
 
 // --- Intention System (Fase 3) ---
 
-export type IntentionScale = 'cycle' | 'quarter' | 'year';
+export type IntentionScale = 'phase' | 'cycle' | 'quarter' | 'year';
 
 export interface IntentionItem {
   id: string;                    // 'ii_{timestamp}_{random7}'
@@ -204,6 +204,18 @@ export interface IntentionItem {
   targetCount?: number;          // Meta cuantitativa total (ej. 500)
   unitLabel?: string;            // Unidad (ej. "páginas", "capítulos", "módulos")
   // 'completion' no necesita campos extra — se lee completed del task/proyecto o progreso de subtareas
+}
+
+export interface CounterProgressEntry {
+  id: string;
+  date: string;
+  delta: number;
+  createdAt: string;
+}
+
+export interface IntentionItem {
+  /** Dated increments used to calculate daily and weekly counter progress. */
+  counterEntries?: CounterProgressEntry[];
 }
 
 export interface LinkedItem {
