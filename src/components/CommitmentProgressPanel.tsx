@@ -10,6 +10,8 @@ interface Props {
   description?: string;
   collapsible?: boolean;
   onSelectAction?: (task: AppTask) => void;
+  className?: string;
+  titleClassName?: string;
 }
 
 function typeLabel(type: CommitmentPeriodSummary['targetType']): string {
@@ -19,7 +21,7 @@ function typeLabel(type: CommitmentPeriodSummary['targetType']): string {
   return 'Cumplimiento';
 }
 
-export default function CommitmentProgressPanel({ summaries, title, description, collapsible = false, onSelectAction }: Props) {
+export default function CommitmentProgressPanel({ summaries, title, description, collapsible = false, onSelectAction, className, titleClassName }: Props) {
   const [isOpen, setIsOpen] = React.useState(true);
   const panelId = React.useId();
   const titleId = `${panelId}-title`;
@@ -27,13 +29,13 @@ export default function CommitmentProgressPanel({ summaries, title, description,
   if (summaries.length === 0) return null;
 
   return (
-    <section aria-labelledby={titleId} className="border-b border-border-line/30 pb-6">
-      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <section aria-labelledby={titleId} className={cn('border-b border-border-line/30 pb-6', className)}>
+      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           {collapsible ? (
             <button
               type="button"
-              className="inline-flex items-center gap-2 border-0 bg-transparent p-0 text-left text-subtitle text-text-main hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className={cn('inline-flex items-center gap-2 border-0 bg-transparent p-0 text-left text-subtitle text-text-main hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary', titleClassName)}
               aria-expanded={isOpen}
               aria-controls={contentId}
               onClick={() => setIsOpen(open => !open)}
@@ -43,7 +45,7 @@ export default function CommitmentProgressPanel({ summaries, title, description,
               <span id={titleId}>{title}</span>
             </button>
           ) : (
-            <h3 id={titleId} className="text-subtitle flex items-center gap-2">
+            <h3 id={titleId} className={cn('text-subtitle flex items-center gap-2', titleClassName)}>
               <Target className="h-4 w-4 text-primary" /> {title}
             </h3>
           )}
@@ -59,7 +61,7 @@ export default function CommitmentProgressPanel({ summaries, title, description,
         onSelectAction ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
       )}>
         {summaries.map(summary => (
-          <article key={summary.id} className="border border-border-line/35 bg-base px-4 py-3">
+          <article key={summary.id} className="border-b border-border-line/35 px-1 py-3 first:border-t first:border-border-line/20">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="truncate text-sm font-medium text-text-main" title={summary.title}>{summary.title}</h4>
@@ -75,7 +77,7 @@ export default function CommitmentProgressPanel({ summaries, title, description,
               {summary.secondaryValue && <span>{summary.secondaryValue}</span>}
             </div>
             <div
-              className="mt-1.5 h-1.5 overflow-hidden bg-base-dim/50"
+              className="mt-1.5 h-1 overflow-hidden bg-border-line/25"
               role="progressbar"
               aria-label={`${summary.period === 'week' ? 'Avance semanal' : 'Avance de hoy'} de ${summary.title}`}
               aria-valuetext={`${summary.percent}% ${summary.period === 'week' ? 'de la semana' : 'de hoy'}`}
@@ -84,7 +86,7 @@ export default function CommitmentProgressPanel({ summaries, title, description,
               aria-valuenow={summary.percent}
             >
               <div
-                className={cn('h-full transition-all duration-300', summary.percent >= 100 ? 'bg-emerald-600' : 'bg-primary/80')}
+                className={cn('h-full transition-all duration-300', summary.percent >= 100 ? 'bg-emerald-600/80' : 'bg-primary/75')}
                 style={{ width: `${summary.percent}%` }}
               />
             </div>

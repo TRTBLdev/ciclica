@@ -28,6 +28,7 @@ import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import { buildDedicationAreaWheel } from '../domain/areaWheel';
 import AreaWheelChart from './AreaWheelChart';
+import DailyFocusLineChart from './DailyFocusLineChart';
 
 interface Props {
   config: Config | null;
@@ -1001,44 +1002,12 @@ SORT date DESC
           ) : (
             <div className="flex flex-col gap-4 mt-2">
               {/* Graphic container */}
-              <div className="h-44 w-full flex items-end gap-[3%] sm:gap-[5%] px-2 border-b border-border-line/30 pb-1 pt-4 overflow-x-auto no-scrollbar">
-                {stats.dailySeries.map((d, idx) => {
-                  const maximumHrsInSeries = Math.max(...stats.dailySeries.map(x => x.hours), 1.0);
-                  const normalizedPercentage = Math.min(85, Math.max(4, (d.hours / maximumHrsInSeries) * 80));
-
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full min-w-[24px]">
-                      {/* Bar and trigger value box */}
-                      <div className="flex-1 w-full flex items-end justify-center relative group">
-                        {/* Hover tag overlay details */}
-                        <div className="absolute bottom-full mb-1 bg-[var(--color-text-main)] text-[var(--color-base)] rounded px-1.5 py-0.5 text-xs font-bold opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-10 whitespace-nowrap shadow-md">
-                          {d.hours} h ({d.count} u)
-                        </div>
-                        {/* Interactive dynamic bar */}
-                        <div
-                          style={{ height: `${normalizedPercentage}%` }}
-                          className={cn(
-                            "w-full rounded-t transition-all duration-300",
-                            d.hours > 0
-                              ? "bg-[var(--color-primary)] hover:brightness-110 shadow-sm"
-                              : "bg-base-dim"
-                          )}
-                        />
-                      </div>
-
-                      {/* Quick bottom label */}
-                      <span className="text-[9px] font-mono font-medium text-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
-                        {d.dateLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <DailyFocusLineChart data={stats.dailySeries} />
 
               {/* Legend details */}
               <div className="flex items-center gap-4 text-xs text-text-dim flex-wrap justify-end font-medium">
                 <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded bg-[var(--color-primary)]" /> Tiempo Invertido (&gt;0 h)
+                  <span className="h-2.5 w-2.5 rounded-full border border-primary bg-base" /> Tiempo invertido por día
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded bg-base-dim" /> Sin Registro Activo

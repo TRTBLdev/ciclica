@@ -583,6 +583,8 @@ export default function AgendaView({ config, tasks, history = [], intentions = [
         title="Compromisos de la semana"
         collapsible
         description="Ejecución de los compromisos trimestrales dentro de la semana visible."
+        className="px-4 md:px-6"
+        titleClassName="text-[10px] font-mono font-bold uppercase tracking-widest text-text-main"
       />
 
       {/* Unified Weekly Pending Banner (Single row for the whole week) */}

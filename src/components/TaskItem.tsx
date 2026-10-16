@@ -159,6 +159,8 @@ export default function TaskItem({
   const [newChecklistItemText, setNewChecklistItemText] = useState('');
   const handleSave = () => { };
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isAddingRoutineHabit, setIsAddingRoutineHabit] = useState(false);
+  const [newRoutineHabitText, setNewRoutineHabitText] = useState('');
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCheckboxHovered, setIsCheckboxHovered] = useState(false);
@@ -359,6 +361,9 @@ export default function TaskItem({
   const childTargetReached = !!parentRoutine && childCycleCount >= childCycleTarget;
   const occurrenceIsAvailable = !parentRoutine || !childCompletedThisAppearance;
   const routineProgress = task.type === 'Rutina' ? getRoutineCycleProgressFromHistory(task, allTasks, history || []) : 0;
+  const navigateToLocation = context === 'today' && onNavigate && (task.type === 'Rutina' || task.type === 'Proyecto')
+    ? () => onNavigate(task.type === 'Rutina' ? 'rutinas' : 'proyectos', task.id)
+    : undefined;
   const canToggleRoutine = task.type === 'Rutina'
     && isRoutineReadyToClose(task, allTasks, history || [], []);
   const isCompletedVisual = parentRoutine ? childCompletedThisAppearance : task.completed;
@@ -603,6 +608,9 @@ export default function TaskItem({
         canMoveUp={effectiveCanMoveUp}
         canMoveDown={effectiveCanMoveDown}
         commitmentLabels={commitmentLabels}
+        onNavigateToLocation={navigateToLocation}
+        onAddTask={onAddTask}
+        allowInlineChild={context === 'today'}
       >
         <ul className="m-0 list-none space-y-1 p-0" aria-label={`Tareas pendientes de ${task.text}`}>
           {getSubtasksWithOrders().map(sub => (
@@ -1015,21 +1023,26 @@ export default function TaskItem({
           ) : (
             <>
               <div className="flex items-center gap-3 flex-wrap mb-2 text-left w-full">
-                <p
+                <button
+                  type="button"
                   onClick={() => {
+                    if (navigateToLocation) {
+                      navigateToLocation();
+                      return;
+                    }
                     if (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) {
                       onStartTimer(task.id);
                     }
                   }}
                   className={cn(
-                    "text-base flex-1 min-w-0 break-words flex items-center gap-2 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
+                    "border-0 bg-transparent p-0 text-left text-base flex-1 min-w-0 break-words flex items-center gap-2 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
                     isCompletedVisual ? "text-text-dim opacity-55 line-through decoration-[var(--color-text-dim)]/50" : "text-text-main font-normal",
-                    (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "cursor-pointer hover:text-primary transition-colors" : ""
+                    (navigateToLocation || (task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id)) ? "cursor-pointer hover:text-primary transition-colors" : ""
                   )}
-                  title={(task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined}
+                  title={navigateToLocation ? `Abrir ${task.text} en Rutinas` : ((task.type !== 'Rutina' && task.type !== 'Pulso' && !locked && occurrenceIsAvailable && !childTargetReached && !isCompletedVisual && (!isActualSubtask || task.type === 'Hábito') && onStartTimer && activeTimer?.taskId !== task.id) ? "Hacer clic para iniciar tracker ⏱️" : undefined)}
                 >
                   <span>{task.text}</span>
-                </p>
+                </button>
                 {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
                 {commitmentLabels.length > 0 && (
                   <span
@@ -1333,6 +1346,52 @@ export default function TaskItem({
               {nextAppearanceDate && !isProjectChild && <span>Próxima aparición: {formatRelativeCalendarDate(nextAppearanceDate)}</span>}
               {task.type !== 'Tarea' && task.fechaLimite && <span>Fecha límite: {formatRelativeCalendarDate(task.fechaLimite)}</span>}
             </div>
+          )}
+
+          {context === 'today' && task.type === 'Rutina' && onAddTask && (
+            isAddingRoutineHabit ? (
+              <form
+                onSubmit={event => {
+                  event.preventDefault();
+                  const text = newRoutineHabitText.trim();
+                  if (!text) return;
+                  onAddTask({
+                    userId: 'placeholder',
+                    text,
+                    type: 'Hábito',
+                    parentId: task.id,
+                    category: task.category,
+                    subCategory: task.subCategory,
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    objetivoPorCiclo: 1,
+                  });
+                  setNewRoutineHabitText('');
+                  setIsAddingRoutineHabit(false);
+                }}
+                className="flex w-full items-center gap-3 border-b border-border-line/35 py-1"
+                aria-label={`Añadir hábito a ${task.text}`}
+              >
+                <input
+                  autoFocus
+                  value={newRoutineHabitText}
+                  onChange={event => setNewRoutineHabitText(event.target.value)}
+                  onBlur={() => { if (!newRoutineHabitText.trim()) setIsAddingRoutineHabit(false); }}
+                  placeholder="Nombre del nuevo hábito…"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-0 py-1 text-xs text-text-main outline-none placeholder:text-text-dim/70"
+                />
+                <button type="submit" disabled={!newRoutineHabitText.trim()} className="border-0 bg-transparent px-1 text-[10px] font-mono uppercase tracking-wider text-text-main disabled:opacity-35">Añadir</button>
+                <button type="button" onClick={() => setIsAddingRoutineHabit(false)} className="border-0 bg-transparent px-1 text-[10px] font-mono uppercase tracking-wider text-text-dim">Cancelar</button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingRoutineHabit(true)}
+                className="inline-flex items-center gap-2 border-0 bg-transparent py-1 text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              >
+                <Plus className="h-3.5 w-3.5" /> Añadir hábito
+              </button>
+            )
           )}
 
           <ItemDetails

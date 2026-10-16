@@ -385,8 +385,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 title={showFlowLogger ? 'Contraer registro de ciclo' : 'Expandir registro de ciclo'}
                 className="text-[10px] font-mono uppercase tracking-wider text-primary hover:text-text-main hover:underline flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none"
               >
-                <span>Registrar ciclo</span>
                 {showFlowLogger ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>Registrar ciclo</span>
               </button>
             )}
 
@@ -630,10 +630,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
               >
                 <span className="flex items-center gap-2">
+                  {showPulsos ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
                   <Activity className="w-4 h-4 text-emerald-500" /> Pulsos Diarios
-                </span>
-                <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal">
-                  {showPulsos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </span>
               </h3>
 
@@ -895,19 +893,12 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                   onClick={() => setShowLogs(!showLogs)}
                   className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
                 >
+                  {showLogs ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
                   <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Logs
                   <span className="text-[10px] font-mono text-text-dim font-normal ml-1">
                     ({mappedRecords.length} {mappedRecords.length === 1 ? 'registro' : 'registros'} · {hoursWorkedToday.toFixed(1)}h)
                   </span>
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowLogs(!showLogs)}
-                  aria-label={showLogs ? 'Contraer logs' : 'Expandir logs'}
-                  className="text-[11px] text-[#a2b29f] hover:text-text-main flex items-center gap-1 font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 outline-none"
-                >
-                  {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
               </div>
 
               {showLogs && (
@@ -970,6 +961,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 onClick={() => setShowTimeline(!showTimeline)}
                 className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
               >
+                {showTimeline ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
                 <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Línea de Tiempo
               </h3>
               <div className="flex items-center gap-4">
@@ -979,16 +971,6 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                   className="text-[10px] text-text-dim hover:text-text-main font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 underline underline-offset-4"
                 >
                   Configurar bloques
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTimeline(!showTimeline)}
-                  aria-label={showTimeline ? 'Contraer línea de tiempo' : 'Expandir línea de tiempo'}
-                  aria-expanded={showTimeline}
-                  title={showTimeline ? 'Contraer línea de tiempo' : 'Expandir línea de tiempo'}
-                  className="text-[11px] text-[#a2b29f] hover:text-text-main flex items-center gap-1 font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 outline-none"
-                >
-                  {showTimeline ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
@@ -1037,10 +1019,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 title={showFlexible ? 'Contraer tareas flexibles' : 'Expandir tareas flexibles'}
                 className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
               >
+                {showFlexible ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
                 <Inbox className="w-4 h-4 text-text-main silhouette-icon" /> Tareas Flexibles
-                <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
-                  {showFlexible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </span>
               </h3>
               <div className="flex items-center gap-2">
                 <SortDropdown
@@ -1115,10 +1095,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 title={showBacklog ? 'Contraer backlog' : 'Expandir backlog'}
                 className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
               >
+                {showBacklog ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
                 <Database className="w-4 h-4 text-text-main silhouette-icon" /> Backlog
-                <span className="text-[11px] text-[#a2b29f] group-hover:text-text-main transition-colors flex items-center gap-1 font-mono uppercase tracking-wider font-normal ml-2">
-                  {showBacklog ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </span>
               </h3>
               <div className="flex items-center gap-2">
                 <SortDropdown

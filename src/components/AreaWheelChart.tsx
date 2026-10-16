@@ -26,7 +26,7 @@ const COLOR_MAP: Record<string, string> = {
   cyan: '#06b6d4',
 };
 
-const FALLBACK_COLORS = ['#3f8f68', '#c27150', '#64748b', '#b58b3d', '#6e78a8', '#7c5b8f'];
+const FALLBACK_COLORS = ['#6d947e', '#a98270', '#7d8994', '#a18d62', '#8187a0', '#927ca0'];
 
 function pointAt(cx: number, cy: number, radius: number, angle: number, score = 100) {
   const scaledRadius = radius * Math.max(0, Math.min(100, score)) / 100;
@@ -45,7 +45,8 @@ function pointsFor(data: AreaWheelDatum[], cx: number, cy: number, radius: numbe
 }
 
 function getAreaColor(area: string, index: number, areaColors?: Record<string, string>) {
-  return COLOR_MAP[areaColors?.[area] || ''] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  const configured = COLOR_MAP[areaColors?.[area] || ''] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  return `color-mix(in srgb, ${configured} 42%, var(--color-text-main) 58%)`;
 }
 
 function DataLegend({ data, areaColors, highlightedArea }: Pick<AreaWheelChartProps, 'data' | 'areaColors' | 'highlightedArea'>) {
@@ -120,9 +121,9 @@ export default function AreaWheelChart({
                 </span>
                 <span className="shrink-0">{item.valueLabel}</span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-border-line/20">
+              <div className="h-1 overflow-hidden bg-border-line/20">
                 <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  className="h-full bg-accent/75 transition-all duration-300"
                   style={{ width: `${item.score}%`, opacity: item.hasData ? 1 : 0.25 }}
                 />
               </div>
@@ -175,11 +176,12 @@ export default function AreaWheelChart({
                 {hasData && (
                   <polygon
                     points={pointsFor(data, 0, 0, 112, item => item.score)}
-                    fill="var(--color-primary)"
-                    fillOpacity="0.16"
-                    stroke="var(--color-primary)"
-                    strokeWidth="2"
+                    fill="var(--color-accent)"
+                    stroke="var(--color-accent)"
+                    strokeWidth="1.2"
                     strokeLinejoin="round"
+                    strokeOpacity="0.8"
+                    fillOpacity="0.1"
                   />
                 )}
                 {data.map((item, index) => {
@@ -190,7 +192,7 @@ export default function AreaWheelChart({
                       key={item.area}
                       cx={point.x}
                       cy={point.y}
-                      r={highlightedArea === item.area ? 4 : 3}
+                      r={highlightedArea === item.area ? 3.5 : 2.5}
                       fill={getAreaColor(item.area, index, areaColors)}
                       stroke="var(--color-base)"
                       strokeWidth="1.5"

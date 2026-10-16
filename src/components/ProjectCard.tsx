@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config } from '../types';
-import { Target } from 'lucide-react';
+import { Plus, Target } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatRelativeCalendarDate } from '../domain/appearance';
 import { ProjectPresentation } from '../domain/projectPresentation';
@@ -41,6 +41,9 @@ interface Props {
   completedSection?: React.ReactNode;
   className?: string;
   commitmentLabels?: string[];
+  onNavigateToLocation?: () => void;
+  onAddTask?: (task: Omit<AppTask, 'id'>) => void;
+  allowInlineChild?: boolean;
 }
 
 function FolderIcon({ completed = false }: { completed?: boolean }) {
@@ -241,7 +244,12 @@ export default function ProjectCard({
   completedSection,
   className,
   commitmentLabels = [],
+  onNavigateToLocation,
+  onAddTask,
+  allowInlineChild = false,
 }: Props) {
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskText, setNewTaskText] = useState('');
   const isStrategy = variant === 'strategy';
   const isBacklog = variant === 'backlog';
   const pausedCount = presentation.pausedCount || 0;
@@ -281,7 +289,13 @@ export default function ProjectCard({
         <section className="min-w-0 flex-1 text-left">
           <section className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h3 className={cn('min-w-0 text-base font-medium text-text-main', project.completed && 'line-through')}>
-              <button type="button" onClick={onToggleExpanded} aria-expanded={expanded} className="border-0 bg-transparent p-0 text-left text-inherit">
+              <button
+                type="button"
+                onClick={onNavigateToLocation || onToggleExpanded}
+                aria-expanded={onNavigateToLocation ? undefined : expanded}
+                className="border-0 bg-transparent p-0 text-left text-inherit hover:text-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                title={onNavigateToLocation ? `Abrir ${project.text} en Proyectos` : undefined}
+              >
                 {project.text}
               </button>
             </h3>
@@ -393,6 +407,52 @@ export default function ProjectCard({
                 <EnergySummary presentation={presentation} />
               </li>
             </ul>
+          )}
+
+          {allowInlineChild && onAddTask && (
+            isAddingTask ? (
+              <form
+                onSubmit={event => {
+                  event.preventDefault();
+                  const text = newTaskText.trim();
+                  if (!text) return;
+                  onAddTask({
+                    userId: 'placeholder',
+                    text,
+                    type: 'Tarea',
+                    parentId: project.id,
+                    category: project.category,
+                    subCategory: project.subCategory,
+                    completed: false,
+                    allocationType: 'growth',
+                    createdAt: new Date().toISOString(),
+                  });
+                  setNewTaskText('');
+                  setIsAddingTask(false);
+                }}
+                className="mb-3 flex w-full items-center gap-3 border-b border-border-line/35 py-1"
+                aria-label={`Añadir tarea a ${project.text}`}
+              >
+                <input
+                  autoFocus
+                  value={newTaskText}
+                  onChange={event => setNewTaskText(event.target.value)}
+                  onBlur={() => { if (!newTaskText.trim()) setIsAddingTask(false); }}
+                  placeholder="Nombre de la nueva tarea…"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-0 py-1 text-xs text-text-main outline-none placeholder:text-text-dim/70"
+                />
+                <button type="submit" disabled={!newTaskText.trim()} className="border-0 bg-transparent px-1 text-[10px] font-mono uppercase tracking-wider text-text-main disabled:opacity-35">Añadir</button>
+                <button type="button" onClick={() => setIsAddingTask(false)} className="border-0 bg-transparent px-1 text-[10px] font-mono uppercase tracking-wider text-text-dim">Cancelar</button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingTask(true)}
+                className="mb-3 inline-flex items-center gap-2 border-0 bg-transparent py-1 text-[10px] font-mono uppercase tracking-wider text-text-dim hover:text-text-main focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              >
+                <Plus className="h-3.5 w-3.5" /> Añadir tarea
+              </button>
+            )
           )}
 
           {presentation.pendingCount === 0 && !isStrategy ? (
