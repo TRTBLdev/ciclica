@@ -26,6 +26,8 @@ import { cn } from '../lib/utils';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
 import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 import { formatDateOnly } from '../domain/recurrenceProgress';
+import { buildDedicationAreaWheel } from '../domain/areaWheel';
+import AreaWheelChart from './AreaWheelChart';
 
 interface Props {
   config: Config | null;
@@ -535,6 +537,18 @@ export default function ReportesView({ config, tasks, history, intentions = [] }
       dailySeries
     };
   }, [filteredHistory, tasks, periodRange]);
+
+  const dedicationAreaWheel = useMemo(() => buildDedicationAreaWheel(
+    config,
+    tasks,
+    history,
+    formatDateOnly(periodRange.start),
+    formatDateOnly(periodRange.end),
+  ), [config, tasks, history, periodRange]);
+
+  const areaColors = Object.fromEntries(
+    Object.entries(config?.areas || {}).map(([area, value]) => [area, typeof value === 'string' ? value : value.color]),
+  );
 
   const cyclicalBreakdown = useMemo(() => {
     const phases: Record<BiologicalPhase, { fixed: number; growth: number; total: number }> = {
@@ -1082,71 +1096,35 @@ SORT date DESC
         </div>
       </div>
 
-      {/* CORE AREAS TIME DISTRIBUTION BAR */}
+      {/* CORE AREAS TIME DISTRIBUTION */}
       <div className="bg-transparent py-6 border-b border-border-line/50 flex flex-col gap-4">
         <div className="flex items-center justify-between border-b border-border-line/20 pb-3">
           <div>
             <h3 className="text-sm font-medium text-text-main flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-accent" />
-              Sinfonía de Horas por Áreas de Enfoque
+              Balance de dedicación por áreas
             </h3>
-            <p className="text-xs text-text-dim font-medium">Inversión proporcional total por área y categoría macro</p>
+            <p className="text-xs text-text-dim font-medium">Comparación relativa de horas reales del intervalo seleccionado</p>
           </div>
           <span className="bg-base-dim border border-border-line/50 text-text-main text-[10px] font-mono uppercase tracking-wide px-2 py-0.5 rounded shrink-0">
-            {Object.keys(stats.areaHours).length} Áreas
+            {dedicationAreaWheel.data.length} Áreas
           </span>
         </div>
 
-        {Object.keys(stats.areaHours).length === 0 ? (
-          <div className="py-12 text-center flex flex-col items-center justify-center opacity-40">
-            <Compass className="w-8 h-8 text-text-dim mb-1" />
-            <p className="text-text-dim font-medium text-xs">No hay registros clasificados por macro áreas en este intervalo</p>
-          </div>
-        ) : (
+        <AreaWheelChart
+          title="Balance de dedicación"
+          description="La forma compara cada área con la de mayor dedicación del período; las etiquetas conservan las horas y el porcentaje real del total."
+          scaleLabel="escala relativa · máximo = 100"
+          data={dedicationAreaWheel.data}
+          areaColors={areaColors}
+          highlightedArea={areaFilter === 'Todas' ? undefined : areaFilter}
+          emptyMessage="No hay registros de tiempo en este intervalo."
+          unassignedLabel={dedicationAreaWheel.unassignedHours > 0
+            ? `${dedicationAreaWheel.unassignedHours.toFixed(1)} h en ${dedicationAreaWheel.unassignedCount} ${dedicationAreaWheel.unassignedCount === 1 ? 'registro' : 'registros'} sin área configurada.`
+            : undefined}
+        />
+
           <div className="flex flex-col gap-4">
-
-            {/* Visual stacked timeline bar */}
-            <div className="w-full h-3 bg-base-dim rounded-full flex overflow-hidden border border-border-line/50">
-              {(Object.entries(stats.areaHours) as [string, number][]).map(([area, hrs], idx) => {
-                const percentage = stats.totalHours > 0 ? (hrs / stats.totalHours) * 100 : 0;
-                if (percentage === 0) return null;
-
-                const areaConfig = config?.areas?.[area];
-                const cleanColorName = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-
-                const colorBgMap: Record<string, string> = {
-                  'emerald': 'bg-emerald-500',
-                  'green': 'bg-green-500',
-                  'indigo': 'bg-indigo-500',
-                  'blue': 'bg-blue-500',
-                  'orange': 'bg-orange-500',
-                  'amber': 'bg-amber-500',
-                  'purple': 'bg-purple-500',
-                  'pink': 'bg-pink-500',
-                  'rose': 'bg-rose-500',
-                  'violet': 'bg-violet-500',
-                  'red': 'bg-red-500',
-                  'slate': 'bg-slate-500'
-                };
-                const bgClass = colorBgMap[cleanColorName] || 'bg-slate-500';
-
-                return (
-                  <div
-                    key={area}
-                    style={{ width: `${percentage}%` }}
-                    className={cn("h-full hover:brightness-105 transition-all cursor-pointer relative group", bgClass)}
-                    title={`${area}: ${hrs.toFixed(1)}h (${Math.round(percentage)}%)`}
-                  >
-                    {/* Hover tooltip */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 bg-[var(--color-text-main)] text-[var(--color-base)] rounded text-xs px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 font-bold whitespace-nowrap shadow-md pointer-events-none">
-                      {area}: {hrs.toFixed(1)}h ({Math.round(percentage)}%)
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Area Grid Details */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
               {(Object.entries(stats.areaHours) as [string, number][]).map(([area, hrs]) => {
                 const percentage = stats.totalHours > 0 ? (hrs / stats.totalHours) * 100 : 0;
@@ -1196,7 +1174,6 @@ SORT date DESC
             </div>
 
           </div>
-        )}
       </div>
 
       {/* FREQUENT RECORDS & SESSIONS INSIGHTS FEED */}

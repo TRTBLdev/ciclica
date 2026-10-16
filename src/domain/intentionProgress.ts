@@ -1,12 +1,30 @@
 import { AppTask, HistoryRecord, IntentionItem, Intention, LinkedItem, ProgressSnapshot } from '../types';
-import { getHistoryDateKey, getProjectTaskIds } from './workTracking';
+import { getHistoryDateKey, getProjectForTask, getProjectTaskIds } from './workTracking';
 import { formatDateOnly, getCalendarCycleRange, parseDateOnly } from './recurrenceProgress';
 import { getHabitResultsInRange, getRoutineCycleProgress, getSnapshotResolvedAt } from './occurrenceResults';
+import { getProjectPresentation } from './projectPresentation';
 
 export type AreaCommitment = {
   intention: Intention;
   item: IntentionItem;
 };
+
+function getTaskArea(task: AppTask, tasks: AppTask[]): string | undefined {
+  const project = getProjectForTask(task.id, tasks);
+  if (project?.category) return project.category;
+  if (task.category) return task.category;
+
+  const visited = new Set<string>();
+  let parentId = task.parentId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = tasks.find(candidate => candidate.id === parentId);
+    if (!parent) return undefined;
+    if (parent.category) return parent.category;
+    parentId = parent.parentId;
+  }
+  return undefined;
+}
 
 export const INTENTION_SCALE_LABELS = {
   cycle: 'Ciclo',
@@ -64,10 +82,10 @@ export function getTaskIdsForItem(item: IntentionItem, tasks: AppTask[]): string
   if (item.areaName) {
     if (item.subCategory) {
       return tasks
-        .filter(t => t.category === item.areaName && t.subCategory === item.subCategory)
+        .filter(t => getTaskArea(t, tasks) === item.areaName && t.subCategory === item.subCategory)
         .map(t => t.id);
     }
-    return tasks.filter(t => t.category === item.areaName).map(t => t.id);
+    return tasks.filter(t => getTaskArea(t, tasks) === item.areaName).map(t => t.id);
   }
   return [];
 }
@@ -271,22 +289,38 @@ export function calculateConsistencyProgress(
 }
 
 export function calculateCompletionProgress(item: IntentionItem, tasks: AppTask[]) {
-  if (item.taskId) {
-    const task = tasks.find(t => t.id === item.taskId);
+  const linkedTaskId = item.taskId || item.projectId;
+  if (linkedTaskId) {
+    const task = tasks.find(t => t.id === linkedTaskId);
+    if (task?.type === 'Proyecto' || item.projectId) {
+      const presentation = task ? getProjectPresentation(task, tasks) : undefined;
+      const total = presentation?.totalCount || 0;
+      const completed = presentation?.completedCount || 0;
+      const isDone = presentation ? presentation.progress === 100 : false;
+      return {
+        completed: isDone,
+        current: total > 0 ? completed : isDone ? 1 : 0,
+        target: total > 0 ? total : 1,
+        percent: presentation?.progress || 0,
+        unit: total > 0 ? 'tareas' : '',
+        taskName: task?.text || 'Proyecto'
+      };
+    }
     return {
       completed: !!task?.completed,
+      current: task?.completed ? 1 : 0,
+      target: 1,
+      percent: task?.completed ? 100 : 0,
+      unit: '',
       taskName: task?.text || 'Tarea no encontrada'
-    };
-  }
-  if (item.projectId) {
-    const project = tasks.find(t => t.id === item.projectId);
-    return {
-      completed: !!project?.completed,
-      taskName: project?.text || 'Proyecto no encontrado'
     };
   }
   return {
     completed: false,
+    current: 0,
+    target: 1,
+    percent: 0,
+    unit: '',
     taskName: 'Sin vinculación'
   };
 }
@@ -303,7 +337,7 @@ export function calculateItemProgress(
   type: 'hours' | 'consistency' | 'completion' | 'counter';
   hours?: { current: number; target: number; percent: number; weeklyHours?: number; pacing?: 'weekly' | 'total' };
   consistency?: ConsistencyProgressResult;
-  completion?: { completed: boolean; taskName: string };
+  completion?: { completed: boolean; current: number; target: number; percent: number; unit: string; taskName: string };
   counter?: { current: number; target: number; percent: number; unit: string; hoursSpent: number; isDone: boolean };
 } {
   // Find all child items linked to this parent item across all intentions
@@ -394,6 +428,10 @@ export function calculateItemProgress(
         type: 'completion',
         completion: {
           completed,
+          current: completedCount,
+          target: childLinks.length,
+          percent: childLinks.length > 0 ? Math.round((completedCount / childLinks.length) * 100) : 0,
+          unit: 'compromisos',
           taskName: item.projectId 
             ? (tasks.find(t => t.id === item.projectId)?.text || 'Proyecto')
             : (tasks.find(t => t.id === item.taskId)?.text || 'Tarea')
@@ -459,11 +497,14 @@ export function summarizeIntentionProgress(progress: ReturnType<typeof calculate
     };
   }
 
-  const completed = progress.completion?.completed || false;
+  const completion = progress.completion;
+  const completed = completion?.completed || false;
   return {
     typeLabel: 'Cumplimiento',
-    value: completed ? '1 / 1' : '0 / 1',
-    compactValue: completed ? '1/1' : '0/1',
-    percent: completed ? 100 : 0
+    value: completion
+      ? `${completion.current} / ${completion.target}${completion.unit ? ` ${completion.unit}` : ''}`
+      : completed ? '1 / 1' : '0 / 1',
+    compactValue: completion ? `${completion.current}/${completion.target}` : completed ? '1/1' : '0/1',
+    percent: completion?.percent ?? (completed ? 100 : 0)
   };
 }

@@ -35,7 +35,10 @@ interface Props {
   tasks: AppTask[];
   history: HistoryRecord[];
   progressSnapshots: ProgressSnapshot[];
+  initialTrackingView?: TrackingView;
 }
+
+type TrackingView = '30days' | 'annual';
 
 interface RoutineGroup {
   routine: AppTask;
@@ -70,7 +73,9 @@ function formatShortDate(value?: string) {
   return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
-export default function SeguimientoView({ config, tasks, history, progressSnapshots }: Props) {
+export default function SeguimientoView({
+  config, tasks, history, progressSnapshots, initialTrackingView = '30days',
+}: Props) {
   void config;
   const today = new Date();
   const days = getRecentDates(30, today).reverse();
@@ -79,7 +84,7 @@ export default function SeguimientoView({ config, tasks, history, progressSnapsh
     && (task.type === 'Hábito' || (task.type === 'Rutina' && isRoutineConfigured(task))));
   const allHabitsRoutines = buildRoutineGroups(trackable, () => true);
   const year = today.getFullYear();
-  const [trackingView, setTrackingView] = useState<'30days' | 'annual'>('30days');
+  const [trackingView, setTrackingView] = useState<TrackingView>(initialTrackingView);
   const [expandedRoutines, setExpandedRoutines] = useState<Set<string>>(() => new Set());
   const toggleRoutine = (routineId: string) => {
     setExpandedRoutines(previous => {

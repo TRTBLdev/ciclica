@@ -52,9 +52,7 @@ describe('recurring tracking presentation', () => {
     const markup = renderToStaticMarkup(
       <SeguimientoView config={null} tasks={[currentHabit]} history={history} progressSnapshots={[snapshot({})]} />,
     );
-    expect(markup).toContain('data-result="partial-planned"');
-    expect(markup).toContain('data-activity="true"');
-    expect(markup).toContain('parcial en fecha, 50%');
+    expect(markup).toContain(`aria-label="${today}: parcial, 50%, con actividad" title="${today}: parcial, 50%, con actividad" data-result="partial" data-activity="true"`);
   });
 
   it('does not infer a missed result before an open occurrence expires', () => {
@@ -84,6 +82,7 @@ describe('recurring tracking presentation', () => {
         tasks={[monthlyHabit]}
         history={[]}
         progressSnapshots={[snapshot({ progressPercent: 60 })]}
+        initialTrackingView="annual"
       />,
     );
     expect(markup).toContain('60%');

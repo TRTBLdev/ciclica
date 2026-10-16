@@ -24,7 +24,9 @@ import { cn } from '../lib/utils';
 import { formatLocalDate, parseLocalDate, findIntentionForPeriod } from '../domain/periodUtils';
 import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 import { calculateItemProgress } from '../domain/intentionProgress';
+import { buildIntentionAreaWheel } from '../domain/areaWheel';
 import DedicationChart from './DedicationChart';
+import AreaWheelChart from './AreaWheelChart';
 
 interface Props {
   config: Config | null;
@@ -459,26 +461,14 @@ export default function IntencionesPanelView({
 
     if (prog.type === 'completion' && prog.completion) {
       const cmp = prog.completion;
-      if (item.projectId && !item.taskId) {
-        const subtasks = tasks.filter(t => t.parentId === item.projectId);
-        const completed = subtasks.filter(t => t.completed).length;
-        const total = subtasks.length;
-        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-        return {
-          current: completed,
-          target: total,
-          unit: 'tareas',
-          label: total > 0 ? `${completed}/${total} tareas (${percent}%)` : 'Sin subtareas',
-          percentProgress: percent,
-          isDone: total > 0 && completed === total
-        };
-      }
       return {
-        current: cmp.completed ? 1 : 0,
-        target: 1,
-        unit: '',
-        label: cmp.completed ? 'Completado' : 'Pendiente',
-        percentProgress: cmp.completed ? 100 : 0,
+        current: cmp.current,
+        target: cmp.target,
+        unit: cmp.unit,
+        label: cmp.target > 1
+          ? `${cmp.current}/${cmp.target} ${cmp.unit} (${cmp.percent}%)`
+          : cmp.completed ? 'Completado' : 'Pendiente',
+        percentProgress: cmp.percent,
         isDone: cmp.completed
       };
     }
@@ -488,6 +478,18 @@ export default function IntencionesPanelView({
 
   // Year intention
   const yearIntention = getIntention('year', yearStart, yearEnd);
+  const selectedIntention = getIntention(selectedPeriod.scale, selectedPeriod.start, selectedPeriod.end);
+  const intentionAreaWheel = buildIntentionAreaWheel(
+    config,
+    selectedIntention,
+    tasks,
+    history,
+    intentions,
+    progressSnapshots,
+  );
+  const areaColors = Object.fromEntries(
+    Object.entries(config?.areas || {}).map(([area, value]) => [area, typeof value === 'string' ? value : value.color]),
+  );
 
   return (
     <div className="space-y-8 pb-20">
@@ -1459,6 +1461,18 @@ export default function IntencionesPanelView({
               </span>
             </div>
           </div>
+
+          <AreaWheelChart
+            title="Avance de áreas"
+            description="Promedio del avance normalizado de los compromisos del período seleccionado. Las áreas sin compromisos permanecen visibles."
+            scaleLabel="0–100 · promedio de compromisos"
+            data={intentionAreaWheel.data}
+            areaColors={areaColors}
+            emptyMessage="No hay compromisos en el período seleccionado."
+            unassignedLabel={intentionAreaWheel.unassignedCount > 0
+              ? `${intentionAreaWheel.unassignedCount} ${intentionAreaWheel.unassignedCount === 1 ? 'compromiso' : 'compromisos'} sin área configurada.`
+              : undefined}
+          />
 
           {/* Render DedicationChart for the selected period */}
           <DedicationChart
