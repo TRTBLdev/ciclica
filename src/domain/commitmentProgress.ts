@@ -19,6 +19,8 @@ export type CommitmentAction = {
   completedOccurrences: number;
 };
 
+export type CommitmentTone = 'success' | 'danger' | 'in-progress' | 'neutral';
+
 export type CommitmentPeriodSummary = CommitmentContext & {
   id: string;
   period: 'day' | 'week';
@@ -32,6 +34,7 @@ export type CommitmentPeriodSummary = CommitmentContext & {
   completedOccurrences: number;
   counterDelta: number;
   percent: number;
+  tone: CommitmentTone;
   displayValue: string;
   secondaryValue?: string;
 };
@@ -63,6 +66,52 @@ function dateRange(start: string, end: string): string[] {
     cursor.setDate(cursor.getDate() + 1);
   }
   return result;
+}
+
+export function computeWeeklyTone(
+  percent: number,
+  weekStart: string,
+  weekEnd: string,
+  refDate: string,
+  plannedDays?: number,
+  completedDays?: number,
+): CommitmentTone {
+  if (percent >= 100) return 'success';
+
+  if (refDate < weekStart) {
+    return percent > 0 ? 'in-progress' : 'neutral';
+  }
+
+  const effectiveDateStr = refDate <= weekEnd ? refDate : weekEnd;
+  const effectiveDate = parseDateOnly(effectiveDateStr);
+  const day = effectiveDate.getDay();
+  const dayNumber = day === 0 ? 7 : day;
+  const daysRemaining = 7 - dayNumber + 1;
+  const isLateWeek = dayNumber >= 5;
+
+  if (plannedDays !== undefined && completedDays !== undefined && plannedDays > 0) {
+    const neededDays = plannedDays - completedDays;
+    if (neededDays > daysRemaining) {
+      return 'danger';
+    }
+  }
+
+  if (isLateWeek && percent < 20) {
+    return 'danger';
+  }
+
+  if (percent > 0) return 'in-progress';
+  return 'neutral';
+}
+
+export function computeDailyTone(
+  dayPercent: number,
+  weeklyTone?: CommitmentTone,
+): CommitmentTone {
+  if (dayPercent >= 100) return 'success';
+  if (weeklyTone === 'danger') return 'danger';
+  if (dayPercent > 0) return 'in-progress';
+  return 'neutral';
 }
 
 function taskIdsForAction(task: AppTask, tasks: AppTask[]): string[] {
@@ -196,6 +245,7 @@ function buildSummary(
   start: string,
   end: string,
   mode: 'day' | 'week',
+  refDate: string = formatDateOnly(new Date()),
 ): CommitmentPeriodSummary | null {
   const actions = actionsForCommitment(context, tasks, history, snapshots, start, end);
   const counterDelta = context.item.targetType === 'counter'
@@ -215,6 +265,9 @@ function buildSummary(
   let percent = 0;
   let displayValue = '';
   let secondaryValue: string | undefined;
+  let plannedDays: number | undefined;
+  let completedDays: number | undefined;
+  const isHabits = actions.some(action => action.task.type === 'Hábito');
 
   if (context.item.targetType === 'hours') {
     const target = weeklyTarget || plannedHours;
@@ -236,12 +289,64 @@ function buildSummary(
     displayValue = `+${counterDelta} ${unit}`;
     secondaryValue = plannedOccurrences > 0 ? `${completedOccurrences}/${plannedOccurrences} acciones` : undefined;
   } else {
-    percent = plannedOccurrences > 0
-      ? Math.min(100, Math.round((completedOccurrences / plannedOccurrences) * 100))
-      : 0;
-    displayValue = context.item.targetType === 'consistency'
-      ? `${completedOccurrences} / ${plannedOccurrences} ocurrencias`
-      : `${completedOccurrences} / ${plannedOccurrences} acciones`;
+    const unitLabel = isHabits
+      ? (plannedOccurrences === 1 ? 'hábito' : 'hábitos')
+      : (plannedOccurrences === 1 ? 'acción' : 'acciones');
+
+    if (mode === 'week' && context.item.targetType === 'consistency' && isHabits) {
+      // Indicador en la agenda semanal para hábitos/rutinas
+      const days = dateRange(start, end);
+      let pDays = 0;
+      let cDays = 0;
+
+      days.forEach(date => {
+        const isScheduled = actions.some(action => (
+          isActionScheduledOnDate(action.task, date, tasks, history, snapshots)
+        ));
+        const hasCompletion = actions.some(action => (
+          historyForTaskOnDate(action.task, tasks, history, date).some(record => (
+            record.isCompletion === true || (record.duration || 0) > 0 || record.pulseOutcome === 'safe-day'
+          ))
+        ));
+
+        if (isScheduled || hasCompletion) {
+          pDays += 1;
+          if (hasCompletion) {
+            cDays += 1;
+          }
+        }
+      });
+
+      plannedDays = pDays;
+      completedDays = cDays;
+
+      // Indicador principal: hábitos
+      const habitsUnit = plannedOccurrences === 1 ? 'hábito' : 'hábitos';
+      displayValue = `${completedOccurrences} / ${plannedOccurrences} ${habitsUnit}`;
+      // Indicador secundario: desglose de días
+      const daysUnit = plannedDays === 1 ? 'día' : 'días';
+      secondaryValue = `${completedDays} / ${plannedDays} ${daysUnit}`;
+      // Porcentaje basado en el total de hábitos completados frente al total de la semana
+      percent = plannedOccurrences > 0
+        ? Math.min(100, Math.round((completedOccurrences / plannedOccurrences) * 100))
+        : 0;
+    } else {
+      // Vista Hoy o compromisos de tipo completion / tareas normales
+      percent = plannedOccurrences > 0
+        ? Math.min(100, Math.round((completedOccurrences / plannedOccurrences) * 100))
+        : 0;
+      displayValue = `${completedOccurrences} / ${plannedOccurrences} ${unitLabel}`;
+    }
+  }
+
+  let tone: CommitmentTone = 'neutral';
+  if (mode === 'week') {
+    const targetDays = (context.item.targetType === 'consistency' && isHabits)
+      ? (context.item.weeklyTarget || plannedDays)
+      : undefined;
+    tone = computeWeeklyTone(percent, start, end, refDate, targetDays, completedDays);
+  } else {
+    tone = percent >= 100 ? 'success' : (percent > 0 ? 'in-progress' : 'neutral');
   }
 
   return {
@@ -258,6 +363,7 @@ function buildSummary(
     completedOccurrences,
     counterDelta,
     percent,
+    tone,
     displayValue,
     secondaryValue,
   };
@@ -270,8 +376,18 @@ export function getTodayCommitmentSummaries(
   snapshots: ProgressSnapshot[],
   today: string = formatDateOnly(new Date()),
 ): CommitmentPeriodSummary[] {
+  const { start: weekStart, end: weekEnd } = getWeekRange(today);
   return intersectingQuarterCommitments(intentions, today, today)
-    .map(context => buildSummary(context, tasks, history, snapshots, today, today, 'day'))
+    .map(context => {
+      const daySummary = buildSummary(context, tasks, history, snapshots, today, today, 'day', today);
+      if (!daySummary) return null;
+      const weeklySummary = buildSummary(context, tasks, history, snapshots, weekStart, weekEnd, 'week', today);
+      const tone = computeDailyTone(daySummary.percent, weeklySummary?.tone);
+      return {
+        ...daySummary,
+        tone,
+      };
+    })
     .filter((summary): summary is CommitmentPeriodSummary => !!summary);
 }
 
@@ -282,10 +398,11 @@ export function getWeeklyCommitmentSummaries(
   snapshots: ProgressSnapshot[],
   weekStart: string,
   weekEnd?: string,
+  refDate: string = formatDateOnly(new Date()),
 ): CommitmentPeriodSummary[] {
   const end = weekEnd || formatDateOnly(new Date(toDate(weekStart).getTime() + 6 * DAY_MS));
   return intersectingQuarterCommitments(intentions, weekStart, end)
-    .map(context => buildSummary(context, tasks, history, snapshots, weekStart, end, 'week'))
+    .map(context => buildSummary(context, tasks, history, snapshots, weekStart, end, 'week', refDate))
     .filter((summary): summary is CommitmentPeriodSummary => !!summary);
 }
 

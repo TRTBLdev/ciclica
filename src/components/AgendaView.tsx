@@ -585,6 +585,12 @@ export default function AgendaView({ config, tasks, history = [], intentions = [
         description="Ejecución de los compromisos trimestrales dentro de la semana visible."
         className="px-4 md:px-6"
         titleClassName="text-[10px] font-mono font-bold uppercase tracking-widest text-text-main"
+        layout="grid"
+        onSelectAction={(task) => {
+          const parent = task.parentId ? tasks.find(candidate => candidate.id === task.parentId) : undefined;
+          const origin = task.type === 'Rutina' || parent?.type === 'Rutina' ? 'rutinas' : 'proyectos';
+          onNavigate?.(origin, task.id);
+        }}
       />
 
       {/* Unified Weekly Pending Banner (Single row for the whole week) */}
