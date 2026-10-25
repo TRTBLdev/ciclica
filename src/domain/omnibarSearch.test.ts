@@ -28,6 +28,11 @@ describe('Omnibar search roles', () => {
     expect(getOmnibarSearchResults(tasks, [], '').map(item => item.id)).toEqual(['nested', 'habit']);
   });
 
+  it('excludes completed items from search results when matching query', () => {
+    expect(getOmnibarSearchResults(tasks, [], 'completed').map(item => item.id)).toEqual([]);
+    expect(getOmnibarSearchResults(tasks, [], 'Elemento').map(item => item.id)).not.toContain('completed');
+  });
+
   it('expands only currently trackable descendants', () => {
     expect(getTrackableDescendants(project.id, tasks, []).map(item => item.id)).toEqual(['nested']);
     expect(getTrackableDescendants(routine.id, tasks, []).map(item => item.id)).toEqual(['habit']);

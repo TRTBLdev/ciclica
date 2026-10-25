@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { getExportFilename } from './ConfiguracionView';
+import { getExportFilename, getIcsExportFilename, getIcsRangeFilename } from './ConfiguracionView';
 
 describe('configuration exports', () => {
   it('uses the device-local calendar day in every JSON filename', () => {
@@ -11,6 +11,9 @@ describe('configuration exports', () => {
     expect(getExportFilename('habitos', localEvening)).toBe('ciclica_habitos_2026-07-24.json');
     expect(getExportFilename('tareas', localEvening)).toBe('ciclica_tareas_2026-07-24.json');
     expect(getExportFilename('intenciones', localEvening)).toBe('ciclica_intenciones_2026-07-24.json');
+    expect(getIcsExportFilename(localEvening)).toBe('ciclica_agenda_2026-07-24.ics');
+    expect(getIcsRangeFilename(localEvening, localEvening)).toBe('ciclica_agenda_2026-07-24.ics');
+    expect(getIcsRangeFilename('2026-07-24', '2026-07-30')).toBe('ciclica_agenda_2026-07-24_a_2026-07-30.ics');
   });
 
   it('prevents UTC day slicing from returning to history events and JSON exports', () => {

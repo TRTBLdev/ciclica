@@ -10,7 +10,7 @@ export function getOmnibarSearchResults(
   const normalizedQuery = query.trim().toLocaleLowerCase('es-ES');
   if (normalizedQuery) {
     return tasks
-      .filter(task => task.text.toLocaleLowerCase('es-ES').includes(normalizedQuery))
+      .filter(task => !task.completed && task.text.toLocaleLowerCase('es-ES').includes(normalizedQuery))
       .slice(0, 10);
   }
 

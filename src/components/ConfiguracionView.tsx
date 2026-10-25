@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Settings, Download, Upload, LogOut, Trash2, Check } from 'lucide-react';
+import { Settings, Download, Upload, LogOut, Trash2, Check, Calendar } from 'lucide-react';
 import { Config } from '../types';
 import { cn } from '../lib/utils';
-import { formatDateOnly } from '../domain/recurrenceProgress';
+import { formatDateOnly, parseDateOnly } from '../domain/recurrenceProgress';
+import {
+  generateIcsCalendarForRange,
+  getIcsRangeFilename,
+  getRangeActivitiesForExport,
+} from '../domain/calendarExport';
 import { useToast } from './ToastProvider';
 import SeparatorForm from './SeparatorForm';
 
@@ -12,6 +17,13 @@ export function getExportFilename(type: ExportDataType, at = new Date()): string
   const name = type === 'all' ? 'vault' : type;
   return `ciclica_${name}_${formatDateOnly(at)}.json`;
 }
+
+export function getIcsExportFilename(targetDate: string | Date = new Date()): string {
+  const dateKey = typeof targetDate === 'string' ? targetDate : formatDateOnly(targetDate);
+  return `ciclica_agenda_${dateKey}.ics`;
+}
+
+export { getIcsRangeFilename };
 
 interface Props {
   config: Config | null;
@@ -65,6 +77,65 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
   };
 
   const { showToast } = useToast();
+  const [icsStartDate, setIcsStartDate] = useState(() => formatDateOnly(new Date()));
+  const [icsEndDate, setIcsEndDate] = useState(() => formatDateOnly(new Date()));
+
+  const handleApplyPresetToday = () => {
+    const today = formatDateOnly(new Date());
+    setIcsStartDate(today);
+    setIcsEndDate(today);
+  };
+
+  const handleApplyPresetNext7Days = () => {
+    const now = new Date();
+    const start = formatDateOnly(now);
+    const future = new Date(now);
+    future.setDate(future.getDate() + 6);
+    const end = formatDateOnly(future);
+    setIcsStartDate(start);
+    setIcsEndDate(end);
+  };
+
+  const handleExportIcs = () => {
+    try {
+      if (icsStartDate > icsEndDate) {
+        showToast('La fecha de inicio debe ser anterior o igual a la fecha de fin.', 'warning');
+        return;
+      }
+
+      const startObj = parseDateOnly(icsStartDate);
+      const endObj = parseDateOnly(icsEndDate);
+      const diffDays = Math.round((endObj.getTime() - startObj.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+
+      if (diffDays > 30) {
+        showToast('El rango máximo permitido para exportar es de 30 días.', 'warning');
+        return;
+      }
+
+      const items = getRangeActivitiesForExport(tasks, history, progressSnapshots, icsStartDate, icsEndDate);
+      const icsContent = generateIcsCalendarForRange(items, tasks);
+      const filename = getIcsRangeFilename(icsStartDate, icsEndDate);
+
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const daysLabel = diffDays === 1 ? '1 día' : `${diffDays} días`;
+      if (items.length > 0) {
+        showToast(`¡Agenda exportada (${items.length} actividad${items.length > 1 ? 'es' : ''} en ${daysLabel})!`, 'success');
+      } else {
+        showToast(`Agenda exportada en ${daysLabel} (sin actividades pendientes)`, 'info');
+      }
+    } catch {
+      showToast('Error al generar el archivo .ics', 'error');
+    }
+  };
 
   const handleImportVault = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -578,6 +649,73 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                     Importar
                     <input type="file" accept=".json" className="hidden" onChange={handleImportPartial} />
                   </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Exportar Calendario .ICS */}
+            <div className="text-xs font-bold text-text-main font-sans mt-4">Calendario (.ics) - Agenda y Planificación</div>
+            <p className="text-[10px] text-text-dim font-sans mb-3">
+              Exporta un archivo de calendario (.ics) compatible con Google Calendar, Apple Calendar y Outlook con las actividades pendientes programadas para el rango seleccionado (máximo 30 días).
+            </p>
+            <div className="border border-border-line p-4 flex flex-col gap-4 bg-base-dim/5">
+              {/* Presets and Export Action */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-primary shrink-0" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-mono uppercase text-text-dim mr-1">Rápido:</span>
+                    <button
+                      type="button"
+                      onClick={handleApplyPresetToday}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border transition-colors cursor-pointer",
+                        icsStartDate === formatDateOnly(new Date()) && icsEndDate === formatDateOnly(new Date())
+                          ? "border-primary text-primary bg-primary/10 font-bold"
+                          : "border-border-line text-text-main hover:bg-base-dim/20 bg-transparent"
+                      )}
+                    >
+                      Hoy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyPresetNext7Days}
+                      className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border-line text-text-main hover:bg-base-dim/20 transition-colors cursor-pointer bg-transparent"
+                    >
+                      Esta semana / 7 días
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExportIcs}
+                  className="py-2 px-4 border border-border-line hover:border-[var(--color-text-main)] text-xs font-mono uppercase tracking-wider text-text-main hover:bg-base-dim/10 transition-all flex items-center justify-center gap-2 cursor-pointer bg-transparent shrink-0"
+                >
+                  <Download className="w-4 h-4 text-primary" />
+                  <span>Exportar .ics</span>
+                </button>
+              </div>
+
+              {/* Manual Date Range Inputs */}
+              <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-border-line/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono uppercase text-text-dim">Desde:</span>
+                  <input
+                    type="date"
+                    value={icsStartDate}
+                    onChange={(e) => setIcsStartDate(e.target.value)}
+                    className="bg-base border border-border-line text-xs font-mono px-2.5 py-1 text-text-main rounded-none focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono uppercase text-text-dim">Hasta:</span>
+                  <input
+                    type="date"
+                    value={icsEndDate}
+                    onChange={(e) => setIcsEndDate(e.target.value)}
+                    className="bg-base border border-border-line text-xs font-mono px-2.5 py-1 text-text-main rounded-none focus:outline-none focus:border-primary"
+                  />
                 </div>
               </div>
             </div>
