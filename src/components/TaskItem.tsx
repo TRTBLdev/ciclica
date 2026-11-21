@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem } from '../types';
-import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown, Layers, Target } from 'lucide-react';
+import { AppTask, Config, HistoryRecord, TaskType, ChecklistItem, ProgressSnapshot } from '../types';
+import { CheckSquare, Square, RotateCw, X, Lock, Edit2, Save, ChevronDown, ChevronUp, Plus, Repeat, CheckCircle2, ArrowUpFromLine, Folder, Play, ArrowUpRight, Search, ChevronRight, ArrowUp, ArrowDown, Layers, Target, Zap } from 'lucide-react';
 import { calculateBiologicalPhase } from '../domain/cycle';
 import { cn } from '../lib/utils';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
-import { formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
+import { DailyHabitEligibility, formatRelativeCalendarDate, getAppearanceMode, getChildHabitCycleCount, getChildHabitQuotaStatus, getDailyHabitEligibility, getItemTemporalIndicators, getNextAppearanceDate, getQuotaRange, getRoutineCycleProgressFromHistory, getRoutineCycleRangeForTask, getStandaloneQuotaCount, getTaskDateSummary, limitCardMetadata, isVerifiedHabitCompletion, wasChildHabitCompletedInAppearance } from '../domain/appearance';
 import { isRoutineReadyToClose } from '../domain/occurrenceResults';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import CompactDate from './ui/CompactDate';
@@ -100,6 +100,8 @@ interface Props {
   durationSummary?: HabitDurationSummary;
   routineDurationSummary?: RoutineDurationSummary;
   commitmentLabels?: string[];
+  dailyEligibility?: DailyHabitEligibility;
+  progressSnapshots?: ProgressSnapshot[];
 }
 
 export default function TaskItem({
@@ -132,9 +134,12 @@ export default function TaskItem({
   durationSummary,
   routineDurationSummary,
   commitmentLabels = [],
+  dailyEligibility,
+  progressSnapshots = [],
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [showCompletedChildren, setShowCompletedChildren] = useState(false);
   const onEditingChangeRef = React.useRef(onEditingChange);
   onEditingChangeRef.current = onEditingChange;
   const [editText, setEditText] = useState('');
@@ -602,6 +607,7 @@ export default function TaskItem({
         onDuplicate={onDuplicateTask ? () => onDuplicateTask(task.id) : undefined}
         onPause={onPauseTask && !task.completed ? () => onPauseTask(task.id) : undefined}
         onResume={onResumeTask && directlyPaused ? () => onResumeTask(task.id) : undefined}
+        onToggleQuickTrack={onUpdate && !task.completed ? () => onUpdate(task.id, { quickTrack: !task.quickTrack }) : undefined}
         onUpdateNotes={onUpdate ? (notes) => onUpdate(task.id, { notes }) : undefined}
         onMoveUp={onMoveUp || (showMoveArrows ? handleMoveUp : undefined)}
         onMoveDown={onMoveDown || (showMoveArrows ? handleMoveDown : undefined)}
@@ -653,6 +659,7 @@ export default function TaskItem({
       id={`task-item-${task.id}`}
       className={cn(
         "relative group flex flex-col p-4 transition-all duration-200",
+        dailyEligibility === 'optional' && !isCompletedVisual ? "border-l-2 border-dashed border-border-line/70 pl-3" : "",
         isCompletedVisual && !isEditing ? "grayscale" : "",
         locked ? "opacity-60 grayscale" : "",
         isSubtask ? "mt-1" : ""
@@ -1044,9 +1051,26 @@ export default function TaskItem({
                   <span>{task.text}</span>
                 </button>
                 {locked && <span className="flex items-center gap-1 text-xs font-mono font-medium uppercase tracking-widest text-[#b45f06] border border-[#e4e2dd] px-2 py-0.5 rounded-full"><Lock className="w-2.5 h-2.5" /> Bloqueada</span>}
+                {dailyEligibility === 'optional' && !isCompletedVisual && (
+                  <span
+                    className="inline-flex shrink-0 items-center rounded-full border border-border-line/70 bg-base-dim/25 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-dim"
+                    title="Hábito con cuota en margen; hacerlo hoy suma avance extra sin penalizar"
+                  >
+                    Opcional
+                  </span>
+                )}
+                {task.quickTrack && !task.completed && (
+                  <span
+                    className="inline-flex shrink-0 items-center text-primary"
+                    title="Fijado en acceso rápido"
+                    aria-label="En acceso rápido"
+                  >
+                    <Zap className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                )}
                 {commitmentLabels.length > 0 && (
                   <span
-                    className="inline-flex shrink-0 items-center gap-1 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
+                    className="inline-flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
                     title={`Aporta a: ${commitmentLabels.join(', ')}`}
                     aria-label={`Aporta a: ${commitmentLabels.join(', ')}`}
                   >
@@ -1200,7 +1224,7 @@ export default function TaskItem({
               <>
                 <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsMenuOpen(false)} />
                 <div className={cn(
-                  "absolute right-0 z-50 w-40 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
+                  "absolute right-0 z-50 w-44 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left",
                   openUpwards ? "bottom-full mb-1" : "top-full mt-1"
                 )}>
                   {onUpdate && (
@@ -1210,6 +1234,19 @@ export default function TaskItem({
                     >
                       <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                       Editar
+                    </button>
+                  )}
+                  {onUpdate && !task.completed && (task.type === 'Tarea' || task.type === 'Hábito') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate(task.id, { quickTrack: !task.quickTrack });
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
+                    >
+                      <Zap className={cn('w-3 h-3', task.quickTrack ? 'text-primary' : 'text-text-dim')} />
+                      <span>{task.quickTrack ? 'Quitar rápido' : 'Acceso rápido'}</span>
                     </button>
                   )}
                   {task.parentId && onUpdate && (
@@ -1404,9 +1441,26 @@ export default function TaskItem({
           {/* Subtasks rendering */}
           {hasSubtasks && (
             <section className="mt-1.5 w-full" aria-label={`Subtareas de ${task.text}`}>
-              <h4 className="mb-1 font-mono text-[9px] font-bold uppercase tracking-widest text-text-dim">Subtareas</h4>
-              <ul className="m-0 list-none space-y-1 p-0">
-                {getSubtasksWithOrders().map(sub => (
+              {context === 'today' && task.type === 'Rutina' ? (() => {
+                const orderedChildren = getSubtasksWithOrders().filter(
+                  sub => !isTaskEffectivelyPaused(sub, allTasks, todayKey),
+                );
+                const doneTodayChildren: AppTask[] = [];
+                const dueChildren: AppTask[] = [];
+                const optionalChildren: AppTask[] = [];
+
+                orderedChildren.forEach(sub => {
+                  if (wasChildHabitCompletedInAppearance(task, sub, history || [], todayKey)) {
+                    doneTodayChildren.push(sub);
+                    return;
+                  }
+                  const elig = getDailyHabitEligibility(sub, allTasks, history || [], progressSnapshots, todayKey);
+                  if (elig === 'covered') return;
+                  if (elig === 'optional') optionalChildren.push(sub);
+                  else dueChildren.push(sub);
+                });
+
+                const renderChild = (sub: AppTask, elig?: DailyHabitEligibility) => (
                   <li key={sub.id}>
                     <TaskItem
                       task={sub}
@@ -1427,10 +1481,71 @@ export default function TaskItem({
                       onStartTimer={onStartTimer}
                       showMoveArrows={true}
                       context={context}
+                      dailyEligibility={elig}
+                      progressSnapshots={progressSnapshots}
                     />
                   </li>
-                ))}
-              </ul>
+                );
+
+                return (
+                  <>
+                    <h4 className="mb-1 font-mono text-[9px] font-bold uppercase tracking-widest text-text-dim">Hábitos de hoy</h4>
+                    <ul className="m-0 list-none space-y-1 p-0">
+                      {dueChildren.map(sub => renderChild(sub, 'due'))}
+                      {optionalChildren.map(sub => renderChild(sub, 'optional'))}
+                    </ul>
+                    {doneTodayChildren.length > 0 && (
+                      <div className="mt-2 pt-1.5 border-t border-border-line/20">
+                        <button
+                          type="button"
+                          onClick={() => setShowCompletedChildren(prev => !prev)}
+                          aria-expanded={showCompletedChildren}
+                          className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        >
+                          <span>✓ {doneTodayChildren.length} {doneTodayChildren.length === 1 ? 'hecho' : 'hechos'}</span>
+                          {showCompletedChildren ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        {showCompletedChildren && (
+                          <ul className="m-0 mt-1 list-none space-y-1 p-0">
+                            {doneTodayChildren.map(sub => renderChild(sub))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })() : (
+                <>
+                  <h4 className="mb-1 font-mono text-[9px] font-bold uppercase tracking-widest text-text-dim">Subtareas</h4>
+                  <ul className="m-0 list-none space-y-1 p-0">
+                    {getSubtasksWithOrders().map(sub => (
+                      <li key={sub.id}>
+                        <TaskItem
+                          task={sub}
+                          config={config}
+                          allTasks={allTasks}
+                          history={history}
+                          onToggle={onToggle}
+                          onDelete={() => onDeleteTask && onDeleteTask(sub.id)}
+                          onUpdate={onUpdate}
+                          onAddTask={onAddTask}
+                          onDeleteTask={onDeleteTask}
+                          onDuplicateTask={onDuplicateTask}
+                          onPauseTask={onPauseTask}
+                          onResumeTask={onResumeTask}
+                          isSubtask
+                          hideAreaCategory={true}
+                          activeTimer={activeTimer}
+                          onStartTimer={onStartTimer}
+                          showMoveArrows={true}
+                          context={context}
+                          progressSnapshots={progressSnapshots}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </section>
           )}
 

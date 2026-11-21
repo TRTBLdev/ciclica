@@ -6,7 +6,8 @@ import { Reorder } from 'motion/react';
 import LinkedText from './ui/LinkedText';
 import { formatDateOnly, getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
-import { canConfigureOwnAppearance, getAppearanceDate, getAppearanceMode, getDeadlineDate, getMinimumRoutineOpportunityCount } from '../domain/appearance';
+import { canConfigureOwnAppearance, getAppearanceDate, getAppearanceMode, getDeadlineDate, getIdealHabitSpacing, getMinimumRoutineOpportunityCount } from '../domain/appearance';
+import { getAllMoments } from '../domain/moments';
 import { getProjectScheduleLabel } from '../domain/projectPresentation';
 import { getProjectForTask } from '../domain/workTracking';
 import { resolveDurationForSave } from '../domain/durationEstimate';
@@ -58,7 +59,12 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [text, setText] = useState(initialData?.text || defaultText);
   const [type, setType] = useState<TaskType>(initialData?.type || defaultType);
   const [priority, setPriority] = useState(initialData?.priority || 'Baja');
+  const [momentId, setMomentId] = useState(initialData?.momentId || '');
   const [hora, setHora] = useState(initialData?.hora || '');
+  const [showSpecificHour, setShowSpecificHour] = useState(Boolean(initialData?.hora));
+  const [idealSpacingDays, setIdealSpacingDays] = useState<string>(
+    initialData?.idealSpacingDays ? String(initialData.idealSpacingDays) : '',
+  );
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode | ''>(() => getAppearanceMode(initialData || ({ type: defaultType } as AppTask)) || (defaultType === 'Hábito' || defaultType === 'Rutina' ? 'interval' : ''));
   const [frecuencia, setFrecuencia] = useState(initialData?.appearanceFrequency || initialData?.frecuencia || 1);
   const [frecuenciaUnidad, setFrecuenciaUnidad] = useState(initialData?.appearanceFrequencyUnit || initialData?.frecuenciaUnidad || 'días');
@@ -107,6 +113,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const configuresOwnAppearance = canConfigureOwnAppearance(type, parentId || undefined, allTasks);
   const isActualSubtask = !!(parentTaskHere && parentTaskHere.type !== 'Proyecto');
   const parentRoutineCapacity = parentRoutineHere ? getMinimumRoutineOpportunityCount(parentRoutineHere) : undefined;
+  const allMoments = getAllMoments(config?.separators);
+  const parentRoutineMoment = parentRoutineHere?.momentId
+    ? allMoments.find(m => m.id === parentRoutineHere.momentId)
+    : undefined;
 
   const handleSave = () => {
     if (!text.trim()) return;
@@ -153,7 +163,12 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       type === 'Proyecto'
       || ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && !inheritsProjectContext)
     ) {
-      data.hora = hora;
+      data.momentId = momentId || undefined;
+      data.hora = showSpecificHour ? hora : '';
+    }
+    if (type === 'Hábito') {
+      const parsedSpacing = parseInt(idealSpacingDays, 10);
+      data.idealSpacingDays = Number.isFinite(parsedSpacing) && parsedSpacing >= 1 ? parsedSpacing : undefined;
     }
     if (type === 'Tarea' || type === 'Rutina' || type === 'Hábito') {
       data.duracion = resolveDurationForSave(initialData?.duracion, editedDuracion);
@@ -319,12 +334,25 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
               </fieldset>
             )}
             {appearanceMode === 'quota' && (
-              <div className="grid grid-cols-[72px_auto_1fr] items-center gap-2 text-xs text-text-dim">
-                <input type="number" min={1} className={numberClass} value={quotaTarget} onChange={event => setQuotaTarget(Math.max(1, Number(event.target.value)))} />
-                <span>veces por</span>
-                <select className={selectClass} value={quotaPeriodUnit} onChange={event => setQuotaPeriodUnit(event.target.value as QuotaPeriodUnit)}>
-                  <option value="semanas">semana</option><option value="meses">mes</option>
-                </select>
+              <div className="col-span-full flex flex-wrap items-center gap-4">
+                <div className="grid grid-cols-[72px_auto_1fr] items-center gap-2 text-xs text-text-dim">
+                  <input type="number" min={1} className={numberClass} value={quotaTarget} onChange={event => setQuotaTarget(Math.max(1, Number(event.target.value)))} />
+                  <span>veces por</span>
+                  <select className={selectClass} value={quotaPeriodUnit} onChange={event => setQuotaPeriodUnit(event.target.value as QuotaPeriodUnit)}>
+                    <option value="semanas">semana</option><option value="meses">mes</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+                  Espaciado ideal (días)
+                  <input
+                    type="number"
+                    min={1}
+                    className={cn(numberClass, 'w-20')}
+                    placeholder={`Auto (${getIdealHabitSpacing(quotaPeriodUnit === 'meses' ? 30 : 7, Math.max(1, quotaTarget))})`}
+                    value={idealSpacingDays}
+                    onChange={event => setIdealSpacingDays(event.target.value)}
+                  />
+                </label>
               </div>
             )}
           </fieldset>
@@ -345,14 +373,18 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 <dd className="text-text-main">{getProjectScheduleLabel(parentRoutineHere)}</dd>
                 <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Fecha inicial</dt>
                 <dd className="font-mono text-text-main">{getAppearanceDate(parentRoutineHere) || 'Sin fecha configurada'}</dd>
-                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Hora</dt>
-                <dd className="font-mono text-text-main">{parentRoutineHere.hora || 'Sin hora'}</dd>
+                <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-dim">Momento</dt>
+                <dd className="font-mono text-text-main">
+                  {parentRoutineMoment
+                    ? `${parentRoutineMoment.text}${parentRoutineHere.hora ? ` · ${parentRoutineHere.hora}` : ` (${parentRoutineMoment.hora})`}`
+                    : parentRoutineHere.hora || 'Cuando pueda'}
+                </dd>
               </dl>
               <small className="mt-3 block text-[10px] text-text-dim">
                 Para cambiar esta programación, edita la rutina.
               </small>
             </section>
-            <fieldset className="col-span-full flex max-w-md flex-col gap-1.5 border-0 p-0">
+            <fieldset className="col-span-full flex max-w-xl flex-wrap items-center gap-4 border-0 p-0">
               <legend className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
                 Objetivo en el ciclo de la rutina
               </legend>
@@ -361,6 +393,19 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 <small className="text-xs">veces</small>
                 {parentRoutineCapacity !== undefined && <small className="text-[10px] font-mono text-text-dim">Máximo seguro: {parentRoutineCapacity}</small>}
               </label>
+              {parentRoutineCapacity !== undefined && objetivoPorCiclo < parentRoutineCapacity && (
+                <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+                  Espaciado ideal
+                  <input
+                    type="number"
+                    min={1}
+                    className={cn(numberClass, 'w-20')}
+                    placeholder={`Auto (${getIdealHabitSpacing(parentRoutineCapacity, Math.max(1, objetivoPorCiclo))})`}
+                    value={idealSpacingDays}
+                    onChange={event => setIdealSpacingDays(event.target.value)}
+                  />
+                </label>
+              )}
             </fieldset>
           </>
         )}
@@ -449,20 +494,59 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           </label>
         )}
 
-        {/* Hora (Tarea/Rutina/Hábito simple) */}
+        {/* Momento del día principal (con Hora específica plegada) */}
         {(
           (type === 'Proyecto' && !!appearanceMode)
           || ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && !inheritsProjectContext)
         ) && (
-          <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
-            Hora opcional
-            <input
-              type="time"
-              className={cn(fieldClass, 'font-mono')}
-              value={hora}
-              onChange={e => setHora(e.target.value)}
-            />
-          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="relative flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+              Momento del día
+              <select
+                className={selectClass}
+                value={momentId}
+                onChange={e => setMomentId(e.target.value)}
+              >
+                <option value="">Cuando pueda (sin momento)</option>
+                {allMoments.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.kind === 'trigger' ? `⚓ ${m.text} (~${m.hora})` : `${m.hora} · ${m.text}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+            </label>
+            {!showSpecificHour ? (
+              <button
+                type="button"
+                onClick={() => setShowSpecificHour(true)}
+                className="self-start border-0 bg-transparent p-0 font-mono text-[9px] uppercase tracking-wider text-text-dim hover:text-text-main cursor-pointer"
+              >
+                + Hora específica (opcional)
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  aria-label="Hora específica opcional"
+                  className={cn(fieldClass, 'font-mono h-8')}
+                  value={hora}
+                  onChange={e => setHora(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHora('');
+                    setShowSpecificHour(false);
+                  }}
+                  className="border-0 bg-transparent px-1 text-[10px] font-mono text-text-dim hover:text-red-500 cursor-pointer"
+                  title="Quitar hora específica"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Área / Categoría (Todos excepto Subtareas) */}

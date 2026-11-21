@@ -42,6 +42,7 @@ interface Props {
 export default function ConfiguracionView({ config, onUpdateConfig, tasks, history, progressSnapshots, intentions, onSignOut, importLocalData, mergeLocalData, clearPartialData }: Props) {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [editingSepIdx, setEditingSepIdx] = useState<number | null>(null);
+  const [isAddingMoment, setIsAddingMoment] = useState(false);
 
   const handleExportData = (type: ExportDataType) => {
     let dataToExport: any = {};
@@ -486,23 +487,23 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
           </div>
         </div>
 
-        {/* SECTION 1.75: BLOQUES DE TIEMPO (SEPARADORES DE LÍNEA DE TIEMPO) */}
+        {/* SECTION 1.75: MOMENTOS DEL DÍA (BLOQUES HORARIOS Y GATILLOS) */}
         <div className="border-b border-border-line/30 pb-10">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 font-bold flex items-center gap-2">
-            ⏰ BLOQUES DE TIEMPO (LÍNEA DE TIEMPO)
+            ⚓ MOMENTOS DEL DÍA (BLOQUES Y GATILLOS)
           </h3>
           <p className="text-xs text-text-dim leading-relaxed mb-6 font-sans">
-            Configure bloques horarios fijos (ej. Mañana, Almuerzo, Tarde) para estructurar visualmente su jornada en la Línea de Tiempo.
+            Configure bloques horarios o gatillos del día (ej. Al despertar, Después de almorzar, Cierre) para agrupar sus tareas y hábitos en Hoy.
           </p>
 
           <div className="flex flex-col gap-4 bg-base-dim/10 border border-border-line p-5 rounded-none text-left">
             {/* List of existing separators */}
             {(!config?.separators || config.separators.length === 0) ? (
-              <p className="text-xs text-text-dim italic">No hay bloques de tiempo configurados.</p>
+              <p className="text-xs text-text-dim italic">No hay momentos configurados.</p>
             ) : (
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-2">
                 {config.separators.map((sep, idx) => (
-                  <div key={idx} className="flex flex-col py-1.5 border-b border-border-line/40 last:border-0 text-xs">
+                  <div key={sep.id || idx} className="flex flex-col py-1.5 border-b border-border-line/40 last:border-0 text-xs">
                     {editingSepIdx === idx ? (
                       <SeparatorForm
                         initialValue={sep}
@@ -516,9 +517,14 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                         onCancel={() => setEditingSepIdx(null)}
                       />
                     ) : (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span className="font-mono font-bold text-primary">{sep.hora}</span>
+                          {sep.kind === 'trigger' && (
+                            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full border border-border-line text-text-dim">
+                              Gatillo
+                            </span>
+                          )}
                           <span className="text-text-main font-bold flex items-center gap-2">
                             {sep.color && <span className={cn("w-2 h-2 rounded-full", `bg-${sep.color}-500`)} />}
                             {sep.text}
@@ -529,7 +535,7 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => setEditingSepIdx(idx)} className="p-1 hover:text-primary text-text-dim transition-colors cursor-pointer bg-transparent border-0 outline-none text-xs">Editar</button>
+                          <button type="button" onClick={() => { setEditingSepIdx(idx); setIsAddingMoment(false); }} className="p-1 hover:text-primary text-text-dim transition-colors cursor-pointer bg-transparent border-0 outline-none text-xs">Editar</button>
                           <button
                             type="button"
                             onClick={() => {
@@ -548,17 +554,34 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
               </div>
             )}
 
-            {/* Form to add a new separator */}
+            {/* Form to add a new separator (collapsible by default) */}
             <div className="border-t border-border-line/40 pt-4 mt-2">
-              <span className="text-xs font-bold text-text-main font-sans block mb-2">Añadir Nuevo Bloque</span>
-              <div key={(config?.separators || []).length}>
-              <SeparatorForm
-                onSave={separator => {
-                  const newSeps = [...(config?.separators || []), separator].sort((a, b) => a.hora.localeCompare(b.hora));
-                  onUpdateConfig({ separators: newSeps });
-                }}
-              />
-              </div>
+              {!isAddingMoment ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSepIdx(null);
+                    setIsAddingMoment(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider font-bold text-text-main hover:underline cursor-pointer bg-transparent border-0 p-0"
+                >
+                  + Añadir momento
+                </button>
+              ) : (
+                <>
+                  <span className="text-xs font-bold text-text-main font-sans block mb-2">Añadir Nuevo Momento</span>
+                  <div key={(config?.separators || []).length}>
+                    <SeparatorForm
+                      onSave={separator => {
+                        const newSeps = [...(config?.separators || []), separator].sort((a, b) => a.hora.localeCompare(b.hora));
+                        onUpdateConfig({ separators: newSeps });
+                        setIsAddingMoment(false);
+                      }}
+                      onCancel={() => setIsAddingMoment(false)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

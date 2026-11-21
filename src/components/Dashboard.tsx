@@ -31,6 +31,9 @@ const IntentionForm = lazy(() => import('./IntentionForm'));
 
 export default function Dashboard({ user, onSignOut }: { user: UserSession; onSignOut: () => void }) {
   const [currentView, setCurrentView] = useState<'hoy' | 'sintonia' | 'estrategia' | 'bitacora' | 'configuracion'>('hoy');
+  const [estrategiaTab, setEstrategiaTab] = useState<'areas' | 'proyectos' | 'rutinas' | 'pausados'>('areas');
+  const [bitacoraTab, setBitacoraTab] = useState<'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'>('agenda');
+  const [openAgendaBacklog, setOpenAgendaBacklog] = useState(false);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [isTimerMinimized, setIsTimerMinimized] = useState(false);
   const [showIntentionForm, setShowIntentionForm] = useState(false);
@@ -52,8 +55,23 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
     let targetView: typeof currentView = 'hoy';
     if (view === 'hoy' || view === 'foco') targetView = 'hoy';
     else if (view === 'sintonia' || view === 'brujula' || view === 'syllabus') targetView = 'sintonia';
-    else if (view === 'estrategia' || view === 'areas' || view === 'proyectos' || view === 'rutinas' || view === 'pausados') targetView = 'estrategia';
-    else if (view === 'bitacora' || view === 'calendario' || view === 'reportes' || view === 'completadas' || view === 'agenda') targetView = 'bitacora';
+    else if (view === 'estrategia' || view === 'areas' || view === 'proyectos' || view === 'rutinas' || view === 'pausados') {
+      targetView = 'estrategia';
+      if (view === 'areas' || view === 'proyectos' || view === 'rutinas' || view === 'pausados') {
+        setEstrategiaTab(view);
+      }
+    }
+    else if (view === 'agenda-backlog') {
+      targetView = 'bitacora';
+      setBitacoraTab('agenda');
+      setOpenAgendaBacklog(true);
+    }
+    else if (view === 'bitacora' || view === 'calendario' || view === 'reportes' || view === 'completadas' || view === 'agenda') {
+      targetView = 'bitacora';
+      if (view === 'agenda' || view === 'calendario' || view === 'bitacora') setBitacoraTab('agenda');
+      else if (view === 'reportes') setBitacoraTab('reportes');
+      else if (view === 'completadas') setBitacoraTab('historial');
+    }
     else if (view === 'configuracion' || view === 'ajustes') targetView = 'configuracion';
 
     setCurrentView(targetView);
@@ -202,6 +220,10 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
   const handleResumeTask = async (taskId: string) => {
     await resumeTask(taskId);
   };
+
+  const handleAgendaBacklogOpened = React.useCallback(() => {
+    setOpenAgendaBacklog(false);
+  }, []);
 
   if (loading) {
     return (
@@ -702,6 +724,7 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   activeTimer={activeTimer}
                   onStartTimer={handleStartTimer}
                   focusTaskId={focusTaskId}
+                  requestedTab={estrategiaTab}
                   onNavigate={handleNavigate}
                 />
               )}
@@ -724,6 +747,9 @@ export default function Dashboard({ user, onSignOut }: { user: UserSession; onSi
                   onUpdateHistory={updateHistory}
                   onDeleteHistory={deleteHistory}
                   onAddHistory={addHistory}
+                  requestedTab={bitacoraTab}
+                  openAgendaBacklog={openAgendaBacklog}
+                  onAgendaBacklogOpened={handleAgendaBacklogOpened}
                   onNavigate={handleNavigate}
                 />
               )}

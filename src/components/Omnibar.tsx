@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Play, Pause, Save, CheckCircle2, Circle, X, ChevronDown, Plus, Edit2, Search, ArrowLeft, Trash2, MoreVertical } from 'lucide-react';
+import { Play, Pause, Save, CheckCircle2, Circle, X, ChevronDown, Plus, Edit2, Search, ArrowLeft, Trash2, MoreVertical, Zap, Clock } from 'lucide-react';
 import { Reorder } from 'motion/react';
 import { AppTask, ChecklistItem, Config, HistoryRecord, TaskType } from '../types';
 import { cn } from '../lib/utils';
@@ -9,7 +9,7 @@ import UniversalItemForm from './UniversalItemForm';
 import { getTypeIcon } from './TaskItem';
 import { canTrackTask } from '../domain/appearance';
 import LinkedText from './ui/LinkedText';
-import { getOmnibarSearchResults, getTrackableDescendants } from '../domain/omnibarSearch';
+import { getOmnibarSearchResults, getQuickTrackItems, getRecentTrackedTasks, getTrackableDescendants } from '../domain/omnibarSearch';
 import { isTaskEffectivelyPaused } from '../domain/pause';
 
 interface OmnibarProps {
@@ -148,6 +148,16 @@ export default function Omnibar({
       ? getTrackableDescendants(expandedSearchContainerId, tasks, history)
       : [],
     [expandedSearchContainerId, tasks, history],
+  );
+
+  const quickTrackItems = useMemo(
+    () => getQuickTrackItems(tasks, history),
+    [tasks, history],
+  );
+
+  const recentTrackedItems = useMemo(
+    () => getRecentTrackedTasks(tasks, history, new Set(quickTrackItems.map(item => item.id)), 3),
+    [tasks, history, quickTrackItems],
   );
 
   const contextParent = familyContext
@@ -631,6 +641,162 @@ export default function Omnibar({
       {/* Mode Renderers */}
       {mode === 'search' && (
         <div className="flex flex-col gap-2 animate-in fade-in">
+          {search.trim().length === 0 && (
+            <div className="flex flex-col gap-3 max-h-[38vh] overflow-y-auto pr-1 no-scrollbar mb-2">
+              {quickTrackItems.length > 0 && (
+                <section aria-label="Acceso rápido">
+                  <h4 className="px-2.5 pb-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-text-dim">
+                    <Zap className="w-3 h-3 text-amber-500 shrink-0" aria-hidden="true" />
+                    <span>Acceso rápido</span>
+                  </h4>
+                  <ul className="m-0 list-none p-0 flex flex-col gap-1">
+                    {quickTrackItems.map(item => {
+                      const isProject = item.type === 'Proyecto';
+                      const isExpanded = expandedSearchContainerId === item.id;
+                      const projectDescendants = isProject && isExpanded
+                        ? getTrackableDescendants(item.id, tasks, history)
+                        : [];
+
+                      return (
+                        <li key={item.id} className="rounded-lg hover:bg-base-dim/25 transition-colors">
+                          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isProject) {
+                                  setExpandedSearchContainerId(isExpanded ? null : item.id);
+                                } else if (!activeTimer) {
+                                  onStartTimer(item.id);
+                                }
+                              }}
+                              className="min-w-0 flex-1 flex items-center gap-2 border-0 bg-transparent p-0 text-left text-xs text-text-main cursor-pointer"
+                              title={isProject ? 'Desplegar tareas para trackear' : activeTimer ? 'Finaliza o descarta el tracker actual antes de iniciar otro' : 'Iniciar tracker'}
+                            >
+                              {getTypeIcon(item.type, 'w-3.5 h-3.5 stroke-[2] fill-none shrink-0')}
+                              <span className="truncate font-medium">{item.text}</span>
+                              {item.category && <CategoryBadge area={item.category} subCategory={item.subCategory} config={config} />}
+                            </button>
+                            <div className="shrink-0 flex items-center gap-1">
+                              {isProject ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedSearchContainerId(isExpanded ? null : item.id)}
+                                  className="w-6 h-6 flex items-center justify-center border-0 bg-transparent text-text-dim hover:text-text-main cursor-pointer"
+                                  title={isExpanded ? 'Ocultar tareas' : 'Elegir tarea'}
+                                  aria-expanded={isExpanded}
+                                >
+                                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={Boolean(activeTimer)}
+                                  onClick={() => onStartTimer(item.id)}
+                                  className={cn(
+                                    'w-6 h-6 flex items-center justify-center border-0 bg-transparent transition-colors',
+                                    activeTimer ? 'cursor-not-allowed opacity-35' : 'cursor-pointer text-text-dim hover:text-accent',
+                                  )}
+                                  title={activeTimer ? 'Finaliza o descarta el tracker actual antes de iniciar otro' : 'Iniciar tracker'}
+                                  aria-label={`Iniciar tracker en ${item.text}`}
+                                >
+                                  <Play className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onUpdateTask(item.id, { quickTrack: false })}
+                                className="w-5 h-5 flex items-center justify-center border-0 bg-transparent text-text-dim/60 hover:text-text-main cursor-pointer"
+                                title="Quitar de acceso rápido"
+                                aria-label={`Quitar ${item.text} de acceso rápido`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {isProject && isExpanded && (
+                            <ul className="m-0 list-none border-t border-border-line/30 pl-8 pr-2.5 pb-1.5">
+                              {projectDescendants.map(desc => (
+                                <li key={desc.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border-line/20 last:border-0">
+                                  <span className="min-w-0 truncate text-[11px] text-text-main">{desc.text}</span>
+                                  <div className="shrink-0 flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={Boolean(activeTimer)}
+                                      onClick={() => {
+                                        onStartTimer(desc.id);
+                                        setExpandedSearchContainerId(null);
+                                      }}
+                                      className={cn(
+                                        'w-6 h-6 flex items-center justify-center border-0 bg-transparent transition-colors',
+                                        activeTimer ? 'cursor-not-allowed opacity-35' : 'cursor-pointer text-text-dim hover:text-accent',
+                                      )}
+                                      title={activeTimer ? 'Finaliza o descarta el tracker actual' : 'Iniciar tracker'}
+                                    >
+                                      <Play className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="w-5 h-5 shrink-0" aria-hidden="true" />
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              {recentTrackedItems.length > 0 && (
+                <section aria-label="Recientes">
+                  <h4 className="px-2.5 pb-1 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-text-dim">
+                    <Clock className="w-3 h-3 text-text-dim shrink-0" aria-hidden="true" />
+                    <span>Recientes</span>
+                  </h4>
+                  <ul className="m-0 list-none p-0 flex flex-col gap-1">
+                    {recentTrackedItems.map(item => (
+                      <li key={item.id} className="rounded-lg hover:bg-base-dim/25 transition-colors">
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleItemClick(item)}
+                            className="min-w-0 flex-1 flex items-center gap-2 border-0 bg-transparent p-0 text-left text-xs text-text-main cursor-pointer"
+                          >
+                            {getTypeIcon(item.type, 'w-3.5 h-3.5 stroke-[2] fill-none shrink-0')}
+                            <span className="truncate font-medium">{item.text}</span>
+                            {item.category && <CategoryBadge area={item.category} subCategory={item.subCategory} config={config} />}
+                          </button>
+                          <div className="shrink-0 flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={Boolean(activeTimer)}
+                              onClick={() => onStartTimer(item.id)}
+                              className={cn(
+                                'w-6 h-6 flex items-center justify-center border-0 bg-transparent transition-colors',
+                                activeTimer ? 'cursor-not-allowed opacity-35' : 'cursor-pointer text-text-dim hover:text-accent',
+                              )}
+                              title={activeTimer ? 'Finaliza o descarta el tracker actual' : 'Iniciar tracker'}
+                              aria-label={`Reanudar tracker en ${item.text}`}
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="w-5 h-5 shrink-0" aria-hidden="true" />
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {quickTrackItems.length === 0 && recentTrackedItems.length === 0 && !activeTimer && (
+                <p className="px-2.5 py-1 text-[10px] text-text-dim">
+                  Fija tareas, hábitos o proyectos con <Zap className="inline w-3 h-3 text-amber-500 mx-0.5 align-text-bottom" aria-hidden="true" /> desde su menú para iniciarlos en 1 toque.
+                </p>
+              )}
+            </div>
+          )}
           
           {search.length > 0 && (
             <div className="flex flex-col gap-1 flex-1 overflow-y-auto pr-2 no-scrollbar mb-4 mt-2">

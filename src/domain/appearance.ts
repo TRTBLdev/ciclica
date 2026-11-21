@@ -210,6 +210,126 @@ export function wasChildHabitCompletedInAppearance(
   });
 }
 
+export type DailyHabitEligibility = 'due' | 'optional' | 'covered';
+
+export function getIdealHabitSpacing(
+  totalOpportunities: number,
+  target: number,
+  override?: number,
+): number {
+  if (override !== undefined && override >= 1) return Math.floor(override);
+  return Math.max(1, Math.floor(Math.max(1, totalOpportunities) / Math.max(1, target)));
+}
+
+function getCalendarDatesInRange(range: DateRange): string[] {
+  const dates: string[] = [];
+  const cursor = parseDateOnly(range.start);
+  const end = parseDateOnly(range.end);
+  while (cursor <= end) {
+    dates.push(formatDateOnly(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+function getCycleCompletionDatesForChildHabit(
+  routine: AppTask,
+  habit: AppTask,
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[],
+  range: DateRange,
+): string[] {
+  const dates = new Set<string>();
+  if (snapshots.length) {
+    getHabitResultsInRange(habit, history, snapshots, range)
+      .filter(result => result.status !== 'missed')
+      .forEach(result => dates.add(result.key));
+  }
+  history
+    .filter(record => isVerifiedHabitCompletion(habit, record))
+    .filter(record => recordBelongsToCycle(record, routine.id, range))
+    .forEach(record => dates.add(record.routineAppearanceDate || getHistoryDateKey(record)));
+  return Array.from(dates).sort();
+}
+
+function evaluateQuotaEligibility(
+  opportunities: string[],
+  completionDates: string[],
+  target: number,
+  today: string,
+  idealSpacingOverride?: number,
+): DailyHabitEligibility {
+  const completedBeforeToday = completionDates.filter(date => date < today);
+  const completedToday = completionDates.includes(today);
+
+  if (!completedToday && completedBeforeToday.length >= target) {
+    return 'covered';
+  }
+  if (target >= Math.max(1, opportunities.length)) {
+    return 'due';
+  }
+  // Confirmed rule: 0 executions in the current cycle starts as 'due' from day 1.
+  if (completedBeforeToday.length === 0) {
+    return 'due';
+  }
+
+  const remainingOpportunities = opportunities.filter(date => date >= today).length;
+  const remainingNeeded = Math.max(0, target - completedBeforeToday.length);
+  if (remainingOpportunities <= remainingNeeded) {
+    return 'due';
+  }
+
+  const idealSpacing = getIdealHabitSpacing(opportunities.length, target, idealSpacingOverride);
+  const lastDate = completedBeforeToday[completedBeforeToday.length - 1];
+  const todayIdx = opportunities.filter(date => date <= today).length - 1;
+  const lastIdx = opportunities.filter(date => date <= lastDate).length - 1;
+  if (lastIdx < 0 || todayIdx < 0) return 'due';
+
+  return (todayIdx - lastIdx) >= idealSpacing ? 'due' : 'optional';
+}
+
+export function getDailyHabitEligibility(
+  task: AppTask,
+  tasks: AppTask[],
+  history: HistoryRecord[],
+  snapshots: ProgressSnapshot[] = [],
+  at: string | Date = new Date(),
+): DailyHabitEligibility {
+  if (task.type !== 'Hábito') return 'due';
+
+  const today = formatDateOnly(parseDateOnly(at));
+  const parentRoutine = task.parentId
+    ? tasks.find(candidate => candidate.id === task.parentId && candidate.type === 'Rutina')
+    : undefined;
+
+  if (parentRoutine) {
+    const opportunities = getRoutineOpportunityDates(parentRoutine, at);
+    const range = getRoutineCycleRangeForTask(parentRoutine, at);
+    const target = Math.max(1, task.objetivoPorCiclo || 1);
+    const completionDates = getCycleCompletionDatesForChildHabit(parentRoutine, task, history, snapshots, range);
+    return evaluateQuotaEligibility(opportunities, completionDates, target, today, task.idealSpacingDays);
+  }
+
+  if (getAppearanceMode(task) === 'quota') {
+    const range = getQuotaRange(task, at);
+    const anchor = getAppearanceDate(task);
+    const effectiveStart = anchor && anchor > range.start ? anchor : range.start;
+    const opportunities = effectiveStart <= range.end
+      ? getCalendarDatesInRange({ start: effectiveStart, end: range.end })
+      : [];
+    const target = Math.max(1, task.quotaTarget || 1);
+    const completionDates = Array.from(new Set(
+      history
+        .filter(record => isVerifiedHabitCompletion(task, record))
+        .map(getHistoryDateKey)
+        .filter(date => date >= range.start && date <= range.end),
+    )).sort();
+    return evaluateQuotaEligibility(opportunities, completionDates, target, today, task.idealSpacingDays);
+  }
+
+  return 'due';
+}
+
 export function canTrackTask(
   task: AppTask,
   tasks: AppTask[],
@@ -312,8 +432,31 @@ export function getTodayPlacement(
   const appears = task.type === 'Rutina'
     ? isAppearanceScheduledOnDate(task, at) && !isRoutineCycleClosed(task, snapshots, at)
     : isItemAppearingOnDate(task, history, at);
-  if (appears) return task.hora ? 'timeline' : 'flexible';
+  if (appears) return (task.hora || task.momentId) ? 'timeline' : 'flexible';
   return task.type === 'Tarea' ? 'backlog' : null;
+}
+
+/**
+ * Returns true when an item belongs in the shared unscheduled Backlog (no date, no hour, no moment),
+ * excluding completed, paused, Pulso, nested children, and active quota habits.
+ */
+export function isUnscheduledBacklogTask(
+  task: AppTask,
+  tasks: AppTask[],
+  at: string | Date = new Date(),
+): boolean {
+  if (task.completed || task.type === 'Pulso' || isTaskEffectivelyPaused(task, tasks, at)) return false;
+  if (task.type === 'Hábito' && task.parentId) return false;
+  if (
+    task.parentId &&
+    (getProjectForTask(task.parentId, tasks) || tasks.some(p => p.id === task.parentId && p.type === 'Rutina'))
+  ) {
+    return false;
+  }
+  if (task.hora || task.momentId) return false;
+  if (getAppearanceDate(task)) return false;
+  if (getAppearanceMode(task) === 'quota') return false;
+  return true;
 }
 
 export function shouldShowHistoryRecordInTimeline(_record: HistoryRecord, _tasks: AppTask[]): boolean {

@@ -2,7 +2,14 @@ import { AppTask, HistoryRecord, Intention, IntentionItem, ProgressSnapshot } fr
 import { formatDateOnly, parseDateOnly } from './recurrenceProgress';
 import { getHistoryDateKey, getProjectTaskIds } from './workTracking';
 import { getTaskIdsForItem, getIntentionItemLabel } from './intentionProgress';
-import { getTodayPlacement, isAppearanceScheduledOnDate, isItemAppearingOnDate, isRoutineCycleClosed } from './appearance';
+import {
+  DailyHabitEligibility,
+  getDailyHabitEligibility,
+  getTodayPlacement,
+  isAppearanceScheduledOnDate,
+  isItemAppearingOnDate,
+  isRoutineCycleClosed,
+} from './appearance';
 import { isTaskEffectivelyPaused } from './pause';
 
 export type CommitmentContext = {
@@ -17,9 +24,11 @@ export type CommitmentAction = {
   plannedHours: number;
   plannedOccurrences: number;
   completedOccurrences: number;
+  eligibility?: DailyHabitEligibility;
 };
 
 export type CommitmentTone = 'success' | 'danger' | 'in-progress' | 'neutral';
+export type CommitmentWeeklyRisk = 'at-risk' | 'missed';
 
 export type CommitmentPeriodSummary = CommitmentContext & {
   id: string;
@@ -37,6 +46,8 @@ export type CommitmentPeriodSummary = CommitmentContext & {
   tone: CommitmentTone;
   displayValue: string;
   secondaryValue?: string;
+  weeklyRisk?: CommitmentWeeklyRisk;
+  weeklyRiskLabel?: string;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -68,19 +79,15 @@ function dateRange(start: string, end: string): string[] {
   return result;
 }
 
-export function computeWeeklyTone(
+export function computeWeeklyRisk(
   percent: number,
   weekStart: string,
   weekEnd: string,
   refDate: string,
   plannedDays?: number,
   completedDays?: number,
-): CommitmentTone {
-  if (percent >= 100) return 'success';
-
-  if (refDate < weekStart) {
-    return percent > 0 ? 'in-progress' : 'neutral';
-  }
+): CommitmentWeeklyRisk | undefined {
+  if (percent >= 100 || refDate < weekStart) return undefined;
 
   const effectiveDateStr = refDate <= weekEnd ? refDate : weekEnd;
   const effectiveDate = parseDateOnly(effectiveDateStr);
@@ -92,24 +99,39 @@ export function computeWeeklyTone(
   if (plannedDays !== undefined && completedDays !== undefined && plannedDays > 0) {
     const neededDays = plannedDays - completedDays;
     if (neededDays > daysRemaining) {
-      return 'danger';
+      return 'missed';
     }
   }
 
   if (isLateWeek && percent < 20) {
-    return 'danger';
+    return 'at-risk';
   }
 
+  return undefined;
+}
+
+export function computeWeeklyTone(
+  percent: number,
+  weekStart: string,
+  weekEnd: string,
+  refDate: string,
+  plannedDays?: number,
+  completedDays?: number,
+): CommitmentTone {
+  if (percent >= 100) return 'success';
+  if (refDate < weekStart) {
+    return percent > 0 ? 'in-progress' : 'neutral';
+  }
+  const risk = computeWeeklyRisk(percent, weekStart, weekEnd, refDate, plannedDays, completedDays);
+  if (risk) return 'danger';
   if (percent > 0) return 'in-progress';
   return 'neutral';
 }
 
 export function computeDailyTone(
   dayPercent: number,
-  weeklyTone?: CommitmentTone,
 ): CommitmentTone {
   if (dayPercent >= 100) return 'success';
-  if (weeklyTone === 'danger') return 'danger';
   if (dayPercent > 0) return 'in-progress';
   return 'neutral';
 }
@@ -198,6 +220,7 @@ function actionsForCommitment(
   snapshots: ProgressSnapshot[],
   start: string,
   end: string,
+  mode: 'day' | 'week',
 ): CommitmentAction[] {
   const relatedIds = new Set(getTaskIdsForItem(context.item, tasks));
   const result = new Map<string, CommitmentAction>();
@@ -208,6 +231,13 @@ function actionsForCommitment(
       const activity = historyForTaskOnDate(task, tasks, history, date);
       const hasActivity = activity.length > 0;
       if (!scheduled && !hasActivity) return;
+
+      const eligibility: DailyHabitEligibility | undefined = mode === 'day'
+        ? (task.type === 'Hábito' ? getDailyHabitEligibility(task, tasks, history, snapshots, date) : 'due')
+        : undefined;
+
+      if (mode === 'day' && eligibility === 'covered' && !hasActivity) return;
+
       const action = result.get(task.id) || {
         task,
         completed: false,
@@ -215,12 +245,18 @@ function actionsForCommitment(
         plannedHours: 0,
         plannedOccurrences: 0,
         completedOccurrences: 0,
+        eligibility,
       };
       result.set(task.id, action);
+      if (eligibility && action.eligibility !== 'due') {
+        action.eligibility = eligibility;
+      }
+
       const completed = activity.some(record => (
         record.isCompletion === true || (record.duration || 0) > 0 || record.pulseOutcome === 'safe-day'
       ));
-      if (scheduled || activity.length > 0) {
+      const countsAsPlannedToday = mode === 'week' || eligibility === 'due';
+      if ((scheduled || hasActivity) && countsAsPlannedToday) {
         action.plannedOccurrences += 1;
         action.plannedHours += getPlannedHours(task, tasks);
       }
@@ -247,7 +283,7 @@ function buildSummary(
   mode: 'day' | 'week',
   refDate: string = formatDateOnly(new Date()),
 ): CommitmentPeriodSummary | null {
-  const actions = actionsForCommitment(context, tasks, history, snapshots, start, end);
+  const actions = actionsForCommitment(context, tasks, history, snapshots, start, end, mode);
   const counterDelta = context.item.targetType === 'counter'
     ? getCounterDelta(context.item, start, end)
     : 0;
@@ -258,6 +294,12 @@ function buildSummary(
   const plannedOccurrences = actions.reduce((sum, action) => sum + action.plannedOccurrences, 0);
   const completedOccurrences = actions.reduce((sum, action) => sum + action.completedOccurrences, 0);
   const completedActions = actions.filter(action => action.completed).length;
+
+  // In day mode, only show commitments that have at least one due item today or already received activity/counter today.
+  if (mode === 'day' && plannedOccurrences === 0 && completedOccurrences === 0 && actualHours === 0 && counterDelta === 0) {
+    return null;
+  }
+
   const weeklyTarget = mode === 'week' && context.item.targetType === 'hours' && context.item.hoursPacing === 'weekly'
     ? context.item.weeklyHours || 0
     : 0;
@@ -269,7 +311,17 @@ function buildSummary(
   let completedDays: number | undefined;
   const isHabits = actions.some(action => action.task.type === 'Hábito');
 
-  if (context.item.targetType === 'hours') {
+  if (mode === 'day' && plannedOccurrences === 0) {
+    percent = 100;
+    if (context.item.targetType === 'hours') {
+      displayValue = `${actualHours.toFixed(1)} h extra hoy`;
+    } else if (context.item.targetType === 'counter') {
+      const unit = context.item.unitLabel || 'unidades';
+      displayValue = `+${counterDelta} ${unit}`;
+    } else {
+      displayValue = `+${completedOccurrences} opcional hoy`;
+    }
+  } else if (context.item.targetType === 'hours') {
     const target = weeklyTarget || plannedHours;
     const completionFallback = plannedOccurrences > 0
       ? (completedOccurrences / plannedOccurrences) * 100
@@ -332,21 +384,51 @@ function buildSummary(
         : 0;
     } else {
       // Vista Hoy o compromisos de tipo completion / tareas normales
-      percent = plannedOccurrences > 0
-        ? Math.min(100, Math.round((completedOccurrences / plannedOccurrences) * 100))
+      const completedDueOccurrences = mode === 'day'
+        ? actions
+            .filter(action => action.eligibility !== 'optional')
+            .reduce((sum, action) => sum + action.completedOccurrences, 0)
+        : completedOccurrences;
+      const optionalDoneCount = mode === 'day'
+        ? actions
+            .filter(action => action.eligibility === 'optional')
+            .reduce((sum, action) => sum + action.completedOccurrences, 0)
         : 0;
-      displayValue = `${completedOccurrences} / ${plannedOccurrences} ${unitLabel}`;
+      const effectiveCompleted = mode === 'day'
+        ? Math.min(plannedOccurrences, completedDueOccurrences + optionalDoneCount)
+        : completedOccurrences;
+
+      percent = plannedOccurrences > 0
+        ? Math.min(100, Math.round((effectiveCompleted / plannedOccurrences) * 100))
+        : 0;
+      displayValue = `${effectiveCompleted} / ${plannedOccurrences} ${unitLabel}`;
+      if (mode === 'day' && optionalDoneCount > 0) {
+        secondaryValue = `+${optionalDoneCount} opcional`;
+      }
     }
   }
 
   let tone: CommitmentTone = 'neutral';
+  let weeklyRisk: CommitmentWeeklyRisk | undefined;
+  let weeklyRiskLabel: string | undefined;
+
   if (mode === 'week') {
     const targetDays = (context.item.targetType === 'consistency' && isHabits)
-      ? (context.item.weeklyTarget || plannedDays)
+      ? (context.item.weeklyTarget || (
+          context.item.targetPercent && plannedDays
+            ? Math.max(1, Math.ceil(plannedDays * (context.item.targetPercent / 100)))
+            : plannedDays
+        ))
       : undefined;
+    weeklyRisk = computeWeeklyRisk(percent, start, end, refDate, targetDays, completedDays);
+    weeklyRiskLabel = weeklyRisk === 'missed'
+      ? '✕ semana perdida'
+      : weeklyRisk === 'at-risk'
+        ? '⚠ semana en riesgo'
+        : undefined;
     tone = computeWeeklyTone(percent, start, end, refDate, targetDays, completedDays);
   } else {
-    tone = percent >= 100 ? 'success' : (percent > 0 ? 'in-progress' : 'neutral');
+    tone = computeDailyTone(percent);
   }
 
   return {
@@ -366,6 +448,8 @@ function buildSummary(
     tone,
     displayValue,
     secondaryValue,
+    weeklyRisk,
+    weeklyRiskLabel,
   };
 }
 
@@ -378,14 +462,15 @@ export function getTodayCommitmentSummaries(
 ): CommitmentPeriodSummary[] {
   const { start: weekStart, end: weekEnd } = getWeekRange(today);
   return intersectingQuarterCommitments(intentions, today, today)
-    .map(context => {
+    .map((context): CommitmentPeriodSummary | null => {
       const daySummary = buildSummary(context, tasks, history, snapshots, today, today, 'day', today);
       if (!daySummary) return null;
       const weeklySummary = buildSummary(context, tasks, history, snapshots, weekStart, weekEnd, 'week', today);
-      const tone = computeDailyTone(daySummary.percent, weeklySummary?.tone);
       return {
         ...daySummary,
-        tone,
+        tone: daySummary.tone,
+        weeklyRisk: weeklySummary?.weeklyRisk,
+        weeklyRiskLabel: weeklySummary?.weeklyRiskLabel,
       };
     })
     .filter((summary): summary is CommitmentPeriodSummary => !!summary);

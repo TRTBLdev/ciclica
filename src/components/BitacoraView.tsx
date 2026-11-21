@@ -35,6 +35,9 @@ interface Props {
   onUpdateHistory: (id: string, updates: Partial<HistoryRecord>) => void;
   onDeleteHistory: (id: string) => void;
   onAddHistory: (record: Omit<HistoryRecord, 'id'>) => void;
+  requestedTab?: 'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo';
+  openAgendaBacklog?: boolean;
+  onAgendaBacklogOpened?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
@@ -56,11 +59,22 @@ export default function BitacoraView({
   onUpdateHistory,
   onDeleteHistory,
   onAddHistory,
+  requestedTab,
+  openAgendaBacklog,
+  onAgendaBacklogOpened,
   onNavigate,
 }: Props) {
   const { showToast } = useToast();
   // Tabs: 'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'
-  const [activeTab, setActiveTab] = useState<'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'intenciones' | 'reportes' | 'seguimiento' | 'historial' | 'archivo'>(requestedTab || 'agenda');
+
+  React.useEffect(() => {
+    if (openAgendaBacklog) {
+      setActiveTab('agenda');
+    } else if (requestedTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab, openAgendaBacklog]);
 
   // Cycles archive states
   const [showAddHist, setShowAddHist] = useState(false);
@@ -381,6 +395,8 @@ export default function BitacoraView({
               onUpdateTask={onUpdateTask}
               onAddTask={onAddTask}
               onDeleteTask={onDeleteTask}
+              openBacklogOnRequest={openAgendaBacklog}
+              onBacklogOpened={onAgendaBacklogOpened}
               onNavigate={onNavigate}
             />
           </div>

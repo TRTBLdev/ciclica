@@ -14,6 +14,9 @@ interface Props {
   titleClassName?: string;
   layout?: 'single' | 'grid';
   defaultExpandedItems?: boolean;
+  variant?: 'cards' | 'pills';
+  selectedCommitmentId?: string | null;
+  onToggleFilter?: (commitmentId: string) => void;
 }
 
 function typeLabel(type: CommitmentPeriodSummary['targetType']): string {
@@ -33,6 +36,9 @@ export default function CommitmentProgressPanel({
   titleClassName,
   layout,
   defaultExpandedItems = false,
+  variant = 'cards',
+  selectedCommitmentId = null,
+  onToggleFilter,
 }: Props) {
   const [isOpen, setIsOpen] = React.useState(true);
   const [expandedCardIds, setExpandedCardIds] = React.useState<Set<string>>(() => {
@@ -58,6 +64,103 @@ export default function CommitmentProgressPanel({
   const titleId = `${panelId}-title`;
   const contentId = `${panelId}-content`;
   if (summaries.length === 0) return null;
+
+  if (variant === 'pills') {
+    return (
+      <section aria-labelledby={titleId} className={cn('border-b border-border-line/30 pb-4', className)}>
+        <header className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+          <h3 id={titleId} className={cn('inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim', titleClassName)}>
+            <Target className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span>{title}</span>
+          </h3>
+          {selectedCommitmentId && onToggleFilter && (
+            <button
+              type="button"
+              onClick={() => onToggleFilter(selectedCommitmentId)}
+              className="border-0 bg-transparent p-0 font-mono text-[10px] uppercase tracking-wider text-primary hover:underline cursor-pointer"
+            >
+              Limpiar filtro
+            </button>
+          )}
+        </header>
+
+        <div id={contentId} className="flex flex-wrap items-center gap-2">
+          {summaries.map(summary => {
+            const isSelected = selectedCommitmentId === summary.id;
+            const isSuccess = summary.tone === 'success' || summary.percent >= 100;
+            const isInProgress = summary.tone === 'in-progress';
+            const pillTitle = [
+              summary.title,
+              `${summary.percent}% de hoy (${summary.displayValue})`,
+              summary.secondaryValue,
+              summary.weeklyRiskLabel,
+            ].filter(Boolean).join(' · ');
+
+            return (
+              <button
+                key={summary.id}
+                type="button"
+                aria-pressed={onToggleFilter ? isSelected : undefined}
+                title={pillTitle}
+                onClick={() => {
+                  if (onToggleFilter) {
+                    onToggleFilter(summary.id);
+                    return;
+                  }
+                  if (summary.actions[0] && onSelectAction) {
+                    onSelectAction(summary.actions[0].task);
+                  }
+                }}
+                className={cn(
+                  'inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-left transition-all cursor-pointer',
+                  isSelected
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/35'
+                    : isSuccess
+                      ? 'border-emerald-500/40 bg-emerald-500/10 hover:border-emerald-500/60'
+                      : isInProgress
+                        ? 'border-primary/40 bg-primary/5 hover:border-primary/60'
+                        : 'border-border-line/70 bg-base hover:border-border-line',
+                )}
+              >
+                {isSuccess ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                ) : (
+                  <CircleDashed className={cn('h-3.5 w-3.5 shrink-0', isInProgress ? 'text-primary' : 'text-text-dim')} aria-hidden="true" />
+                )}
+                <span className="max-w-[160px] sm:max-w-[200px] truncate text-xs font-medium text-text-main">
+                  {summary.title}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 font-mono text-[10px] font-bold tabular-nums',
+                    isSuccess
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : isInProgress
+                        ? 'text-primary'
+                        : 'text-text-dim',
+                  )}
+                >
+                  {summary.percent}% hoy
+                </span>
+                {summary.weeklyRisk && summary.weeklyRiskLabel && (
+                  <span
+                    className={cn(
+                      'shrink-0 border-l border-border-line/50 pl-1.5 font-mono text-[9px] font-medium',
+                      summary.weeklyRisk === 'missed'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-amber-600 dark:text-amber-400',
+                    )}
+                  >
+                    {summary.weeklyRiskLabel}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby={titleId} className={cn('border-b border-border-line/30 pb-6', className)}>

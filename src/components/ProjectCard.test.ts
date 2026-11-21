@@ -102,4 +102,47 @@ describe('project card hours', () => {
     expect(markup).toContain('ml-9 mt-4');
     expect(markup).not.toContain('border-l border-border-line/70');
   });
+
+  it('renders borderless commitment badge and Zap indicator when quickTrack is enabled', () => {
+    const project: AppTask = {
+      id: 'project_qt',
+      userId: 'local_user',
+      text: 'Proyecto rápido',
+      type: 'Proyecto',
+      quickTrack: true,
+      createdAt: '2026-07-20T12:00:00.000Z',
+      completed: false,
+    };
+    const presentation: ProjectPresentation = {
+      descendants: [],
+      pendingTasks: [],
+      completedTasks: [],
+      pendingCount: 0,
+      completedCount: 0,
+      totalCount: 0,
+      progress: 0,
+      openEstimate: 0,
+      totalEstimate: 0,
+      trackedHours: 0,
+      energy: { support: 0, investment: 0, total: 0 },
+      scheduleLabel: 'Sin programación',
+    };
+    const markup = renderToStaticMarkup(React.createElement(
+      ProjectCard,
+      {
+        project,
+        presentation,
+        config: null,
+        variant: 'strategy',
+        expanded: false,
+        onToggleExpanded: () => undefined,
+        onToggleProject: () => undefined,
+        commitmentLabels: ['Compromiso A'],
+      },
+    ));
+
+    expect(markup).toContain('aria-label="En acceso rápido"');
+    expect(markup).toContain('lucide-zap');
+    expect(markup).not.toContain('border-primary/30');
+  });
 });

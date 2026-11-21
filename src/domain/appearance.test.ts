@@ -7,7 +7,9 @@ import {
   getChildHabitQuotaStatus,
   getChildHabitCycleCount,
   getCompactDateTone,
+  getDailyHabitEligibility,
   getHabitTemporalIndicators,
+  getIdealHabitSpacing,
   getItemTemporalIndicators,
   getMinimumRoutineOpportunityCount,
   getNextRoutineAppearanceDate,
@@ -22,6 +24,7 @@ import {
   isAppearanceScheduledOnDate,
   isItemAppearingOnDate,
   isRoutineCycleClosed,
+  isUnscheduledBacklogTask,
   limitCardMetadata,
   shouldShowHistoryRecordInTimeline,
   wasChildHabitCompletedInAppearance,
@@ -488,5 +491,122 @@ describe('unstarted temporal state', () => {
   it('excludes completed legacy items without history', () => {
     const completed = task({ id: 'completed_without_log', completed: true, fechaLimite: '2026-08-01' });
     expect(getItemTemporalIndicators(completed, [completed], []).some(indicator => indicator.kind === 'unstarted')).toBe(false);
+  });
+});
+
+describe('daily habit eligibility (due | optional | covered)', () => {
+  const dailyRoutine = task({
+    id: 'routine_daily',
+    type: 'Rutina',
+    appearanceMode: 'interval',
+    appearanceFrequency: 1,
+    appearanceFrequencyUnit: 'días',
+    fechaAparicion: '2026-11-16',
+    routineCycleFrequency: 1,
+    routineCycleUnit: 'semanas',
+  });
+
+  const floss = task({
+    id: 'habit_floss',
+    type: 'Hábito',
+    parentId: dailyRoutine.id,
+    objetivoPorCiclo: 3, // 7 opps / 3 = idealSpacing 2
+  });
+
+  it('starts a quota habit as due when it has 0 executions in the cycle, then enforces ideal spacing and no-margin', () => {
+    expect(getIdealHabitSpacing(7, 3)).toBe(2);
+    expect(getIdealHabitSpacing(7, 2)).toBe(3);
+    expect(getIdealHabitSpacing(7, 3, 3)).toBe(3);
+
+    // 0 executions on Monday -> due from day 1
+    expect(getDailyHabitEligibility(floss, [dailyRoutine, floss], [], [], '2026-11-16')).toBe('due');
+
+    // Completed on Monday (2026-11-16)
+    const afterMon = [record({
+      taskId: floss.id,
+      date: '2026-11-16T22:00:00',
+      routineId: dailyRoutine.id,
+      routineCycleStart: '2026-11-16',
+      routineAppearanceDate: '2026-11-16',
+    })];
+    // Tuesday -> 1 day since Mon (< idealSpacing 2), 6 opps remaining for 2 needed -> optional
+    expect(getDailyHabitEligibility(floss, [dailyRoutine, floss], afterMon, [], '2026-11-17')).toBe('optional');
+    // Wednesday -> 2 days since Mon (>= idealSpacing 2) -> due
+    expect(getDailyHabitEligibility(floss, [dailyRoutine, floss], afterMon, [], '2026-11-18')).toBe('due');
+    // Saturday with still only 1 completion -> remainingOpportunities (2: Sat, Sun) <= remainingNeeded (2) -> due (no margin)
+    expect(getDailyHabitEligibility(floss, [dailyRoutine, floss], afterMon, [], '2026-11-21')).toBe('due');
+
+    // Completed 3 times (Mon, Wed, Fri) -> Saturday is covered
+    const coveredHistory = [
+      ...afterMon,
+      record({ id: 'h2', taskId: floss.id, date: '2026-11-18T22:00:00', routineId: dailyRoutine.id, routineCycleStart: '2026-11-16', routineAppearanceDate: '2026-11-18' }),
+      record({ id: 'h3', taskId: floss.id, date: '2026-11-20T22:00:00', routineId: dailyRoutine.id, routineCycleStart: '2026-11-16', routineAppearanceDate: '2026-11-20' }),
+    ];
+    expect(getDailyHabitEligibility(floss, [dailyRoutine, floss], coveredHistory, [], '2026-11-21')).toBe('covered');
+  });
+
+  it('respects manual idealSpacingDays override and standalone quota mode', () => {
+    const standaloneQuota = task({
+      id: 'standalone_quota',
+      type: 'Hábito',
+      appearanceMode: 'quota',
+      fechaAparicion: '2026-11-16',
+      quotaTarget: 2,
+      quotaPeriodUnit: 'semanas',
+      idealSpacingDays: 4,
+    });
+    const history = [record({ taskId: standaloneQuota.id, date: '2026-11-16T10:00:00' })];
+
+    expect(getDailyHabitEligibility(standaloneQuota, [standaloneQuota], [], [], '2026-11-16')).toBe('due');
+    expect(getDailyHabitEligibility(standaloneQuota, [standaloneQuota], history, [], '2026-11-19')).toBe('optional');
+    expect(getDailyHabitEligibility(standaloneQuota, [standaloneQuota], history, [], '2026-11-20')).toBe('due');
+  });
+});
+
+describe('isUnscheduledBacklogTask', () => {
+  it('incluye tareas y proyectos sin fecha, hora ni momento, y excluye futuros, quota, hijos, pulsos o pausados', () => {
+    const projectParent = task({ id: 'proj_parent', type: 'Proyecto', text: 'Proyecto activo' });
+    const routineParent = task({ id: 'rut_parent', type: 'Rutina', text: 'Rutina', fechaAparicion: '2026-11-16' });
+
+    const unscheduledTask = task({ id: 't_backlog', text: 'Tarea suelta sin fecha' });
+    const unscheduledProject = task({ id: 'p_backlog', type: 'Proyecto', text: 'Proyecto sin fecha' });
+    const futureTask = task({ id: 't_future', text: 'Tarea futura', fechaAparicion: '2026-11-28' });
+    const momentTask = task({ id: 't_moment', text: 'En momento', momentId: 'mom_wake' });
+    const timedTask = task({ id: 't_timed', text: 'Con hora', hora: '10:00' });
+    const quotaHabit = task({ id: 'h_quota', type: 'Hábito', appearanceMode: 'quota', quotaTarget: 2 });
+    const projectChild = task({ id: 't_sub', text: 'Subtarea', parentId: projectParent.id });
+    const routineChild = task({ id: 'h_sub', type: 'Hábito', parentId: routineParent.id });
+    const pulso = task({ id: 'pulso_1', type: 'Pulso', text: 'Agua' });
+    const paused = task({ id: 't_paused', text: 'Pausada', pauseIntervals: [{ startedAt: '2026-11-10T10:00:00.000Z' }] });
+    const completed = task({ id: 't_done', text: 'Completada', completed: true });
+
+    const allTasks = [
+      projectParent,
+      routineParent,
+      unscheduledTask,
+      unscheduledProject,
+      futureTask,
+      momentTask,
+      timedTask,
+      quotaHabit,
+      projectChild,
+      routineChild,
+      pulso,
+      paused,
+      completed,
+    ];
+
+    expect(isUnscheduledBacklogTask(unscheduledTask, allTasks, '2026-11-21')).toBe(true);
+    expect(isUnscheduledBacklogTask(unscheduledProject, allTasks, '2026-11-21')).toBe(true);
+
+    expect(isUnscheduledBacklogTask(futureTask, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(momentTask, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(timedTask, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(quotaHabit, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(projectChild, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(routineChild, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(pulso, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(paused, allTasks, '2026-11-21')).toBe(false);
+    expect(isUnscheduledBacklogTask(completed, allTasks, '2026-11-21')).toBe(false);
   });
 });

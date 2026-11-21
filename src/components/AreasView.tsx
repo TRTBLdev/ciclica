@@ -5,6 +5,7 @@ import { cn, getAreaColorClasses, getAreaBorderClasses, getAreaTextClasses, APP_
 import { calculateItemProgress, getActiveAreaCommitments, getIntentionItemLabel, INTENTION_SCALE_LABELS, summarizeIntentionProgress } from '../domain/intentionProgress';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
+import GroupDropdown from './ui/GroupDropdown';
 import { buildHabitDurationSummaryIndex, buildRoutineDurationSummaryIndex } from '../domain/habitDuration';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import { isTaskEffectivelyPaused } from '../domain/pause';
@@ -371,6 +372,8 @@ function AreaDetail({
   const [editNewCat, setEditNewCat] = useState('');
 
   // Expand / collapse states for rows
+  const [viewMode, setViewMode] = useState<'type' | 'subcategory'>('type');
+  const [collapsedSubcategories, setCollapsedSubcategories] = useState<Record<string, boolean>>({});
   const [expandRoutines, setExpandRoutines] = useState(false);
   const [expandProjects, setExpandProjects] = useState(false);
   const [expandHabits, setExpandHabits] = useState(false);
@@ -407,6 +410,159 @@ function AreaDetail({
   };
   const habitsInArea = tasks.filter(t => t.category === areaName && t.type === 'Hábito' && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
   const standaloneTasks = tasks.filter(t => t.category === areaName && t.type !== 'Proyecto' && t.type !== 'Hábito' && t.type !== 'Rutina' && !isTaskEffectivelyPaused(t, tasks) && (!t.parentId || tasks.find(p=>p.id===t.parentId)?.type !== 'Rutina'));
+
+  const renderProjectRow = (proj: AppTask) => (
+    <div key={proj.id} className="relative p-4 transition-colors group hover:bg-base-dim/20 border-b border-border-line/20 last:border-0 flex items-center justify-between">
+       <div className="flex flex-col gap-1 items-start">
+         <div className="flex items-center gap-2">
+           <h4 className="text-item font-medium leading-none">{proj.text}</h4>
+           {onNavigate && (
+             <button
+               onClick={() => onNavigate('proyectos', proj.id)}
+               className="text-primary hover:text-text-main p-1 cursor-pointer bg-transparent border-0"
+               title="Ir a su ubicación en vista Proyectos"
+             >
+               <ArrowUpRight className="w-3.5 h-3.5"/>
+             </button>
+           )}
+         </div>
+         {proj.subCategory && viewMode === 'type' && (
+           <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} className="mt-1" hideArea />
+         )}
+       </div>
+       <button onClick={() => { if(confirm('¿Eliminar proyecto?')) onDeleteTask(proj.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-red-500 p-1 rounded hover:bg-red-50/10 cursor-pointer">
+         <X className="w-4 h-4"/>
+       </button>
+    </div>
+  );
+
+  const renderRoutineGroup = (r: AppTask) => {
+    const childHabits = tasks.filter(h => h.parentId === r.id && h.type === 'Hábito');
+    return (
+      <div key={r.id} className="flex flex-col border-b border-border-line/10 pb-4 last:border-0 last:pb-0">
+        <TaskItem
+          task={r}
+          config={config}
+          allTasks={tasks}
+          history={history}
+          onToggle={onToggleTask}
+          onDelete={() => onDeleteTask(r.id)}
+          onUpdate={onUpdateTask}
+          onAddTask={onAddTask}
+          onDeleteTask={onDeleteTask}
+          onDuplicateTask={onDuplicateTask}
+          onPauseTask={onPauseTask}
+          onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
+          routineDurationSummary={routineDurationSummaries.get(r.id)}
+        />
+
+        {childHabits.length > 0 && (
+          <div className="pl-12 flex flex-col gap-2 mt-2">
+            {childHabits.map(h => (
+              <TaskItem
+                key={h.id}
+                task={h}
+                config={config}
+                allTasks={tasks}
+                history={history}
+                onToggle={onToggleTask}
+                onDelete={() => onDeleteTask(h.id)}
+                onUpdate={onUpdateTask}
+                onAddTask={onAddTask}
+                onDeleteTask={onDeleteTask}
+                onDuplicateTask={onDuplicateTask}
+                onPauseTask={onPauseTask}
+                durationSummary={habitDurationSummaries.get(h.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderHabitRow = (hab: AppTask) => (
+    <TaskItem
+      key={hab.id}
+      task={hab}
+      config={config}
+      allTasks={tasks}
+      history={history}
+      onToggle={onToggleTask}
+      onDelete={() => onDeleteTask(hab.id)}
+      onUpdate={onUpdateTask}
+      onAddTask={onAddTask}
+      onDeleteTask={onDeleteTask}
+      onDuplicateTask={onDuplicateTask}
+      onPauseTask={onPauseTask}
+      onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', hab.id) : undefined}
+      durationSummary={habitDurationSummaries.get(hab.id)}
+    />
+  );
+
+  const renderStandaloneTaskRow = (t: AppTask) => (
+    <TaskItem
+      key={t.id}
+      task={t}
+      config={config}
+      allTasks={tasks}
+      history={history}
+      onToggle={onToggleTask}
+      onDelete={() => onDeleteTask(t.id)}
+      onUpdate={onUpdateTask}
+      onAddTask={onAddTask}
+      onDeleteTask={onDeleteTask}
+      onDuplicateTask={onDuplicateTask}
+      onPauseTask={onPauseTask}
+      onNavigateToLocation={onNavigate ? () => onNavigate('proyectos', t.id) : undefined}
+    />
+  );
+
+  const subcategoryGroups = React.useMemo(() => {
+    const allAreaItems = [...projectsInArea, ...routinesInArea, ...habitsInArea, ...standaloneTasks];
+    const knownKeys = [...categories];
+    allAreaItems.forEach(item => {
+      if (item.subCategory && !knownKeys.includes(item.subCategory)) {
+        knownKeys.push(item.subCategory);
+      }
+    });
+    const buckets: Array<{
+      key: string;
+      label: string;
+      projects: AppTask[];
+      routines: AppTask[];
+      habits: AppTask[];
+      tasks: AppTask[];
+      total: number;
+    }> = [];
+
+    knownKeys.forEach(subCat => {
+      const p = projectsInArea.filter(i => i.subCategory === subCat);
+      const r = routinesInArea.filter(i => i.subCategory === subCat);
+      const h = habitsInArea.filter(i => i.subCategory === subCat);
+      const t = standaloneTasks.filter(i => i.subCategory === subCat);
+      const total = p.length + r.length + h.length + t.length;
+      if (total > 0) buckets.push({ key: subCat, label: subCat, projects: p, routines: r, habits: h, tasks: t, total });
+    });
+
+    const pNone = projectsInArea.filter(i => !i.subCategory);
+    const rNone = routinesInArea.filter(i => !i.subCategory);
+    const hNone = habitsInArea.filter(i => !i.subCategory);
+    const tNone = standaloneTasks.filter(i => !i.subCategory);
+    const noneTotal = pNone.length + rNone.length + hNone.length + tNone.length;
+    if (noneTotal > 0) {
+      buckets.push({
+        key: '__none__',
+        label: 'Sin subcategoría',
+        projects: pNone,
+        routines: rNone,
+        habits: hNone,
+        tasks: tNone,
+        total: noneTotal,
+      });
+    }
+    return buckets;
+  }, [categories, projectsInArea, routinesInArea, habitsInArea, standaloneTasks]);
 
   const handleAddEditCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -628,7 +784,66 @@ function AreaDetail({
               </div>
             ))}
          </section>
-         
+
+         {/* View mode: GroupDropdown (Tipo | Subcategoría) */}
+         <div className="flex items-center justify-between gap-4 border-b border-border-line/20 pb-3">
+           <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim">
+             {viewMode === 'subcategory' ? 'Por subcategoría' : 'Por tipo'}
+           </span>
+           <GroupDropdown
+             align="right"
+             options={[
+               { label: 'Por tipo', value: 'type' },
+               { label: 'Por subcategoría', value: 'subcategory' },
+             ]}
+             currentValue={viewMode}
+             defaultValue="type"
+             onChange={val => setViewMode(val as 'type' | 'subcategory')}
+           />
+         </div>
+
+         {viewMode === 'subcategory' ? (
+           <div className="flex flex-col gap-5 animate-in fade-in duration-200">
+             {subcategoryGroups.length === 0 ? (
+               <p className="text-xs text-text-dim italic">No hay elementos activos en esta área.</p>
+             ) : (
+               subcategoryGroups.map(group => {
+                 const isOpen = !collapsedSubcategories[group.key];
+                 return (
+                   <section key={group.key} className="border-b border-border-line/30 pb-5 last:border-b-0">
+                     <h3
+                       onClick={() => setCollapsedSubcategories(prev => ({ ...prev, [group.key]: isOpen }))}
+                       aria-expanded={isOpen}
+                       className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 select-none"
+                     >
+                       <span className="flex items-center gap-2">
+                         {group.key !== '__none__' ? (
+                           <CategoryBadge area={areaName} subCategory={group.label} config={config} hideArea />
+                         ) : (
+                           <span className="font-mono text-xs uppercase tracking-wider text-text-dim">{group.label}</span>
+                         )}
+                         <span className="font-mono text-[10px] text-text-dim font-normal">({group.total})</span>
+                       </span>
+                       <span className="text-[10px] font-mono text-primary uppercase tracking-wider font-normal flex items-center gap-1">
+                         {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                       </span>
+                     </h3>
+
+                     {isOpen && (
+                       <div className="mt-4 flex flex-col gap-3">
+                         {group.projects.map(renderProjectRow)}
+                         {group.routines.map(renderRoutineGroup)}
+                         {group.habits.map(renderHabitRow)}
+                         {group.tasks.map(renderStandaloneTaskRow)}
+                       </div>
+                     )}
+                   </section>
+                 );
+               })
+             )}
+           </div>
+         ) : (
+         <>
          {/* 1. PROJECTS SECTION */}
          <div className="border-b border-border-line/30 pb-6">
             <h3 
@@ -651,30 +866,7 @@ function AreaDetail({
                 {projectsInArea.length === 0 ? (
                   <p className="text-xs text-primary pl-6 italic">Sin proyectos creados.</p>
                 ) : (
-                  projectsInArea.map(proj => (
-                    <div key={proj.id} className="relative p-4 transition-colors group hover:bg-base-dim/20 border-b border-border-line/20 last:border-0 flex items-center justify-between">
-                       <div className="flex flex-col gap-1 items-start">
-                         <div className="flex items-center gap-2">
-                           <h4 className="text-item font-medium leading-none">{proj.text}</h4>
-                           {onNavigate && (
-                             <button 
-                               onClick={() => onNavigate('proyectos', proj.id)}
-                               className="text-primary hover:text-text-main p-1 cursor-pointer bg-transparent border-0"
-                               title="Ir a su ubicación en vista Proyectos"
-                             >
-                               <ArrowUpRight className="w-3.5 h-3.5"/>
-                             </button>
-                           )}
-                         </div>
-                         {proj.subCategory && (
-                           <CategoryBadge area={proj.category} subCategory={proj.subCategory} config={config} className="mt-1" hideArea />
-                         )}
-                       </div>
-                       <button onClick={() => { if(confirm('¿Eliminar proyecto?')) onDeleteTask(proj.id); }} className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-red-500 p-1 rounded hover:bg-red-50/10 cursor-pointer">
-                         <X className="w-4 h-4"/>
-                       </button>
-                    </div>
-                  ))
+                  projectsInArea.map(renderProjectRow)
                 )}
               </div>
             )}
@@ -702,51 +894,7 @@ function AreaDetail({
                 {routinesInArea.length === 0 ? (
                   <p className="text-xs text-primary pl-6 italic">Sin rutinas asignadas en este pilar.</p>
                 ) : (
-                  routinesInArea.map(r => {
-                    const childHabits = tasks.filter(h => h.parentId === r.id && h.type === 'Hábito');
-                    return (
-                      <div key={r.id} className="flex flex-col border-b border-border-line/10 pb-4 last:border-0 last:pb-0">
-                        <TaskItem
-                          task={r}
-                          config={config}
-                          allTasks={tasks}
-                          history={history}
-                          onToggle={onToggleTask}
-                          onDelete={() => onDeleteTask(r.id)}
-                          onUpdate={onUpdateTask}
-                          onAddTask={onAddTask}
-                          onDeleteTask={onDeleteTask}
-                          onDuplicateTask={onDuplicateTask}
-                          onPauseTask={onPauseTask}
-                          onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', r.id) : undefined}
-                          routineDurationSummary={routineDurationSummaries.get(r.id)}
-                        />
-                        
-                        {/* Nested Child Habits */}
-                        {childHabits.length > 0 && (
-                          <div className="pl-12 flex flex-col gap-2 mt-2">
-                            {childHabits.map(h => (
-                              <TaskItem
-                                key={h.id}
-                                task={h}
-                                config={config}
-                                allTasks={tasks}
-                                history={history}
-                                onToggle={onToggleTask}
-                                onDelete={() => onDeleteTask(h.id)}
-                                onUpdate={onUpdateTask}
-                                onAddTask={onAddTask}
-                                onDeleteTask={onDeleteTask}
-                                onDuplicateTask={onDuplicateTask}
-                                onPauseTask={onPauseTask}
-                                durationSummary={habitDurationSummaries.get(h.id)}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+                  routinesInArea.map(renderRoutineGroup)
                 )}
               </div>
             )}
@@ -774,24 +922,7 @@ function AreaDetail({
                 {habitsInArea.length === 0 ? (
                   <p className="text-xs text-primary pl-6 italic">Sin hábitos asignados.</p>
                 ) : (
-                  habitsInArea.map(hab => (
-                  <TaskItem
-                       key={hab.id}
-                       task={hab}
-                       config={config}
-                       allTasks={tasks}
-                       history={history}
-                       onToggle={onToggleTask}
-                       onDelete={() => onDeleteTask(hab.id)}
-                       onUpdate={onUpdateTask}
-                       onAddTask={onAddTask}
-                       onDeleteTask={onDeleteTask}
-                    onDuplicateTask={onDuplicateTask}
-                    onPauseTask={onPauseTask}
-                       onNavigateToLocation={onNavigate ? () => onNavigate('rutinas', hab.id) : undefined}
-                       durationSummary={habitDurationSummaries.get(hab.id)}
-                     />
-                  ))
+                  habitsInArea.map(renderHabitRow)
                 )}
               </div>
             )}
@@ -819,27 +950,13 @@ function AreaDetail({
                 {standaloneTasks.length === 0 ? (
                   <p className="text-xs text-primary pl-6 italic">Sin tareas individuales registradas.</p>
                 ) : (
-                  standaloneTasks.map(t => (
-                    <TaskItem
-                       key={t.id}
-                       task={t}
-                       config={config}
-                       allTasks={tasks}
-                       history={history}
-                       onToggle={onToggleTask}
-                       onDelete={() => onDeleteTask(t.id)}
-                       onUpdate={onUpdateTask}
-                       onAddTask={onAddTask}
-                       onDeleteTask={onDeleteTask}
-                      onDuplicateTask={onDuplicateTask}
-                      onPauseTask={onPauseTask}
-                       onNavigateToLocation={onNavigate ? () => onNavigate('proyectos', t.id) : undefined}
-                     />
-                  ))
+                  standaloneTasks.map(renderStandaloneTaskRow)
                 )}
               </div>
             )}
          </div>
+         </>
+         )}
 
       </div>
     </div>

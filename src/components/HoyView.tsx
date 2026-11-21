@@ -1,28 +1,70 @@
 import React, { useState } from 'react';
-import { Target, Activity, Clock, Calendar, Inbox, Database, Plus, CheckSquare, Square, X, RotateCw, Lock, Edit2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { Config, AppTask, HistoryRecord, Separator, TaskType, ProgressSnapshot, Intention } from '../types';
+import {
+  Target,
+  Activity,
+  Clock,
+  Inbox,
+  Database,
+  X,
+  Edit2,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Check,
+  CheckCircle2,
+  Anchor,
+  ArrowUpRight,
+} from 'lucide-react';
+import {
+  Config,
+  AppTask,
+  HistoryRecord,
+  ProgressSnapshot,
+  Intention,
+} from '../types';
 import { calculateBiologicalPhase, getImminentPeriodWarning } from '../domain/cycle';
 import { getEnergyEngineDetails } from '../domain/energy';
 import { getLunarDetailsForDate } from '../domain/lunar';
-import { extractSafeTime, timeToMins, minsToTime, isSameDay, cn, getAreaColorClasses } from '../lib/utils';
+import { extractSafeTime, timeToMins, isSameDay, cn } from '../lib/utils';
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
 import TemporalIndicator from './ui/TemporalIndicator';
-import { formatDateOnly, getIsoWeekday, isRoutineConfigured } from '../domain/recurrenceProgress';
-import { getPulseLogValue, getPulseOccurrenceCount, hasPulseSafeDayConfirmation, normalizePulsePolarity } from '../domain/trackingProgress';
+import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
+import {
+  getPulseLogValue,
+  getPulseOccurrenceCount,
+  hasPulseSafeDayConfirmation,
+  normalizePulsePolarity,
+} from '../domain/trackingProgress';
 import { getTaskEnergyBreakdown } from '../domain/energyAllocation';
-import { canTrackTask, getItemTemporalIndicators, getTodayPlacement } from '../domain/appearance';
+import {
+  canTrackTask,
+  DailyHabitEligibility,
+  getDailyHabitEligibility,
+  getItemTemporalIndicators,
+  getTodayPlacement,
+  isRoutineCycleClosed,
+  isUnscheduledBacklogTask,
+  isVerifiedHabitCompletion,
+  wasChildHabitCompletedInAppearance,
+} from '../domain/appearance';
 import { getProjectPresentation, projectMatchesEnergyFilter } from '../domain/projectPresentation';
 import { isTaskEffectivelyPaused } from '../domain/pause';
 import { getCommitmentLabelsForTask, getTodayCommitmentSummaries } from '../domain/commitmentProgress';
+import { getTaskIdsForItem } from '../domain/intentionProgress';
+import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
+import {
+  getDefaultExpandedMomentId,
+  getMomentsForDate,
+  ResolvedMoment,
+  resolveTaskMomentId,
+} from '../domain/moments';
 import CommitmentProgressPanel from './CommitmentProgressPanel';
 import {
   buildHabitDurationSummaryIndex,
   buildRoutineDurationSummaryIndex,
-  HabitDurationSummary,
-  RoutineDurationSummary,
 } from '../domain/habitDuration';
 
 interface Props {
@@ -46,35 +88,100 @@ interface Props {
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
-export default function HoyView({ config, tasks, history, progressSnapshots, intentions = [], onToggleTask, onAddEvent, onDeleteTask, onDuplicateTask, onPauseTask, onUpdateTask, onTogglePulseSafeDay, onAddTask, activeTimer, onStartTimer, onUpdateConfig, onNavigate }: Props) {
+type TodayEntryBucket = 'due' | 'optional' | 'done';
+
+interface ClassifiedTodayEntry {
+  task: AppTask;
+  bucket: TodayEntryBucket;
+  eligibility?: DailyHabitEligibility;
+  displayTask: AppTask;
+}
+
+const MOMENT_DOT_CLASSES: Record<string, string> = {
+  slate: 'bg-slate-400',
+  blue: 'bg-blue-500',
+  orange: 'bg-orange-500',
+  purple: 'bg-purple-500',
+  emerald: 'bg-emerald-500',
+  amber: 'bg-amber-500',
+  red: 'bg-red-500',
+  green: 'bg-green-500',
+  teal: 'bg-teal-500',
+  cyan: 'bg-cyan-500',
+};
+
+const MOMENT_BORDER_CLASSES: Record<string, string> = {
+  slate: 'border-l-slate-400/70',
+  blue: 'border-l-blue-500/70',
+  orange: 'border-l-orange-500/70',
+  purple: 'border-l-purple-500/70',
+  emerald: 'border-l-emerald-500/70',
+  amber: 'border-l-amber-500/70',
+  red: 'border-l-red-500/70',
+  green: 'border-l-green-500/70',
+  teal: 'border-l-teal-500/70',
+  cyan: 'border-l-cyan-500/70',
+};
+
+export default function HoyView({
+  config,
+  tasks,
+  history,
+  progressSnapshots,
+  intentions = [],
+  onToggleTask,
+  onDeleteTask,
+  onDuplicateTask,
+  onPauseTask,
+  onResumeTask,
+  onUpdateTask,
+  onTogglePulseSafeDay,
+  onAddTask,
+  activeTimer,
+  onStartTimer,
+  onUpdateConfig,
+  onNavigate,
+}: Props) {
   const [currentDay, setCurrentDay] = useState(() => formatDateOnly(new Date()));
   const phase = calculateBiologicalPhase(config);
   const phaseDetails = getEnergyEngineDetails(phase, config?.cycleConfig?.trackingType);
   const ENERGY_LIMIT = phaseDetails.limit;
-
   const todayLunar = getLunarDetailsForDate(new Date());
 
-
-  // Editing pulso state
+  // Pulso editing state
   const [editingPulsoId, setEditingPulsoId] = useState<string | null>(null);
-  const [editPulsoForm, setEditPulsoForm] = useState({ text: '', targetCount: 1, unitLabel: 'veces', polaridad: 'Reforzar', category: '', subCategory: '' });
+  const [editPulsoForm, setEditPulsoForm] = useState({
+    text: '',
+    targetCount: 1,
+    unitLabel: 'veces',
+    polaridad: 'Reforzar',
+    category: '',
+    subCategory: '',
+  });
   const [openMenuPulsoId, setOpenMenuPulsoId] = useState<string | null>(null);
 
-  // Collapsible sections state
+  // View UI state
   const [showPulsos, setShowPulsos] = useState(true);
-  const [showLogs, setShowLogs] = useState(true);
-  const [showTimeline, setShowTimeline] = useState(true);
-  const [showFlexible, setShowFlexible] = useState(true);
-  const [showBacklog, setShowBacklog] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showHechoHoy, setShowHechoHoy] = useState(true);
+  const [showCuandoPueda, setShowCuandoPueda] = useState(true);
   const [showFlowLogger, setShowFlowLogger] = useState(false);
-  const [pendingCommitmentFocusId, setPendingCommitmentFocusId] = useState<string | null>(null);
-  const [sortFlexiblesBy, setSortFlexiblesBy] = useState('manual');
-  const [sortBacklogBy, setSortBacklogBy] = useState('manual');
+  const [selectedCommitmentId, setSelectedCommitmentId] = useState<string | null>(null);
+  const [userMomentToggles, setUserMomentToggles] = useState<Record<string, boolean>>({});
+  const [expandedDoneGroups, setExpandedDoneGroups] = useState<Record<string, boolean>>({});
+  const [sortCuandoPuedaBy, setSortCuandoPuedaBy] = useState('manual');
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
   const [filterTypeGroup, setFilterTypeGroup] = useState<'Todas' | 'habitos_rutinas' | 'tareas_proyectos'>('Todas');
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = formatDateOnly(new Date());
+      setCurrentDay(previous => (previous === next ? previous : next));
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const habitDurationSummaries = React.useMemo(
     () => buildHabitDurationSummaryIndex(tasks, history, progressSnapshots, currentDay),
     [tasks, history, progressSnapshots, currentDay],
@@ -88,49 +195,48 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
     [intentions, tasks, history, progressSnapshots, currentDay],
   );
 
-  const selectCommitmentAction = (task: AppTask) => {
-    const element = document.getElementById(`task-item-${task.id}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('ring-1', 'ring-primary', 'transition-all', 'duration-500');
-      window.setTimeout(() => element.classList.remove('ring-1', 'ring-primary'), 2000);
-      return;
+  React.useEffect(() => {
+    if (selectedCommitmentId && !todayCommitments.some(summary => summary.id === selectedCommitmentId)) {
+      setSelectedCommitmentId(null);
     }
+  }, [selectedCommitmentId, todayCommitments]);
 
-    const placement = getTodayPlacement(task, tasks, history, progressSnapshots, currentDay);
-    if (placement === 'timeline') setShowTimeline(true);
-    if (placement === 'flexible') setShowFlexible(true);
-    if (placement === 'timeline' || placement === 'flexible') {
-      setPendingCommitmentFocusId(task.id);
-      return;
+  const selectedCommitmentTaskIds = React.useMemo(() => {
+    if (!selectedCommitmentId) return null;
+    const summary = todayCommitments.find(item => item.id === selectedCommitmentId);
+    if (!summary) return null;
+    const ids = new Set<string>(getTaskIdsForItem(summary.item, tasks));
+    summary.actions.forEach(action => {
+      ids.add(action.task.id);
+      if (action.task.parentId) ids.add(action.task.parentId);
+    });
+    return ids;
+  }, [selectedCommitmentId, todayCommitments, tasks]);
+
+  const matchesHeaderFilters = (t: AppTask): boolean => {
+    if (filterArea !== 'Todas' && t.category !== filterArea) return false;
+    if (filterAllocation !== 'Todas') {
+      const matchesAlloc = t.type === 'Proyecto'
+        ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
+        : t.allocationType === filterAllocation;
+      if (!matchesAlloc) return false;
     }
-
-    const parent = task.parentId ? tasks.find(candidate => candidate.id === task.parentId) : undefined;
-    const origin = task.type === 'Rutina' || parent?.type === 'Rutina' ? 'rutinas' : 'proyectos';
-    onNavigate?.(origin, task.id);
+    if (filterTypeGroup === 'habitos_rutinas' && t.type !== 'Hábito' && t.type !== 'Rutina') return false;
+    if (filterTypeGroup === 'tareas_proyectos' && t.type !== 'Tarea' && t.type !== 'Proyecto') return false;
+    return true;
   };
 
-  React.useEffect(() => {
-    if (!pendingCommitmentFocusId) return;
-    const element = document.getElementById(`task-item-${pendingCommitmentFocusId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('ring-1', 'ring-primary', 'transition-all', 'duration-500');
-      window.setTimeout(() => element.classList.remove('ring-1', 'ring-primary'), 2000);
+  const matchesCommitmentFilter = (t: AppTask): boolean => {
+    if (!selectedCommitmentTaskIds) return true;
+    if (selectedCommitmentTaskIds.has(t.id)) return true;
+    if (t.type === 'Rutina' || t.type === 'Proyecto') {
+      return tasks.some(child => child.parentId === t.id && selectedCommitmentTaskIds.has(child.id));
     }
-    setPendingCommitmentFocusId(null);
-  }, [pendingCommitmentFocusId, showTimeline, showFlexible]);
+    return false;
+  };
 
-  React.useEffect(() => {
-    const timer = window.setInterval(() => {
-      const next = formatDateOnly(new Date());
-      setCurrentDay(previous => previous === next ? previous : next);
-    }, 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const getSortedTasks = (taskList: AppTask[], criterion: string) => {
-    let sorted = [...taskList];
+  const getSortedTasks = (taskList: AppTask[], criterion: string): AppTask[] => {
+    const sorted = [...taskList];
     if (criterion === 'manual') {
       sorted.sort((a, b) => (a.order || 0) - (b.order || 0));
     } else if (criterion === 'name') {
@@ -141,27 +247,36 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
     return sorted;
   };
 
+  const sortMomentEntries = (entries: ClassifiedTodayEntry[]): ClassifiedTodayEntry[] => {
+    return [...entries].sort((a, b) => {
+      const timeA = extractSafeTime(a.task.hora);
+      const timeB = extractSafeTime(b.task.hora);
+      if (timeA && timeB) {
+        const diff = timeToMins(timeA) - timeToMins(timeB);
+        if (diff !== 0) return diff;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+      const orderDiff = (a.task.order || 0) - (b.task.order || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return new Date(a.task.createdAt).getTime() - new Date(b.task.createdAt).getTime();
+    });
+  };
+
   const handleDrop = (e: React.DragEvent, targetId: string, list: AppTask[]) => {
     e.preventDefault();
     if (!draggedId || draggedId === targetId) return;
-
     const draggedItem = tasks.find(t => t.id === draggedId);
     if (!draggedItem) return;
-
-    // Check if both items belong to the same list
-    const sourceInList = list.some(t => t.id === draggedId);
-    const targetInList = list.some(t => t.id === targetId);
-
-    if (!sourceInList || !targetInList) return; // Strict D&D constraint: only within the same list
+    if (!list.some(t => t.id === draggedId) || !list.some(t => t.id === targetId)) return;
 
     const currentIndex = list.findIndex(t => t.id === draggedId);
     const targetIndex = list.findIndex(t => t.id === targetId);
-
     const newList = [...list];
     newList.splice(currentIndex, 1);
     newList.splice(targetIndex, 0, draggedItem);
-
-    // Re-assign order for the whole list
     newList.forEach((t, idx) => {
       onUpdateTask(t.id, { order: (idx + 1) * 1000 });
     });
@@ -171,62 +286,24 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
   const handleMoveTaskInList = (taskId: string, list: AppTask[], targetIndex: number) => {
     const currentIndex = list.findIndex(t => t.id === taskId);
     if (currentIndex === -1 || targetIndex < 0 || targetIndex >= list.length) return;
-
     const newList = [...list];
     const [moved] = newList.splice(currentIndex, 1);
     newList.splice(targetIndex, 0, moved);
-
     newList.forEach((t, idx) => {
       onUpdateTask(t.id, { order: (idx + 1) * 1000 });
     });
   };
 
-  let filteredTodayTasks = tasks.filter(t => {
-    if (t.type === 'Rutina' && !isRoutineConfigured(t)) return false;
-    const placement = getTodayPlacement(t, tasks, history, progressSnapshots, currentDay);
-    return placement === 'timeline' || placement === 'flexible';
+  const backlogTasks = tasks.filter(t => isUnscheduledBacklogTask(t, tasks, currentDay));
+
+  const pulsos = tasks.filter(t => {
+    if (t.type !== 'Pulso' || isTaskEffectivelyPaused(t, tasks)) return false;
+    if (filterArea !== 'Todas' && t.category !== filterArea) return false;
+    return true;
   });
 
-  let filteredBacklogTasks = tasks.filter(t => getTodayPlacement(t, tasks, history, progressSnapshots, currentDay) === 'backlog');
-
-  let filteredPulsos = tasks.filter(t => t.type === 'Pulso' && !isTaskEffectivelyPaused(t, tasks));
-
-  // Apply filters
-  if (filterArea !== 'Todas') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => t.category === filterArea);
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.category === filterArea);
-    filteredPulsos = filteredPulsos.filter(t => t.category === filterArea);
-  }
-
-  if (filterAllocation !== 'Todas') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => (
-      t.type === 'Proyecto'
-        ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
-        : t.allocationType === filterAllocation
-    ));
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => (
-      t.type === 'Proyecto'
-        ? projectMatchesEnergyFilter(t, tasks, filterAllocation)
-        : t.allocationType === filterAllocation
-    ));
-  }
-
-  if (filterTypeGroup === 'habitos_rutinas') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.type === 'Hábito' || t.type === 'Rutina');
-  } else if (filterTypeGroup === 'tareas_proyectos') {
-    filteredTodayTasks = filteredTodayTasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto');
-    filteredBacklogTasks = filteredBacklogTasks.filter(t => t.type === 'Tarea' || t.type === 'Proyecto');
-  }
-
-  const todayTasks = filteredTodayTasks;
-  const backlogTasks = filteredBacklogTasks;
-  const pulsos = filteredPulsos;
-  const activeProjects = tasks.filter(t => t.type === 'Proyecto' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
-  const activeRoutines = tasks.filter(t => t.type === 'Rutina' && !t.completed && !isTaskEffectivelyPaused(t, tasks));
-
-  const todayRecords = history.filter(h => isSameDay(h.date, new Date().toISOString()));
-
+  // Energy calculations (kept for the 1-line compact energy header)
+  const todayRecords = history.filter(h => getHistoryDateKey(h) === currentDay);
   let fixedHoursToday = 0;
   let growthHoursToday = 0;
   todayRecords.forEach(h => {
@@ -240,7 +317,6 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
       growthHoursToday += duration;
     }
   });
-
   const totalSoporteReal = fixedHoursToday;
   const totalInversionReal = growthHoursToday;
   const hoursWorkedToday = fixedHoursToday + growthHoursToday;
@@ -254,92 +330,239 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
       default: return { soporte: 2.0, inversion: 6.0 };
     }
   };
-  const { soporte: soporteBudget, inversion: inversionBudget } = getPhaseBudgets(phase);
-  const growthCapacityToday = Math.max(0, ENERGY_LIMIT - totalSoporteReal);
-  const remainingGrowthLimit = Math.max(0, growthCapacityToday - totalInversionReal);
+  const { inversion: inversionBudget } = getPhaseBudgets(phase);
 
-  let plannedSoporte = 0;
-  let plannedInversion = 0;
-  const timedTasks: any[] = [];
-  const untimedTasks: AppTask[] = [];
+  // Gather active + completed-today entries
+  const classifiedEntries: ClassifiedTodayEntry[] = [];
+  const seenTaskIds = new Set<string>();
 
-  todayTasks.forEach(t => {
-    let taskDur = t.duracion || 0;
+  tasks.forEach(t => {
+    if (t.type === 'Rutina' && !isRoutineConfigured(t)) return;
+    if (!matchesHeaderFilters(t) || !matchesCommitmentFilter(t)) return;
+    const placement = getTodayPlacement(t, tasks, history, progressSnapshots, currentDay);
+    if (placement !== 'timeline' && placement !== 'flexible') return;
+
     let displayTask = t;
     if (t.type === 'Proyecto') {
       const presentation = getProjectPresentation(t, tasks, history, currentDay);
-      taskDur = presentation.openEstimate;
-      plannedSoporte += presentation.energy.support;
-      plannedInversion += presentation.energy.investment;
       displayTask = { ...t, duracion: presentation.openEstimate };
-    } else if (t.type === 'Rutina') {
-      taskDur = tasks.filter(sub => sub.parentId === t.id && !sub.completed).reduce((acc, sub) => acc + (sub.duracion || 0), 0);
-      const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
-      plannedSoporte += energy.support;
-      plannedInversion += energy.investment;
-    } else {
-      const energy = getTaskEnergyBreakdown(t, tasks, taskDur);
-      plannedSoporte += energy.support;
-      plannedInversion += energy.investment;
+      classifiedEntries.push({ task: t, displayTask, bucket: 'due', eligibility: 'due' });
+      seenTaskIds.add(t.id);
+      return;
     }
 
-    const safeTime = extractSafeTime(t.hora);
-    if (safeTime) {
-      timedTasks.push({ ...displayTask, hora: safeTime });
-    } else {
-      untimedTasks.push(displayTask);
+    if (t.type === 'Hábito') {
+      const elig = getDailyHabitEligibility(t, tasks, history, progressSnapshots, currentDay);
+      if (elig === 'covered') return;
+      classifiedEntries.push({ task: t, displayTask, bucket: elig, eligibility: elig });
+      seenTaskIds.add(t.id);
+      return;
+    }
+
+    if (t.type === 'Rutina') {
+      const childHabits = tasks.filter(
+        c => c.parentId === t.id && c.type === 'Hábito' && !isTaskEffectivelyPaused(c, tasks, currentDay),
+      );
+      if (childHabits.length === 0) {
+        classifiedEntries.push({ task: t, displayTask, bucket: 'due', eligibility: 'due' });
+        seenTaskIds.add(t.id);
+        return;
+      }
+
+      let hasDue = false;
+      let hasOptional = false;
+      let hasDoneToday = false;
+      childHabits.forEach(c => {
+        if (wasChildHabitCompletedInAppearance(t, c, history, currentDay)) {
+          hasDoneToday = true;
+          return;
+        }
+        const childElig = getDailyHabitEligibility(c, tasks, history, progressSnapshots, currentDay);
+        if (childElig === 'due') hasDue = true;
+        else if (childElig === 'optional') hasOptional = true;
+      });
+
+      if (hasDue) {
+        classifiedEntries.push({ task: t, displayTask, bucket: 'due', eligibility: 'due' });
+        seenTaskIds.add(t.id);
+      } else if (hasOptional) {
+        classifiedEntries.push({ task: t, displayTask, bucket: 'optional', eligibility: 'optional' });
+        seenTaskIds.add(t.id);
+      } else if (hasDoneToday) {
+        classifiedEntries.push({ task: t, displayTask, bucket: 'done' });
+        seenTaskIds.add(t.id);
+      }
+      return;
+    }
+
+    classifiedEntries.push({ task: t, displayTask, bucket: 'due', eligibility: 'due' });
+    seenTaskIds.add(t.id);
+  });
+
+  // Also capture standalone habits, tasks, projects, and closed routines completed today so they fold into "✓ N hechos"
+  tasks.forEach(t => {
+    if (seenTaskIds.has(t.id) || t.type === 'Pulso') return;
+    if (!matchesHeaderFilters(t) || !matchesCommitmentFilter(t)) return;
+    if (t.parentId && getProjectForTask(t.parentId, tasks)) return;
+
+    if (t.type === 'Hábito' && !t.parentId) {
+      const doneToday = history.some(
+        record => isVerifiedHabitCompletion(t, record) && getHistoryDateKey(record) === currentDay,
+      );
+      if (doneToday) {
+        classifiedEntries.push({ task: t, displayTask: t, bucket: 'done' });
+        seenTaskIds.add(t.id);
+      }
+      return;
+    }
+
+    if ((t.type === 'Tarea' || t.type === 'Proyecto') && t.completed && !t.parentId) {
+      const doneTodayByExec = t.lastExecutedAt ? isSameDay(t.lastExecutedAt, `${currentDay}T12:00:00`) : false;
+      const doneTodayByHist = todayRecords.some(r => r.taskId === t.id && r.isCompletion === true);
+      if (doneTodayByExec || doneTodayByHist) {
+        classifiedEntries.push({ task: t, displayTask: t, bucket: 'done' });
+        seenTaskIds.add(t.id);
+      }
+      return;
+    }
+
+    if (t.type === 'Rutina' && isRoutineCycleClosed(t, progressSnapshots, currentDay)) {
+      const closedToday = todayRecords.some(r => r.taskId === t.id && r.isCompletion === true)
+        || progressSnapshots.some(
+          s => s.kind === 'routine-cycle' && s.taskId === t.id && (s.resolvedAt || s.periodEnd) === currentDay,
+        );
+      if (closedToday) {
+        classifiedEntries.push({ task: t, displayTask: t, bucket: 'done' });
+        seenTaskIds.add(t.id);
+      }
     }
   });
 
-  const totalEnergy = plannedSoporte + plannedInversion;
-  const remainingLimit = Math.max(0, ENERGY_LIMIT - hoursWorkedToday);
-  const energyPercent = remainingLimit > 0 ? Math.min((totalEnergy / remainingLimit) * 100, 100) : (totalEnergy > 0 ? 100 : 0);
-  const energyColor = totalEnergy > remainingLimit ? 'bg-red-500' : 'bg-amber-400';
+  // Group into Momentos + Cuando pueda
+  const moments = getMomentsForDate(config?.separators, currentDay);
+  const momentBuckets = new Map<string, {
+    moment: ResolvedMoment;
+    dueItems: ClassifiedTodayEntry[];
+    optionalItems: ClassifiedTodayEntry[];
+    doneItems: ClassifiedTodayEntry[];
+  }>();
+  moments.forEach(moment => {
+    momentBuckets.set(moment.id, {
+      moment,
+      dueItems: [],
+      optionalItems: [],
+      doneItems: [],
+    });
+  });
 
-  // Map today's history records to timed items in the timeline
+  const cuandoPuedaDue: ClassifiedTodayEntry[] = [];
+  const cuandoPuedaOptional: ClassifiedTodayEntry[] = [];
+  const cuandoPuedaDone: ClassifiedTodayEntry[] = [];
+
+  classifiedEntries.forEach(entry => {
+    const resolvedId = resolveTaskMomentId(entry.task, moments);
+    if (resolvedId && momentBuckets.has(resolvedId)) {
+      const bucket = momentBuckets.get(resolvedId)!;
+      if (entry.bucket === 'due') bucket.dueItems.push(entry);
+      else if (entry.bucket === 'optional') bucket.optionalItems.push(entry);
+      else bucket.doneItems.push(entry);
+    } else {
+      if (entry.bucket === 'due') cuandoPuedaDue.push(entry);
+      else if (entry.bucket === 'optional') cuandoPuedaOptional.push(entry);
+      else cuandoPuedaDone.push(entry);
+    }
+  });
+
+  const visibleMomentGroups = Array.from(momentBuckets.values())
+    .filter(group => group.dueItems.length > 0 || group.optionalItems.length > 0 || group.doneItems.length > 0)
+    .map(group => ({
+      ...group,
+      dueItems: sortMomentEntries(group.dueItems),
+      optionalItems: sortMomentEntries(group.optionalItems),
+      doneItems: sortMomentEntries(group.doneItems),
+    }));
+
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const defaultExpandedMomentId = getDefaultExpandedMomentId(
+    visibleMomentGroups.map(group => ({
+      moment: group.moment,
+      dueCount: group.dueItems.length,
+      optionalCount: group.optionalItems.length,
+    })),
+    nowMins,
+  );
+
+  // Build "Hecho hoy" closure items (merging logs + completed items without duplication)
   const getRecordTime = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
       return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     } catch {
       return '';
     }
   };
 
-  // todayRecords was moved up
-  const mappedRecords = todayRecords.map(rec => {
-    const task = tasks.find(t => t.id === rec.taskId);
-    return {
-      id: `record-${rec.id}`,
-      text: task ? task.text : (rec.taskSnapshotText || '(Elemento Eliminado)'),
-      hora: getRecordTime(rec.date),
-      isRecord: true,
-      duration: rec.duration || 0,
-      category: task ? task.category : '',
-      subCategory: task ? task.subCategory : '',
-      type: task ? task.type : 'Tarea',
-      unitLabel: task?.unitLabel,
-      pulseLogValue: task?.type === 'Pulso' ? getPulseLogValue(task, rec) : undefined,
-      originalRecord: rec
-    };
-  }).sort((a, b) => timeToMins(a.hora) - timeToMins(b.hora));
+  interface HechoHoyItem {
+    id: string;
+    taskId?: string;
+    text: string;
+    parentText?: string;
+    timeLabel: string;
+    timestamp: number;
+    duration: number;
+    isCompletion: boolean;
+    isPulse: boolean;
+    pulseLogValue?: string;
+    category?: string;
+    subCategory?: string;
+  }
 
-  const timedItems = [
-    ...timedTasks,
-    ...(config?.separators || [])
-      .filter(separator => !separator.weekdays?.length || separator.weekdays.includes(getIsoWeekday(new Date())))
-      .map((s, idx) => ({ ...s, isSeparator: true, separatorIndex: idx }))
-  ];
-  timedItems.sort((a, b) => {
-    const minsA = timeToMins(a.hora);
-    const minsB = timeToMins(b.hora);
-    if (minsA !== minsB) {
-      return minsA - minsB;
-    }
-    if (a.isSeparator && !b.isSeparator) return -1;
-    if (!a.isSeparator && b.isSeparator) return 1;
-    return 0;
+  const recordTaskIds = new Set<string>();
+  const hechoHoyItems: HechoHoyItem[] = todayRecords.map(rec => {
+    recordTaskIds.add(rec.taskId);
+    const recTask = tasks.find(t => t.id === rec.taskId);
+    const parentTask = recTask?.parentId ? tasks.find(p => p.id === recTask.parentId) : undefined;
+    const isPulse = recTask?.type === 'Pulso';
+    return {
+      id: `rec-${rec.id}`,
+      taskId: recTask?.id,
+      text: recTask ? recTask.text : (rec.taskSnapshotText || '(Elemento eliminado)'),
+      parentText: parentTask?.text,
+      timeLabel: getRecordTime(rec.date),
+      timestamp: new Date(rec.date).getTime() || 0,
+      duration: rec.duration || 0,
+      isCompletion: Boolean(rec.isCompletion),
+      isPulse,
+      pulseLogValue: isPulse && recTask ? getPulseLogValue(recTask, rec) : undefined,
+      category: recTask?.category || parentTask?.category,
+      subCategory: recTask?.subCategory || parentTask?.subCategory,
+    };
   });
+
+  // Include tasks completed today that lack a history record on currentDay
+  classifiedEntries
+    .filter(entry => entry.bucket === 'done' && !recordTaskIds.has(entry.task.id))
+    .forEach(entry => {
+      const t = entry.task;
+      const ts = t.lastExecutedAt ? new Date(t.lastExecutedAt).getTime() : Date.now();
+      hechoHoyItems.push({
+        id: `done-${t.id}`,
+        taskId: t.id,
+        text: t.text,
+        timeLabel: t.lastExecutedAt ? getRecordTime(t.lastExecutedAt) : 'Hoy',
+        timestamp: ts,
+        duration: 0,
+        isCompletion: true,
+        isPulse: false,
+        category: t.category,
+        subCategory: t.subCategory,
+      });
+    });
+
+  hechoHoyItems.sort((a, b) => b.timestamp - a.timestamp);
+  const completedCountToday = hechoHoyItems.filter(item => item.isCompletion).length;
 
   const periodWarning = getImminentPeriodWarning(config);
 
@@ -353,19 +576,65 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
     }
   };
 
+  const renderTaskCard = (entry: ClassifiedTodayEntry, extraProps?: Partial<React.ComponentProps<typeof TaskItem>>) => (
+    <TaskItem
+      key={entry.task.id}
+      task={entry.displayTask}
+      config={config}
+      allTasks={tasks}
+      history={history}
+      progressSnapshots={progressSnapshots}
+      onToggle={onToggleTask}
+      onDelete={() => onDeleteTask(entry.task.id)}
+      onUpdate={onUpdateTask}
+      onAddTask={onAddTask}
+      onDeleteTask={onDeleteTask}
+      onDuplicateTask={onDuplicateTask}
+      onPauseTask={onPauseTask}
+      onResumeTask={onResumeTask}
+      activeTimer={activeTimer}
+      onStartTimer={onStartTimer}
+      onNavigate={onNavigate}
+      context="today"
+      dailyEligibility={entry.bucket === 'optional' ? 'optional' : entry.eligibility}
+      commitmentLabels={getCommitmentLabelsForTask(intentions, tasks, entry.task.id, currentDay, currentDay)}
+      durationSummary={habitDurationSummaries.get(entry.task.id)}
+      routineDurationSummary={routineDurationSummaries.get(entry.task.id)}
+      {...extraProps}
+    />
+  );
+
+  const sortedCuandoPuedaDue = getSortedTasks(
+    cuandoPuedaDue.map(e => e.displayTask),
+    sortCuandoPuedaBy,
+  );
+  const sortedCuandoPuedaOptional = getSortedTasks(
+    cuandoPuedaOptional.map(e => e.displayTask),
+    sortCuandoPuedaBy,
+  );
+  const cuandoPuedaEntryMap = new Map<string, ClassifiedTodayEntry>(
+    [...cuandoPuedaDue, ...cuandoPuedaOptional, ...cuandoPuedaDone].map(entry => [entry.task.id, entry]),
+  );
+
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in w-full px-6 md:px-10 py-8 pb-12 mx-auto">
+    <div className="flex flex-col gap-6 animate-in fade-in w-full px-5 md:px-10 py-6 md:py-8 pb-12 mx-auto">
+      {/* Compact 1-line Header */}
+      <header className="w-full flex flex-col gap-3 border-b border-border-line pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          {/* Left: Title + Biological Phase */}
+          <div className="flex items-center gap-2.5 flex-wrap text-left">
+            <h2 className="text-title flex items-center gap-2.5 mr-1">
+              <Target className="w-5 h-5 stroke-[2]" /> Foco de Hoy {getPhaseIcon(phase)}
+            </h2>
 
-      {/* Header Foco de Hoy - Grid alignment matching main content */}
-      <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 border-b border-border-line pb-6">
-        <div className="lg:col-span-2 flex flex-col gap-1 text-left justify-start">
-          <h2 className="text-title flex items-center gap-3">
-            <Target className="w-6 h-6 stroke-[2]" /> Foco de Hoy {getPhaseIcon(phase)}
-          </h2>
-
-          {/* Biological Phase Pill Indicator, Manual Selector & Register Button */}
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <span className={cn("text-[10px] tracking-wider font-mono uppercase px-2.5 py-0.5 rounded-full border", phaseDetails.borderColor, phaseDetails.pillBg)}>
+            <span
+              className={cn(
+                'text-[10px] tracking-wider font-mono uppercase px-2.5 py-0.5 rounded-full border',
+                phaseDetails.borderColor,
+                phaseDetails.pillBg,
+              )}
+              title={phaseDetails.details}
+            >
               {phaseDetails.label}
             </span>
 
@@ -383,16 +652,15 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                 aria-expanded={showFlowLogger}
                 aria-label={showFlowLogger ? 'Contraer registro de ciclo' : 'Expandir registro de ciclo'}
                 title={showFlowLogger ? 'Contraer registro de ciclo' : 'Expandir registro de ciclo'}
-                className="text-[10px] font-mono uppercase tracking-wider text-primary hover:text-text-main hover:underline flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none"
+                className="text-[10px] font-mono uppercase tracking-wider text-primary hover:text-text-main hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-0 outline-none"
               >
                 {showFlowLogger ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                <span>Registrar ciclo</span>
+                <span>Ciclo</span>
               </button>
             )}
 
             <span className="text-text-dim/30 font-mono text-[10px]">|</span>
 
-            {/* Quick manual selector */}
             <label htmlFor="manual-cycle-phase" className="sr-only">
               Ajustar fase actual manualmente
             </label>
@@ -407,8 +675,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                   cycleConfig: {
                     ...config?.cycleConfig,
                     trackingType: config?.cycleConfig?.trackingType || 'none',
-                    currentManualPhase: val === 'none' ? undefined : val as any
-                  }
+                    currentManualPhase: val === 'none' ? undefined : (val as any),
+                  },
                 });
               }}
               title="Ajustar fase actual manualmente"
@@ -420,66 +688,36 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
               <option value="reflexiva">Menstrual (Reflexiva)</option>
             </select>
           </div>
-          <span className="text-[11px] text-text-dim italic max-w-sm mt-1 leading-snug">{phaseDetails.details}</span>
 
-          {/* Menstrual Flow Logger — inline below header, above date */}
-          {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && showFlowLogger && (
-            <div className="w-full glass-matte p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in slide-in-from-top-2 duration-300 mt-3">
-              <div className="flex flex-col gap-1 text-left">
-                <span className="text-xs font-bold text-text-main flex items-center gap-2 font-sans">
-                  🩸 Registro de Intensidad del Periodo
-                </span>
-                <span className="text-[10px] text-text-dim leading-relaxed max-w-sm font-mono">
-                  Registra el flujo hoy. Día 1 se detecta tras 10 días secos. La fase reflexiva se extiende si continúas registrando flujo.
-                </span>
-              </div>
-
-              <div className="flex gap-2">
-                {[
-                  { val: 0, label: 'Seco', color: 'hover:bg-[#efede8]/40 hover:text-black border-border-line text-slate-500 bg-white/50', activeColor: 'bg-[#81b29a]/20 text-[#81b29a] border-[#81b29a] font-bold' },
-                  { val: 1, label: 'Ligero', color: 'hover:bg-[#73c2b8]/10 hover:text-[#73c2b8] border-[#73c2b8]/30 text-[#73c2b8] bg-white/50', activeColor: 'bg-[#73c2b8] text-white border-[#73c2b8] font-bold' },
-                  { val: 2, label: 'Moderado', color: 'hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] border-[#e07a5f]/30 text-[#e07a5f] bg-white/50', activeColor: 'bg-[#e07a5f] text-white border-[#e07a5f] font-bold' },
-                  { val: 3, label: 'Abundante', color: 'hover:bg-[#d4af37]/10 hover:text-[#d4af37] border-[#d4af37]/30 text-[#d4af37] bg-white/50', activeColor: 'bg-[#d4af37] text-white border-[#d4af37] font-bold' }
-                ].map(f => {
-                  const todayStr = new Date().toISOString().slice(0, 10);
-                  const currentFlow = config?.cycleConfig?.flowLogs?.[todayStr] || 0;
-                  const isActive = currentFlow === f.val;
-
-                  return (
-                    <button
-                      key={f.val}
-                      type="button"
-                      onClick={() => {
-                        const newFlowLogs = { ...(config?.cycleConfig?.flowLogs || {}) };
-                        newFlowLogs[todayStr] = f.val;
-                        onUpdateConfig?.({
-                          cycleConfig: {
-                            ...config?.cycleConfig,
-                            trackingType: 'menstrual',
-                            flowLogs: newFlowLogs
-                          }
-                        });
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 text-[10px] font-medium rounded-xl border transition-all cursor-pointer",
-                        isActive ? f.activeColor : f.color
-                      )}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="w-full lg:col-span-1 flex flex-col justify-start text-left gap-2">
-          {/* Row 1: Date and Filter icon */}
-          <div className="flex justify-between items-center w-full pb-0.5">
-            <span className="text-[10px] tracking-[0.2em] text-[#a2b29f] uppercase font-mono leading-none">
-              {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {/* Right: Date + Compact Energy Meter + Filter */}
+          <div className="flex items-center justify-between lg:justify-end gap-4 flex-wrap">
+            <span className="text-[10px] tracking-[0.16em] text-[#a2b29f] uppercase font-mono leading-none">
+              {new Date().toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
             </span>
+
+            <div className="flex items-center gap-2.5 min-w-[180px]" title={`Soporte: ${totalSoporteReal.toFixed(1)}h · Inversión: ${totalInversionReal.toFixed(1)}/${inversionBudget.toFixed(1)}h`}>
+              <div className="w-24 h-[5px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden flex shrink-0">
+                {fixedHoursToday > 0 && (
+                  <div
+                    style={{ width: `${Math.min(100, (fixedHoursToday / ENERGY_LIMIT) * 100)}%` }}
+                    className="bg-[#81b29a] h-full transition-all duration-300"
+                  />
+                )}
+                {growthHoursToday > 0 && (
+                  <div
+                    style={{ width: `${Math.min(100, (growthHoursToday / ENERGY_LIMIT) * 100)}%` }}
+                    className="bg-[#d4af37] h-full transition-all duration-300"
+                  />
+                )}
+              </div>
+              <span className="text-[10px] font-mono text-text-main font-semibold tabular-nums whitespace-nowrap">
+                {hoursWorkedToday.toFixed(1)}/{ENERGY_LIMIT.toFixed(1)}h
+              </span>
+              <span className="hidden sm:inline text-[9px] font-mono text-text-dim tabular-nums whitespace-nowrap">
+                🛡️{totalSoporteReal.toFixed(1)} · ⚡{totalInversionReal.toFixed(1)}/{inversionBudget.toFixed(1)}
+              </span>
+            </div>
+
             <FilterDropdown
               align="right"
               configs={[
@@ -489,16 +727,16 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                   options: [
                     { label: 'Todos los tipos', value: 'Todas' },
                     { label: 'Hábitos y Rutinas', value: 'habitos_rutinas' },
-                    { label: 'Tareas y Proyectos', value: 'tareas_proyectos' }
-                  ]
+                    { label: 'Tareas y Proyectos', value: 'tareas_proyectos' },
+                  ],
                 },
                 {
                   key: 'area',
                   label: 'Área',
                   options: [
                     { label: 'Todas las áreas', value: 'Todas' },
-                    ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
-                  ]
+                    ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat })),
+                  ],
                 },
                 {
                   key: 'allocation',
@@ -507,14 +745,14 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                     { label: 'Todas las asignaciones', value: 'Todas' },
                     { label: 'Soporte Vital 🛡️', value: 'fixed' },
                     { label: 'Inversión ⚡', value: 'growth' },
-                    { label: 'Mixto ☯️', value: 'mixed' }
-                  ]
-                }
+                    { label: 'Mixto ☯️', value: 'mixed' },
+                  ],
+                },
               ]}
               activeFilters={{
                 typeGroup: filterTypeGroup,
                 area: filterArea,
-                allocation: filterAllocation
+                allocation: filterAllocation,
               }}
               onChange={(key, val) => {
                 if (key === 'typeGroup') setFilterTypeGroup(val as any);
@@ -523,111 +761,378 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
               }}
             />
           </div>
+        </div>
 
-          <div className="flex justify-between items-end w-full pb-0.5">
-            <span className="text-[10px] tracking-[0.15em] uppercase text-text-dim font-mono leading-none">Asignación Energética</span>
-            <span className="text-xs text-text-main font-bold leading-none">
-              {hoursWorkedToday.toFixed(1)}h real / {ENERGY_LIMIT.toFixed(1)}h lím
-            </span>
-          </div>
-
-          {/* Stacked Progress Bar */}
-          <div className="w-full h-[5px] bg-[var(--color-border-line)] relative rounded-full overflow-hidden mb-1 flex">
-            {fixedHoursToday > 0 && (
-              <div
-                style={{ width: `${(fixedHoursToday / ENERGY_LIMIT) * 100}%` }}
-                className="bg-[#81b29a] h-full transition-all duration-300"
-                title={`Soporte Vital: ${fixedHoursToday.toFixed(1)}h`}
-              />
-            )}
-            {growthHoursToday > 0 && (
-              <div
-                style={{ width: `${(growthHoursToday / ENERGY_LIMIT) * 100}%` }}
-                className="bg-[#d4af37] h-full transition-all duration-300"
-                title={`Inversión Crecimiento: ${growthHoursToday.toFixed(1)}h`}
-              />
-            )}
-          </div>
-
-          <div className="flex justify-between text-[9px] tracking-wide font-mono">
-            <span className="text-text-dim/80">
-              🛡️ Soporte: <span className="font-bold text-text-main">{totalSoporteReal.toFixed(1)}h</span>
-            </span>
-            <span className={cn(
-              "transition-colors",
-              totalInversionReal > inversionBudget ? "text-orange-500 font-semibold" : "text-text-dim/80"
-            )}>
-              ⚡ Inversión: <span className={cn("font-bold", totalInversionReal > inversionBudget ? "text-orange-500" : "text-text-main")}>{totalInversionReal.toFixed(1)}h / {inversionBudget.toFixed(1)}h</span>
-            </span>
-          </div>
-
-          {/* Logros sutiles integrados con la barra de dedicación (Opción B) */}
-          {todayRecords.length > 0 && (
-            <div className="text-[10px] font-mono text-[#81b29a] flex items-center gap-1.5 pt-1 border-t border-border-line/20 mt-1">
-              <Check className="w-3 h-3 stroke-[2.5]" />
-              <span>
-                {todayRecords.filter(h => h.isCompletion).length > 0
-                  ? `${todayRecords.filter(h => h.isCompletion).length} ${todayRecords.filter(h => h.isCompletion).length === 1 ? 'tarea completada' : 'tareas completadas'} hoy`
-                  : `${todayRecords.length} ${todayRecords.length === 1 ? 'registro de actividad' : 'registros de actividad'} hoy`}
+        {/* Menstrual Flow Logger (expandable inline) */}
+        {config?.cycleConfig?.menstruates !== false && config?.cycleConfig?.trackingType === 'menstrual' && showFlowLogger && (
+          <div className="w-full glass-matte p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in slide-in-from-top-2 duration-300 mt-1">
+            <div className="flex flex-col gap-1 text-left">
+              <span className="text-xs font-bold text-text-main flex items-center gap-2 font-sans">
+                🩸 Registro de Intensidad del Periodo
+              </span>
+              <span className="text-[10px] text-text-dim leading-relaxed max-w-sm font-mono">
+                Registra el flujo hoy. Día 1 se detecta tras 10 días secos. La fase reflexiva se extiende si continúas registrando flujo.
               </span>
             </div>
-          )}
 
-          {/* Validating/celebratory messages */}
-          {totalSoporteReal > 0 && (
-            <div className="text-[9px] text-[#81b29a] font-mono leading-tight mt-1 uppercase tracking-wider">
-              🛡️ {totalSoporteReal.toFixed(1)}h dedicadas a soporte vital.
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { val: 0, label: 'Seco', color: 'hover:bg-[#efede8]/40 hover:text-black border-border-line text-slate-500 bg-white/50', activeColor: 'bg-[#81b29a]/20 text-[#81b29a] border-[#81b29a] font-bold' },
+                { val: 1, label: 'Ligero', color: 'hover:bg-[#73c2b8]/10 hover:text-[#73c2b8] border-[#73c2b8]/30 text-[#73c2b8] bg-white/50', activeColor: 'bg-[#73c2b8] text-white border-[#73c2b8] font-bold' },
+                { val: 2, label: 'Moderado', color: 'hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] border-[#e07a5f]/30 text-[#e07a5f] bg-white/50', activeColor: 'bg-[#e07a5f] text-white border-[#e07a5f] font-bold' },
+                { val: 3, label: 'Abundante', color: 'hover:bg-[#d4af37]/10 hover:text-[#d4af37] border-[#d4af37]/30 text-[#d4af37] bg-white/50', activeColor: 'bg-[#d4af37] text-white border-[#d4af37] font-bold' },
+              ].map(f => {
+                const todayStr = currentDay;
+                const currentFlow = config?.cycleConfig?.flowLogs?.[todayStr] || 0;
+                const isActive = currentFlow === f.val;
+
+                return (
+                  <button
+                    key={f.val}
+                    type="button"
+                    onClick={() => {
+                      const newFlowLogs = { ...(config?.cycleConfig?.flowLogs || {}) };
+                      newFlowLogs[todayStr] = f.val;
+                      onUpdateConfig?.({
+                        cycleConfig: {
+                          ...config?.cycleConfig,
+                          trackingType: 'menstrual',
+                          flowLogs: newFlowLogs,
+                        },
+                      });
+                    }}
+                    className={cn(
+                      'px-3 py-1.5 text-[10px] font-medium rounded-xl border transition-all cursor-pointer',
+                      isActive ? f.activeColor : f.color,
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
             </div>
-          )}
-          {totalInversionReal >= inversionBudget && inversionBudget > 0 && totalInversionReal <= (inversionBudget + 1) && (
-            <div className="text-[9px] text-primary font-mono leading-tight mt-0.5 uppercase tracking-wider font-bold">
-              🎉 100% de inversión disponible completado hoy.
-            </div>
-          )}
-          {totalInversionReal > (inversionBudget + 1) && (
-            <div className="text-[9px] text-orange-500 font-mono leading-tight mt-0.5 uppercase tracking-wider font-semibold">
-              ⚠️ Inversión alta: considera descansar para evitar el sobreesfuerzo.
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </header>
 
       {/* Imminent Period Warning Alert */}
       {periodWarning && (
-        <div className="glass-matte p-4 rounded-2xl flex items-center gap-3 text-xs text-text-main animate-in slide-in-from-top-2 duration-200">
+        <div className="glass-matte p-3.5 rounded-2xl flex items-center gap-3 text-xs text-text-main animate-in slide-in-from-top-2 duration-200">
           <span className="text-lg">🩸</span>
           <div className="flex-1 text-left">
-            <span className="font-bold">Alerta de Transición Cíclica:</span> Se estima que tu periodo iniciará en <span className="font-bold font-mono">{periodWarning.daysUntilPeriod} {periodWarning.daysUntilPeriod === 1 ? 'día' : 'días'}</span>. Considera planificar tareas de menor esfuerzo mental para descansar.
+            <span className="font-bold">Alerta de Transición Cíclica:</span> Se estima que tu periodo iniciará en{' '}
+            <span className="font-bold font-mono">
+              {periodWarning.daysUntilPeriod} {periodWarning.daysUntilPeriod === 1 ? 'día' : 'días'}
+            </span>
+            . Considera planificar tareas de menor esfuerzo mental para descansar.
           </div>
         </div>
       )}
 
-      <CommitmentProgressPanel
-        summaries={todayCommitments}
-        title="Compromisos de hoy"
-        description="Acciones del día que contribuyen a tus compromisos trimestrales."
-        collapsible
-        onSelectAction={selectCommitmentAction}
-      />
+      {/* Main Responsive Layout: 1 col mobile -> 2/3 + 1/3 on PC (>=lg), single page scroll */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {/* Left Column (2/3): Compromisos + Momentos + Cuando pueda + Enlace Backlog */}
+        <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
+          <CommitmentProgressPanel
+            summaries={todayCommitments}
+            title="Compromisos de hoy"
+            variant="pills"
+            selectedCommitmentId={selectedCommitmentId}
+            onToggleFilter={id => setSelectedCommitmentId(prev => (prev === id ? null : id))}
+          />
 
+          {/* Timeline */}
+          <section className="flex flex-col gap-3" aria-label="Timeline">
+            <div className="flex items-center justify-between border-b border-border-line/30 pb-2">
+              <h3 className="text-subtitle flex items-center gap-2 text-left">
+                <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Timeline
+              </h3>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('configuracion')}
+                className="text-[10px] text-text-dim hover:text-text-main font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 underline underline-offset-4"
+              >
+                Configurar momentos
+              </button>
+            </div>
 
+            {visibleMomentGroups.length === 0 ? (
+              <p className="text-xs text-text-dim text-left py-2">
+                {moments.length === 0
+                  ? 'No tienes momentos configurados para hoy. Configura bloques u horarios desde Ajustes.'
+                  : 'Sin acciones programadas dentro de los momentos de hoy.'}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {visibleMomentGroups.map(group => {
+                  const { moment, dueItems, optionalItems, doneItems } = group;
+                  const isExpanded = userMomentToggles[moment.id] ?? (defaultExpandedMomentId === moment.id);
+                  const isDoneListOpen = Boolean(expandedDoneGroups[moment.id]);
+                  const dotClass = MOMENT_DOT_CLASSES[moment.color || ''] || 'bg-primary';
+                  const borderClass = MOMENT_BORDER_CLASSES[moment.color || ''] || 'border-l-border-line';
+                  const hasDue = dueItems.length > 0;
 
+                  return (
+                    <section
+                      key={moment.id}
+                      className={cn(
+                        'border border-border-line/40 border-l-2 bg-base transition-colors',
+                        borderClass,
+                      )}
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setUserMomentToggles(prev => ({
+                            ...prev,
+                            [moment.id]: !isExpanded,
+                          }))
+                        }
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left bg-transparent border-0 hover:bg-base-dim/20 transition-colors cursor-pointer"
+                      >
+                        <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-text-dim shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-text-dim shrink-0" />
+                          )}
+                          <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} aria-hidden="true" />
+                          <span className="text-sm font-medium text-text-main">{moment.text}</span>
+                          {moment.kind === 'trigger' ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-border-line/60 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-dim">
+                              <Anchor className="w-2.5 h-2.5" /> Gatillo · {moment.hora}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-[10px] text-text-dim">{moment.hora}</span>
+                          )}
+                          {moment.detalle && (
+                            <span className="text-xs text-text-dim font-light truncate">{moment.detalle}</span>
+                          )}
+                        </div>
 
+                        <div className="shrink-0 flex items-center gap-2 font-mono text-[10px]">
+                          {hasDue ? (
+                            <span className="text-text-main font-semibold tabular-nums">
+                              {dueItems.length} {dueItems.length === 1 ? 'pendiente' : 'pendientes'}
+                            </span>
+                          ) : optionalItems.length > 0 ? (
+                            <span className="text-text-dim tabular-nums">
+                              {optionalItems.length} {optionalItems.length === 1 ? 'opcional' : 'opcionales'}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Al día</span>
+                          )}
+                        </div>
+                      </button>
 
-      {/* 3-Column Grid Layout for Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Columna Izquierda (2/3): Línea de Tiempo y Pulsos */}
-        <div className="lg:col-span-2 flex flex-col gap-8">
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-1 border-t border-border-line/25 flex flex-col gap-2 animate-in fade-in duration-150">
+                          {dueItems.length > 0 && (
+                            <ul className="m-0 list-none space-y-2 p-0">
+                              {dueItems.map(entry => (
+                                <li key={entry.task.id}>{renderTaskCard(entry)}</li>
+                              ))}
+                            </ul>
+                          )}
 
-          {/* Pulsos Diarios Section */}
+                          {optionalItems.length > 0 && (
+                            <ul className="m-0 list-none space-y-2 p-0">
+                              {optionalItems.map(entry => (
+                                <li key={entry.task.id}>{renderTaskCard(entry)}</li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {doneItems.length > 0 && (
+                            <div className="pt-2 border-t border-border-line/20">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedDoneGroups(prev => ({
+                                    ...prev,
+                                    [moment.id]: !isDoneListOpen,
+                                  }))
+                                }
+                                aria-expanded={isDoneListOpen}
+                                className="inline-flex items-center gap-1.5 border-0 bg-transparent px-1 py-0.5 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                              >
+                                <span>
+                                  ✓ {doneItems.length} {doneItems.length === 1 ? 'hecho' : 'hechos'}
+                                </span>
+                                {isDoneListOpen ? (
+                                  <ChevronUp className="w-3 h-3" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3" />
+                                )}
+                              </button>
+                              {isDoneListOpen && (
+                                <ul className="m-0 mt-1.5 list-none space-y-2 p-0">
+                                  {doneItems.map(entry => (
+                                    <li key={entry.task.id}>{renderTaskCard(entry)}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Flexible (items without momentId or hora) */}
+          <section className="flex flex-col gap-3 border-t border-border-line/40 pt-5" aria-label="Flexible">
+            <div className="flex items-center justify-between">
+              <h3
+                onClick={() => setShowCuandoPueda(!showCuandoPueda)}
+                aria-label={showCuandoPueda ? 'Contraer Flexible' : 'Expandir Flexible'}
+                aria-expanded={showCuandoPueda}
+                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
+              >
+                {showCuandoPueda ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-text-dim" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-text-dim" />
+                )}
+                <Inbox className="w-4 h-4 text-text-main silhouette-icon" /> Flexible
+                {(cuandoPuedaDue.length > 0 || cuandoPuedaOptional.length > 0) && (
+                  <span className="font-mono text-[10px] font-normal text-text-dim">
+                    ({cuandoPuedaDue.length}
+                    {cuandoPuedaOptional.length > 0 ? ` + ${cuandoPuedaOptional.length} opc.` : ''})
+                  </span>
+                )}
+              </h3>
+              <SortDropdown
+                align="right"
+                options={[
+                  { label: 'Orden manual', value: 'manual' },
+                  { label: 'Prioridad', value: 'priority' },
+                  { label: 'Fecha de creación', value: 'date' },
+                  { label: 'Alfabético', value: 'name' },
+                ]}
+                currentValue={sortCuandoPuedaBy}
+                onChange={setSortCuandoPuedaBy}
+              />
+            </div>
+
+            {showCuandoPueda && (
+              <div className="animate-in duration-200 fade-in flex flex-col gap-2">
+                {sortedCuandoPuedaDue.length === 0 && sortedCuandoPuedaOptional.length === 0 && cuandoPuedaDone.length === 0 ? (
+                  <p className="text-xs text-[#a2b29f] text-left pl-2">Sin elementos flexibles.</p>
+                ) : (
+                  <>
+                    {sortedCuandoPuedaDue.length > 0 && (
+                      <ul className="m-0 list-none space-y-2 p-0">
+                        {sortedCuandoPuedaDue.map((t, idx, arr) => {
+                          const entry = cuandoPuedaEntryMap.get(t.id);
+                          if (!entry) return null;
+                          return (
+                            <li
+                              key={t.id}
+                              draggable={sortCuandoPuedaBy === 'manual'}
+                              onDragStart={e => {
+                                e.dataTransfer.setData('text/plain', t.id);
+                                setDraggedId(t.id);
+                              }}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={e => handleDrop(e, t.id, arr)}
+                              className={cn(sortCuandoPuedaBy === 'manual' ? 'cursor-grab active:cursor-grabbing' : '')}
+                            >
+                              {renderTaskCard(entry, {
+                                showMoveArrows: sortCuandoPuedaBy === 'manual',
+                                onMoveUp:
+                                  sortCuandoPuedaBy === 'manual' && idx > 0
+                                    ? () => handleMoveTaskInList(t.id, arr, idx - 1)
+                                    : undefined,
+                                onMoveDown:
+                                  sortCuandoPuedaBy === 'manual' && idx < arr.length - 1
+                                    ? () => handleMoveTaskInList(t.id, arr, idx + 1)
+                                    : undefined,
+                                canMoveUp: idx > 0,
+                                canMoveDown: idx < arr.length - 1,
+                              })}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    {sortedCuandoPuedaOptional.length > 0 && (
+                      <ul className="m-0 list-none space-y-2 p-0">
+                        {sortedCuandoPuedaOptional.map(t => {
+                          const entry = cuandoPuedaEntryMap.get(t.id);
+                          if (!entry) return null;
+                          return <li key={t.id}>{renderTaskCard(entry)}</li>;
+                        })}
+                      </ul>
+                    )}
+
+                    {cuandoPuedaDone.length > 0 && (
+                      <div className="pt-2 border-t border-border-line/20">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedDoneGroups(prev => ({
+                              ...prev,
+                              __cuando_pueda__: !prev.__cuando_pueda__,
+                            }))
+                          }
+                          aria-expanded={Boolean(expandedDoneGroups.__cuando_pueda__)}
+                          className="inline-flex items-center gap-1.5 border-0 bg-transparent px-1 py-0.5 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        >
+                          <span>
+                            ✓ {cuandoPuedaDone.length} {cuandoPuedaDone.length === 1 ? 'hecho' : 'hechos'}
+                          </span>
+                          {expandedDoneGroups.__cuando_pueda__ ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                        </button>
+                        {expandedDoneGroups.__cuando_pueda__ && (
+                          <ul className="m-0 mt-1.5 list-none space-y-2 p-0">
+                            {cuandoPuedaDone.map(entry => (
+                              <li key={entry.task.id}>{renderTaskCard(entry)}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Subtle Backlog navigation link (Backlog lives in Agenda) */}
+          <div className="pt-3 border-t border-border-line/30 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('agenda-backlog')}
+              className="inline-flex items-center gap-2 border-0 bg-transparent p-0 text-xs font-mono uppercase tracking-wider text-text-dim hover:text-primary transition-colors cursor-pointer"
+            >
+              <Database className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Backlog ({backlogTasks.length}) → Agenda</span>
+              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {/* Right Column (1/3 on PC, flows below on mobile): Pulsos (if active) + Hecho hoy */}
+        <aside className="lg:col-span-1 flex flex-col gap-6 lg:border-l lg:border-border-line/60 lg:pl-8 min-w-0">
+          {/* Pulsos Diarios (only rendered when active pulses exist) */}
           {pulsos.length > 0 && (
-            <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+            <section className="flex flex-col gap-3 animate-in fade-in duration-300" aria-label="Pulsos Diarios">
               <h3
                 onClick={() => setShowPulsos(!showPulsos)}
                 aria-label={showPulsos ? 'Contraer pulsos diarios' : 'Expandir pulsos diarios'}
                 aria-expanded={showPulsos}
                 title={showPulsos ? 'Contraer pulsos diarios' : 'Expandir pulsos diarios'}
-                className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none"
+                className="text-subtitle flex items-center justify-between cursor-pointer group hover:opacity-85 transition-all select-none border-b border-border-line/30 pb-2"
               >
                 <span className="flex items-center gap-2">
                   {showPulsos ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
@@ -636,7 +1141,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
               </h3>
 
               {showPulsos && (
-                <div className="flex flex-wrap gap-y-3 w-full animate-in fade-in duration-300">
+                <div className="flex flex-col gap-2 w-full animate-in fade-in duration-300">
                   {pulsos.map(t => {
                     const count = getPulseOccurrenceCount(history, t.id, new Date());
                     const target = t.targetCount || 1;
@@ -645,75 +1150,72 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                     const safeDayConfirmed = isAbandoning && hasPulseSafeDayConfirmation(history, t.id, new Date());
                     const progress = safeDayConfirmed ? 100 : Math.min((count / target) * 100, 100);
                     const isDone = isAbandoning ? safeDayConfirmed : count >= target;
-                    const unstartedIndicator = getItemTemporalIndicators(t, tasks, history).find(indicator => indicator.kind === 'unstarted');
+                    const unstartedIndicator = getItemTemporalIndicators(t, tasks, history).find(
+                      indicator => indicator.kind === 'unstarted',
+                    );
 
                     if (editingPulsoId === t.id) {
                       return (
-                        <div key={t.id} className="border border-border-line p-2 flex flex-col gap-2.5 animate-in zoom-in-95 duration-200 rounded-none bg-base-dim/10 text-left">
+                        <div key={t.id} className="border border-border-line p-2.5 flex flex-col gap-2.5 animate-in zoom-in-95 duration-200 bg-base-dim/10 text-left">
+                          <input
+                            type="text"
+                            className="px-2 py-0.5 bg-base border border-border-line text-xs text-text-main focus:outline-none focus:border-[#a2b29f] w-full font-sans"
+                            value={editPulsoForm.text}
+                            onChange={e => setEditPulsoForm({ ...editPulsoForm, text: e.target.value })}
+                            placeholder="Nombre del pulso..."
+                          />
                           <div className="flex flex-col gap-2">
-                            <input
-                              type="text"
-                              className="px-2 py-0.5 bg-base border border-border-line rounded-none text-xs text-text-main focus:outline-none focus:border-[#a2b29f] w-full font-sans"
-                              value={editPulsoForm.text}
-                              onChange={e => setEditPulsoForm({ ...editPulsoForm, text: e.target.value })}
-                              placeholder="Nombre del pulso..."
-                            />
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-1 text-[9px] border border-border-line rounded-none px-1.5 py-0.5 bg-base text-text-main font-mono w-fit">
-                                <span className="text-text-dim">Meta:</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  className="w-8 bg-transparent text-center font-bold focus:outline-none border-b border-border-line text-text-main"
-                                  value={editPulsoForm.targetCount}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, targetCount: Number(e.target.value) })}
-                                />
-                                <input
-                                  type="text"
-                                  className="w-10 bg-transparent font-bold focus:outline-none text-center border-b border-border-line text-text-main"
-                                  value={editPulsoForm.unitLabel}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, unitLabel: e.target.value })}
-                                  placeholder="un."
-                                />
-                              </div>
-
-                              <div className="flex gap-1 flex-wrap">
+                            <div className="flex items-center gap-1 text-[9px] border border-border-line px-1.5 py-0.5 bg-base text-text-main font-mono w-fit">
+                              <span className="text-text-dim">Meta:</span>
+                              <input
+                                type="number"
+                                min={1}
+                                className="w-8 bg-transparent text-center font-bold focus:outline-none border-b border-border-line text-text-main"
+                                value={editPulsoForm.targetCount}
+                                onChange={e => setEditPulsoForm({ ...editPulsoForm, targetCount: Number(e.target.value) })}
+                              />
+                              <input
+                                type="text"
+                                className="w-12 bg-transparent font-bold focus:outline-none text-center border-b border-border-line text-text-main"
+                                value={editPulsoForm.unitLabel}
+                                onChange={e => setEditPulsoForm({ ...editPulsoForm, unitLabel: e.target.value })}
+                                placeholder="un."
+                              />
+                            </div>
+                            <div className="flex gap-1 flex-wrap">
+                              <select
+                                className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
+                                value={editPulsoForm.polaridad}
+                                onChange={e => setEditPulsoForm({ ...editPulsoForm, polaridad: e.target.value })}
+                                title="Polaridad"
+                              >
+                                <option value="Reforzar">Reforzar</option>
+                                <option value="Abandonar">Abandonar</option>
+                              </select>
+                              <select
+                                className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
+                                value={editPulsoForm.category}
+                                onChange={e => setEditPulsoForm({ ...editPulsoForm, category: e.target.value, subCategory: '' })}
+                                title="Área"
+                              >
+                                <option value="">Sin Área</option>
+                                {Object.keys(config?.areas || {}).map(a => (
+                                  <option key={a} value={a}>{a}</option>
+                                ))}
+                              </select>
+                              {editPulsoForm.category && typeof config?.areas?.[editPulsoForm.category] !== 'string' && (config?.areas?.[editPulsoForm.category] as any)?.categories?.length > 0 && (
                                 <select
-                                  className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                  value={editPulsoForm.polaridad}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, polaridad: e.target.value })}
-                                  title="Polaridad"
+                                  className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
+                                  value={editPulsoForm.subCategory}
+                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, subCategory: e.target.value })}
+                                  title="Categoría"
                                 >
-                                  <option value="Reforzar">Reforzar</option>
-                                  <option value="Abandonar">Abandonar</option>
-                                </select>
-
-                                <select
-                                  className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                  value={editPulsoForm.category}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, category: e.target.value, subCategory: '' })}
-                                  title="Área"
-                                >
-                                  <option value="">Sin Área</option>
-                                  {Object.keys(config?.areas || {}).map(a => (
-                                    <option key={a} value={a}>{a}</option>
+                                  <option value="">Sin Cat.</option>
+                                  {((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => (
+                                    <option key={sc} value={sc}>{sc}</option>
                                   ))}
                                 </select>
-
-                                {editPulsoForm.category && typeof config?.areas?.[editPulsoForm.category] !== 'string' && (config?.areas?.[editPulsoForm.category] as any)?.categories?.length > 0 && (
-                                  <select
-                                    className="px-1.5 py-0.5 bg-base border border-border-line rounded-none text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                    value={editPulsoForm.subCategory}
-                                    onChange={e => setEditPulsoForm({ ...editPulsoForm, subCategory: e.target.value })}
-                                    title="Categoría"
-                                  >
-                                    <option value="">Sin Cat.</option>
-                                    {((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => (
-                                      <option key={sc} value={sc}>{sc}</option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </div>
                           <div className="flex justify-end gap-2 items-center">
@@ -732,9 +1234,9 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                                   text: editPulsoForm.text.trim(),
                                   targetCount: editPulsoForm.targetCount,
                                   unitLabel: editPulsoForm.unitLabel,
-                                  polaridad: editPulsoForm.polaridad,
+                                  polaridad: editPulsoForm.polaridad as any,
                                   category: editPulsoForm.category || undefined,
-                                  subCategory: editPulsoForm.subCategory || undefined
+                                  subCategory: editPulsoForm.subCategory || undefined,
                                 });
                                 setEditingPulsoId(null);
                               }}
@@ -751,63 +1253,69 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                     return (
                       <div
                         key={t.id}
-                        className="relative group py-1.5 px-3 flex items-center bg-transparent rounded-none transition-all animate-in zoom-in-95 duration-200 text-left flex-none w-fit min-w-[160px] max-w-[220px] border-r border-border-line/30 last:border-r-0 gap-2"
+                        className="relative group py-2 px-2.5 flex items-center border-b border-border-line/30 last:border-b-0 text-left gap-2"
                       >
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
-                          {/* Top row: text and badges */}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <h4 className="text-xs font-medium text-text-main truncate" title={t.text}>{t.text}</h4>
-                            {t.category && (
-                              <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
-                            )}
+                            {t.category && <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />}
                             {t.polaridad && (
-                              <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 py-0.2 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
+                              <span className="text-[7.5px] font-mono uppercase tracking-wider px-1 rounded-full border border-dashed border-border-line/50 text-text-dim leading-none">
                                 {isAbandoning ? '📉' : '📈'}
                               </span>
                             )}
                             {unstartedIndicator && <TemporalIndicator indicator={unstartedIndicator} />}
                           </div>
-
-                          {/* Progress bar */}
-                          <div className="h-[1.5px] w-full bg-[#efede8]/60 dark:bg-border-line/50 relative rounded-none overflow-hidden">
-                            <div className={cn("h-full transition-all duration-300 absolute top-0 left-0", isDone ? "bg-[#81b29a]" : "bg-[#73c2b8]")} style={{ width: `${progress}%` }}></div>
+                          <div className="h-[1.5px] w-full bg-[#efede8]/60 dark:bg-border-line/50 relative overflow-hidden">
+                            <div
+                              className={cn('h-full transition-all duration-300 absolute top-0 left-0', isDone ? 'bg-[#81b29a]' : 'bg-[#73c2b8]')}
+                              style={{ width: `${progress}%` }}
+                            />
                           </div>
-
-                          {/* Bottom row: Counter adjuster and count indicator */}
-                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          <div className="flex items-center gap-2.5 mt-1 flex-wrap">
                             <div className="flex items-center gap-1.5">
                               <button
+                                type="button"
                                 onClick={() => onUpdateTask(t.id, { currentCount: Math.max(0, count - 1), completed: isAbandoning ? false : Math.max(0, count - 1) >= target })}
-                                className="w-[28px] h-[28px] rounded-full border border-border-line flex items-center justify-center text-xs text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
+                                className="w-[24px] h-[24px] rounded-full border border-border-line flex items-center justify-center text-xs text-text-dim hover:bg-base-dim/50 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
                                 title="Decrementar"
                               >
                                 -
                               </button>
                               <button
+                                type="button"
                                 onClick={() => onUpdateTask(t.id, { currentCount: Math.min(target * 2, count + 1), completed: isAbandoning ? false : (count + 1) >= target })}
-                                className="w-[28px] h-[28px] rounded-full border border-[#73c2b8]/40 flex items-center justify-center text-xs text-[#73c2b8] hover:bg-[#73c2b8]/10 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
+                                className="w-[24px] h-[24px] rounded-full border border-[#73c2b8]/40 flex items-center justify-center text-xs text-[#73c2b8] hover:bg-[#73c2b8]/10 hover:text-text-main transition-all cursor-pointer bg-transparent font-medium shrink-0"
                                 title="Incrementar"
                               >
                                 +
                               </button>
                             </div>
-
                             <span className="text-[10px] font-mono text-text-dim leading-none">
                               {count} <span className="opacity-60">/ {target} {unit}</span>
                             </span>
                             {isAbandoning && count === 0 && (
-                              <button type="button" onClick={() => onTogglePulseSafeDay(t.id)} className={cn('text-[8px] font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 hover:underline', safeDayConfirmed ? 'text-[#81b29a]' : 'text-text-dim')}>
+                              <button
+                                type="button"
+                                onClick={() => onTogglePulseSafeDay(t.id)}
+                                className={cn(
+                                  'text-[8px] font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 hover:underline',
+                                  safeDayConfirmed ? 'text-[#81b29a]' : 'text-text-dim',
+                                )}
+                              >
                                 {safeDayConfirmed ? 'Deshacer día libre' : 'Confirmar día libre'}
                               </button>
                             )}
-                            {isDone && <span className="text-[8px] uppercase tracking-wider font-mono font-bold text-[#81b29a] leading-none">Listo</span>}
+                            {isDone && (
+                              <span className="text-[8px] uppercase tracking-wider font-mono font-bold text-[#81b29a] leading-none">Listo</span>
+                            )}
                           </div>
                         </div>
 
-                        {/* 3-dots Options Menu */}
-                        <div className="relative flex items-center justify-center shrink-0 border-l border-border-line/70 pl-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="relative flex items-center justify-center shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <button
-                            onClick={(e) => {
+                            type="button"
+                            onClick={e => {
                               e.stopPropagation();
                               setOpenMenuPulsoId(openMenuPulsoId === t.id ? null : t.id);
                             }}
@@ -820,13 +1328,13 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                               <circle cx="12" cy="19" r="1" />
                             </svg>
                           </button>
-
                           {openMenuPulsoId === t.id && (
                             <>
                               <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOpenMenuPulsoId(null)} />
                               <div className="absolute right-0 top-full mt-1 z-50 w-32 bg-base border border-border-line rounded-xl shadow-lg p-1 glass-matte flex flex-col text-left">
                                 <button
-                                  onClick={(e) => {
+                                  type="button"
+                                  onClick={e => {
                                     e.stopPropagation();
                                     setEditPulsoForm({
                                       text: t.text,
@@ -834,7 +1342,7 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                                       unitLabel: t.unitLabel || 'veces',
                                       polaridad: t.polaridad || 'Reforzar',
                                       category: t.category || '',
-                                      subCategory: t.subCategory || ''
+                                      subCategory: t.subCategory || '',
                                     });
                                     setEditingPulsoId(t.id);
                                     setOpenMenuPulsoId(null);
@@ -846,7 +1354,8 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                                 </button>
                                 {onDuplicateTask && (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onDuplicateTask(t.id); setOpenMenuPulsoId(null); }}
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); onDuplicateTask(t.id); setOpenMenuPulsoId(null); }}
                                     className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                                   >
                                     Duplicar
@@ -854,14 +1363,16 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                                 )}
                                 {onPauseTask && !t.completed && (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onPauseTask(t.id); setOpenMenuPulsoId(null); }}
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); onPauseTask(t.id); setOpenMenuPulsoId(null); }}
                                     className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-text-main hover:bg-base-dim/40 rounded-lg cursor-pointer bg-transparent border-0 text-left w-full font-light"
                                   >
                                     Pausar
                                   </button>
                                 )}
                                 <button
-                                  onClick={(e) => {
+                                  type="button"
+                                  onClick={e => {
                                     e.stopPropagation();
                                     if (window.confirm(`¿Estás segura de que deseas eliminar permanentemente el pulso "${t.text}"?`)) {
                                       setOpenMenuPulsoId(null);
@@ -882,484 +1393,101 @@ export default function HoyView({ config, tasks, history, progressSnapshots, int
                   })}
                 </div>
               )}
-            </div>
+            </section>
           )}
 
-          {/* Logs Section (Activity recorded today) */}
-          {mappedRecords.length > 0 && (
-            <div className={cn("flex flex-col gap-4", pulsos.length > 0 && "border-t border-border-line pt-6")}>
-              <div className="flex items-center justify-between border-b border-border-line/30 pb-2">
-                <h3
-                  onClick={() => setShowLogs(!showLogs)}
-                  className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
-                >
-                  {showLogs ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
-                  <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Logs
-                  <span className="text-[10px] font-mono text-text-dim font-normal ml-1">
-                    ({mappedRecords.length} {mappedRecords.length === 1 ? 'registro' : 'registros'} · {hoursWorkedToday.toFixed(1)}h)
-                  </span>
-                </h3>
-              </div>
+          {/* Logs (Daily closure: merges recorded sessions + Completions) */}
+          <section className={cn('flex flex-col gap-3', pulsos.length > 0 && 'border-t border-border-line/50 pt-5')} aria-label="Logs">
+            <div className="flex items-center justify-between border-b border-border-line/30 pb-2 gap-2">
+              <h3
+                onClick={() => setShowHechoHoy(!showHechoHoy)}
+                aria-expanded={showHechoHoy}
+                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
+              >
+                {showHechoHoy ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Logs
+              </h3>
+              <span className="text-[10px] font-mono text-text-dim tabular-nums">
+                {completedCountToday} {completedCountToday === 1 ? 'completado' : 'completados'} · {hoursWorkedToday.toFixed(1)}h
+              </span>
+            </div>
 
-              {showLogs && (
-                <div className="space-y-1 bg-transparent animate-in fade-in duration-200">
-                  {mappedRecords.map(t => {
-                    const recordTask = t.originalRecord?.taskId ? tasks.find(task => task.id === t.originalRecord.taskId) : undefined;
-                    const isPulseRecord = recordTask?.type === 'Pulso';
-                    const canStartTimer = !isPulseRecord && recordTask && onStartTimer && activeTimer?.taskId !== recordTask.id && canTrackTask(recordTask, tasks, history);
+            {showHechoHoy && (
+              hechoHoyItems.length === 0 ? (
+                <p className="text-xs text-text-dim/80 text-left py-2">
+                  Tu cierre del día irá apareciendo aquí conforme completes o cronometres bloques.
+                </p>
+              ) : (
+                <ul className="m-0 list-none space-y-1 p-0 animate-in fade-in duration-200">
+                  {hechoHoyItems.map(item => {
+                    const recordTask = item.taskId ? tasks.find(t => t.id === item.taskId) : undefined;
+                    const canStartTimer =
+                      !item.isPulse
+                      && !!recordTask
+                      && !!onStartTimer
+                      && activeTimer?.taskId !== recordTask.id
+                      && canTrackTask(recordTask, tasks, history);
 
                     return (
-                      <div
-                        key={t.id}
+                      <li
+                        key={item.id}
                         onClick={() => {
-                          if (canStartTimer) {
-                            onStartTimer(t.originalRecord.taskId);
+                          if (canStartTimer && recordTask) {
+                            onStartTimer(recordTask.id);
                           }
                         }}
+                        title={canStartTimer ? 'Hacer clic para continuar el timer ⏱️' : undefined}
                         className={cn(
-                          "relative flex items-center justify-between py-2.5 border-b border-border-line/20 pl-4 pr-3 group hover:bg-base-dim/10 transition-colors text-left select-none my-1 animate-in fade-in duration-200 rounded-lg",
-                          canStartTimer && "cursor-pointer"
+                          'flex items-center justify-between gap-2 py-2 px-2 border-b border-border-line/20 last:border-b-0 text-left group rounded-md transition-colors',
+                          canStartTimer && 'cursor-pointer hover:bg-base-dim/15',
                         )}
-                        title={canStartTimer ? "Hacer clic para continuar el timer ⏱️" : undefined}
-                        aria-label={isPulseRecord ? `${t.text}: ${t.pulseLogValue}` : undefined}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-xs font-mono font-bold text-text-dim shrink-0">{t.hora}</span>
-                          <span className="text-[9px] uppercase font-mono tracking-widest text-[#73c2b8] border border-[#73c2b8]/30 px-2 py-0.5 rounded-full leading-none flex items-center gap-1 shrink-0 bg-transparent">
-                            {isPulseRecord ? <Activity className="w-2.5 h-2.5 text-[#73c2b8]" /> : <Clock className="w-2.5 h-2.5 text-[#73c2b8]" />}
-                            {isPulseRecord ? 'Pulso' : 'log'}
-                          </span>
-                          <span className={cn("text-xs font-light text-text-main truncate", !isPulseRecord && "line-through opacity-65", canStartTimer && "group-hover:text-primary transition-colors")} title={`${t.text} (${t.type})`}>
-                            {t.text}
-                          </span>
-                          {t.category && (
-                            <CategoryBadge area={t.category} subCategory={t.subCategory} config={config} />
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-mono text-text-dim shrink-0 tabular-nums">{item.timeLabel}</span>
+                          {item.isCompletion ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : item.isPulse ? (
+                            <Activity className="w-3 h-3 text-[#73c2b8] shrink-0" />
+                          ) : (
+                            <Clock className="w-3 h-3 text-[#73c2b8] shrink-0" />
                           )}
+                          <div className="min-w-0 flex flex-col">
+                            <span
+                              className={cn(
+                                'text-xs text-text-main truncate',
+                                canStartTimer && 'group-hover:text-primary transition-colors',
+                              )}
+                              title={item.parentText ? `${item.parentText} · ${item.text}` : item.text}
+                            >
+                              {item.text}
+                            </span>
+                            {item.parentText && (
+                              <span className="text-[9px] font-mono text-text-dim truncate">{item.parentText}</span>
+                            )}
+                          </div>
                         </div>
 
-                        {isPulseRecord ? (
-                          <div className="shrink-0 font-mono text-xs font-medium text-[#73c2b8]">
-                            {t.pulseLogValue}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-4 text-xs font-mono font-bold text-[#73c2b8] shrink-0">
-                            +{t.duration.toFixed(2)}h
-                          </div>
-                        )}
-                      </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          {item.category && <CategoryBadge area={item.category} subCategory={item.subCategory} config={config} />}
+                          {item.isPulse && item.pulseLogValue ? (
+                            <span className="font-mono text-[10px] font-medium text-[#73c2b8] tabular-nums">
+                              {item.pulseLogValue}
+                            </span>
+                          ) : item.duration > 0 ? (
+                            <span className="font-mono text-[10px] font-bold text-[#73c2b8] tabular-nums">
+                              +{item.duration.toFixed(2)}h
+                            </span>
+                          ) : null}
+                        </div>
+                      </li>
                     );
                   })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Línea de Tiempo Section */}
-          <div className={cn("flex flex-col gap-4", (pulsos.length > 0 || mappedRecords.length > 0) && "border-t border-border-line pt-8")}>
-            <div className="flex items-center justify-between border-b border-border-line/30 pb-2">
-              <h3
-                onClick={() => setShowTimeline(!showTimeline)}
-                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
-              >
-                {showTimeline ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
-                <Clock className="w-4 h-4 text-text-main silhouette-icon" /> Línea de Tiempo
-              </h3>
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('configuracion')}
-                  className="text-[10px] text-text-dim hover:text-text-main font-mono uppercase tracking-wider cursor-pointer bg-transparent border-0 underline underline-offset-4"
-                >
-                  Configurar bloques
-                </button>
-              </div>
-            </div>
-
-            {showTimeline && (
-              <div className="space-y-1 bg-transparent min-h-[100px] animate-in fade-in duration-200">
-                {timedItems.length === 0 ? (
-                  <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">No hay tareas programadas con hora para hoy.</p>
-                ) : (
-                  <TimelineRenderer
-                    items={timedItems}
-                    config={config}
-                    onToggleTask={onToggleTask}
-                    allTasks={tasks}
-                    onDeleteTask={onDeleteTask}
-                    onDuplicateTask={onDuplicateTask}
-                    onPauseTask={onPauseTask}
-                    onUpdateTask={onUpdateTask}
-                    onAddTask={onAddTask}
-                    activeTimer={activeTimer}
-                    onStartTimer={onStartTimer}
-                    history={history}
-                    onUpdateConfig={onUpdateConfig}
-                    onNavigate={onNavigate}
-                    intentions={intentions}
-                    habitDurationSummaries={habitDurationSummaries}
-                    routineDurationSummaries={routineDurationSummaries}
-                  />
-                )}
-              </div>
+                </ul>
+              )
             )}
-          </div>
-
-        </div>
-
-        {/* Columna Derecha (1/3): Tareas Flexibles y Backlog */}
-        <div className="lg:col-span-1 flex flex-col gap-8 lg:border-l lg:border-border-line lg:pl-8">
-
-          {/* Tareas Flexibles Section */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3
-                onClick={() => setShowFlexible(!showFlexible)}
-                aria-label={showFlexible ? 'Contraer tareas flexibles' : 'Expandir tareas flexibles'}
-                aria-expanded={showFlexible}
-                title={showFlexible ? 'Contraer tareas flexibles' : 'Expandir tareas flexibles'}
-                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
-              >
-                {showFlexible ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
-                <Inbox className="w-4 h-4 text-text-main silhouette-icon" /> Tareas Flexibles
-              </h3>
-              <div className="flex items-center gap-2">
-                <SortDropdown
-                  align="right"
-                  options={[
-                    { label: 'Orden manual', value: 'manual' },
-                    { label: 'Prioridad', value: 'priority' },
-                    { label: 'Fecha de creación', value: 'date' },
-                    { label: 'Alfabético', value: 'name' }
-                  ]}
-                  currentValue={sortFlexiblesBy}
-                  onChange={setSortFlexiblesBy}
-                />
-              </div>
-            </div>
-
-            {showFlexible && (
-              <section className="animate-in duration-200 fade-in">
-                {untimedTasks.length === 0 ? (
-                  <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Sin elementos flexibles.</p>
-                ) : (
-                  <ul className="m-0 list-none space-y-3 p-0">
-                    {getSortedTasks(untimedTasks, sortFlexiblesBy).map((t, idx, arr) => (
-                      <li
-                        key={t.id}
-                        draggable={sortFlexiblesBy === 'manual'}
-                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleDrop(e, t.id, untimedTasks)}
-                        className={cn(sortFlexiblesBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
-                      >
-                        <TaskItem
-                          task={t}
-                          config={config}
-                          allTasks={tasks}
-                          history={history}
-                          onToggle={onToggleTask}
-                          onDelete={() => onDeleteTask(t.id)}
-                          onUpdate={onUpdateTask}
-                          onAddTask={onAddTask}
-                          onDeleteTask={onDeleteTask}
-                          onDuplicateTask={onDuplicateTask}
-                          onPauseTask={onPauseTask}
-                          activeTimer={activeTimer}
-                          onStartTimer={onStartTimer}
-                          onNavigate={onNavigate}
-                          showMoveArrows={sortFlexiblesBy === 'manual'}
-                          onMoveUp={sortFlexiblesBy === 'manual' && idx > 0 ? () => handleMoveTaskInList(t.id, arr, idx - 1) : undefined}
-                          onMoveDown={sortFlexiblesBy === 'manual' && idx < arr.length - 1 ? () => handleMoveTaskInList(t.id, arr, idx + 1) : undefined}
-                          canMoveUp={idx > 0}
-                          canMoveDown={idx < arr.length - 1}
-                          context="today"
-                          commitmentLabels={getCommitmentLabelsForTask(intentions, tasks, t.id, currentDay, currentDay)}
-                          durationSummary={habitDurationSummaries.get(t.id)}
-                          routineDurationSummary={routineDurationSummaries.get(t.id)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-          </div>
-
-          {/* Backlog Section */}
-          <div className="flex flex-col gap-4 border-t border-border-line pt-8">
-            <div className="flex items-center justify-between">
-              <h3
-                onClick={() => setShowBacklog(!showBacklog)}
-                aria-label={showBacklog ? 'Contraer backlog' : 'Expandir backlog'}
-                aria-expanded={showBacklog}
-                title={showBacklog ? 'Contraer backlog' : 'Expandir backlog'}
-                className="text-subtitle flex items-center gap-2 cursor-pointer group hover:opacity-85 transition-all select-none"
-              >
-                {showBacklog ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
-                <Database className="w-4 h-4 text-text-main silhouette-icon" /> Backlog
-              </h3>
-              <div className="flex items-center gap-2">
-                <SortDropdown
-                  align="right"
-                  options={[
-                    { label: 'Orden manual', value: 'manual' },
-                    { label: 'Prioridad', value: 'priority' },
-                    { label: 'Fecha de creación', value: 'date' },
-                    { label: 'Alfabético', value: 'name' }
-                  ]}
-                  currentValue={sortBacklogBy}
-                  onChange={setSortBacklogBy}
-                />
-              </div>
-            </div>
-
-            {showBacklog && (
-              <section className="animate-in duration-200 fade-in">
-                {backlogTasks.length === 0 ? (
-                  <p className="text-xs text-[#a2b29f] whitespace-nowrap w-max text-left pl-2">Backlog vacío. Buen trabajo.</p>
-                ) : (
-                  <ul className="m-0 list-none space-y-3 p-0">
-                    {getSortedTasks(backlogTasks, sortBacklogBy).map((t, idx, arr) => (
-                      <li
-                        key={t.id}
-                        draggable={sortBacklogBy === 'manual'}
-                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', t.id); setDraggedId(t.id); }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleDrop(e, t.id, backlogTasks)}
-                        className={cn(sortBacklogBy === 'manual' ? "cursor-grab active:cursor-grabbing" : "")}
-                      >
-                        <TaskItem
-                          task={t}
-                          config={config}
-                          allTasks={tasks}
-                          history={history}
-                          onToggle={onToggleTask}
-                          onDelete={() => onDeleteTask(t.id)}
-                          onUpdate={onUpdateTask}
-                          onAddTask={onAddTask}
-                          onDeleteTask={onDeleteTask}
-                          onDuplicateTask={onDuplicateTask}
-                          onPauseTask={onPauseTask}
-                          activeTimer={activeTimer}
-                          onStartTimer={onStartTimer}
-                          onNavigate={onNavigate}
-                          showMoveArrows={sortBacklogBy === 'manual'}
-                          onMoveUp={sortBacklogBy === 'manual' && idx > 0 ? () => handleMoveTaskInList(t.id, arr, idx - 1) : undefined}
-                          onMoveDown={sortBacklogBy === 'manual' && idx < arr.length - 1 ? () => handleMoveTaskInList(t.id, arr, idx + 1) : undefined}
-                          canMoveUp={idx > 0}
-                          canMoveDown={idx < arr.length - 1}
-                          context="backlog"
-                          durationSummary={habitDurationSummaries.get(t.id)}
-                          routineDurationSummary={routineDurationSummaries.get(t.id)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-          </div>
-
-        </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
-}
-
-function TimelineRenderer({
-  items,
-  config,
-  onToggleTask,
-  allTasks,
-  onDeleteTask,
-  onDuplicateTask,
-  onPauseTask,
-  onUpdateTask,
-  onAddTask,
-  activeTimer,
-  onStartTimer,
-  history = [],
-  onUpdateConfig,
-  onNavigate,
-  intentions,
-  habitDurationSummaries,
-  routineDurationSummaries,
-}: {
-  items: any[],
-  config: Config | null,
-  onToggleTask: (task: AppTask) => void,
-  allTasks: AppTask[],
-  onDeleteTask: (id: string) => void,
-  onDuplicateTask?: (id: string) => void,
-  onPauseTask?: (id: string) => void,
-  onUpdateTask: (id: string, updates: Partial<AppTask>) => void,
-  onAddTask: (task: Omit<AppTask, 'id'>) => void,
-  activeTimer?: { taskId: string; isRunning: boolean } | null,
-  onStartTimer?: (taskId: string) => void,
-  history?: HistoryRecord[],
-  onUpdateConfig?: (c: Partial<Config>) => void,
-  onNavigate?: (view: string, taskId?: string) => void,
-  intentions: Intention[],
-  habitDurationSummaries: Map<string, HabitDurationSummary>,
-  routineDurationSummaries: Map<string, RoutineDurationSummary>,
-}) {
-  let lastEndTimeMins: number | null = null;
-  let activeSeparatorColor: string | null = null;
-  const renderedItems = [];
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editHora, setEditHora] = useState('');
-  const [editText, setEditText] = useState('');
-  const [editDetalle, setEditDetalle] = useState('');
-
-  for (let i = 0; i < items.length; i++) {
-    const t = items[i];
-    const startMins = timeToMins(t.hora);
-
-    if (t.isSeparator) {
-      activeSeparatorColor = t.color || null;
-      const idx = t.separatorIndex;
-      if (editingId === `sep-${i}`) {
-        renderedItems.push(
-          <div key={`sep-${i}`} className="relative flex flex-col items-center py-3 my-1 animate-in fade-in duration-150">
-            <div className="flex gap-2 items-center mb-2 justify-center flex-wrap">
-              <input
-                type="text"
-                placeholder="08:00"
-                value={editHora}
-                onChange={e => setEditHora(e.target.value)}
-                className="px-2 py-0.5 text-xs font-mono border-b border-border-line bg-transparent text-primary focus:outline-none w-16 text-center"
-              />
-              <input
-                type="text"
-                placeholder="Mañana"
-                value={editText}
-                onChange={e => setEditText(e.target.value)}
-                className="px-2 py-0.5 text-xs font-mono font-bold border-b border-border-line bg-transparent text-text-main focus:outline-none w-28 text-center"
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    if (!config || !config.separators || !onUpdateConfig) return;
-                    const newSeps = [...config.separators];
-                    newSeps[idx] = {
-                      hora: editHora || '08:00',
-                      text: editText.trim() || 'Bloque',
-                      detalle: editDetalle.trim()
-                    };
-                    onUpdateConfig({ separators: newSeps });
-                    setEditingId(null);
-                  }
-                  if (e.key === 'Escape') setEditingId(null);
-                }}
-              />
-              <span className="text-xs text-text-dim font-light font-sans">(</span>
-              <input
-                type="text"
-                placeholder="Foco e inicio"
-                value={editDetalle}
-                onChange={e => setEditDetalle(e.target.value)}
-                className="px-2 py-0.5 text-xs font-sans font-light border-b border-border-line bg-transparent text-text-dim focus:outline-none w-36 text-center"
-              />
-              <span className="text-xs text-text-dim font-light font-sans">)</span>
-            </div>
-            <div className="flex gap-4">
-              <button onClick={() => setEditingId(null)} className="text-[10px] font-mono uppercase tracking-wider text-text-dim hover:underline cursor-pointer bg-transparent border-0 outline-none">Cancelar</button>
-              <button onClick={() => {
-                if (!config || !config.separators || !onUpdateConfig) return;
-                const newSeps = [...config.separators];
-                newSeps[idx] = {
-                  hora: editHora || '08:00',
-                  text: editText.trim() || 'Bloque',
-                  detalle: editDetalle.trim()
-                };
-                onUpdateConfig({ separators: newSeps });
-                setEditingId(null);
-              }} className="text-[10px] font-mono uppercase tracking-wider text-primary font-bold hover:underline cursor-pointer bg-transparent border-0 outline-none">Guardar</button>
-            </div>
-          </div>
-        );
-      } else {
-        const getBorderClass = (c: string) => {
-          const valid = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
-          return valid.includes(c) ? `border-${c}-500/50` : 'border-border-line/50';
-        };
-        const getTextClass = (c: string) => {
-          const valid = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
-          return valid.includes(c) ? `text-${c}-600` : 'text-primary';
-        };
-
-        const colorBorderClasses = getBorderClass(t.color || '');
-        const colorTextClasses = getTextClass(t.color || '');
-
-        renderedItems.push(
-          <div key={`sep-${i}`} className="relative flex items-center py-3 my-1 opacity-80 group">
-            <div className={cn("flex-grow border-t border-dashed", colorBorderClasses)}></div>
-            <div className="relative group/sep">
-              <span className={cn("flex-shrink-0 mx-4 text-xs font-mono font-medium flex items-center gap-2 transition-all cursor-default", colorTextClasses)}>
-                {t.hora} - {t.text} {t.detalle && <span className={t.color ? colorTextClasses + ' font-sans font-light opacity-80' : 'text-text-dim ml-1 font-sans font-light'}>({t.detalle})</span>}
-              </span>
-            </div>
-            <div className={cn("flex-grow border-t border-dashed", colorBorderClasses)}></div>
-          </div>
-        );
-      }
-    } else {
-      const durationMins = (t.duracion || 0) * 60;
-      const endMins = startMins + durationMins;
-
-      if (lastEndTimeMins !== null && startMins > lastEndTimeMins) {
-        renderedItems.push(
-          <div key={`gap-${i}`} className="flex items-center gap-4 opacity-60 py-4 w-full">
-            <div className="flex-grow border-t border-dashed border-border-line"></div>
-            <span className="text-xs font-sans text-text-dim whitespace-nowrap">🍃 {startMins - lastEndTimeMins} min libres</span>
-            <div className="flex-grow border-t border-dashed border-border-line"></div>
-          </div>
-        );
-      }
-
-      const endTimeStr = durationMins > 0 ? ` - ${minsToTime(endMins)}` : '';
-      const parentTask = t.parentId ? allTasks.find(pt => pt.id === t.parentId) : null;
-      const displayCategory = t.category || (parentTask ? parentTask.category : '');
-      const areaConfig = config?.areas?.[displayCategory || ''];
-      const color = typeof areaConfig === 'string' ? areaConfig : (areaConfig?.color || 'slate');
-
-      const validColors = ['slate', 'blue', 'orange', 'purple', 'emerald', 'amber', 'red', 'green', 'teal', 'cyan'];
-      const brumaClass = validColors.includes(activeSeparatorColor || '')
-        ? `bg-gradient-to-r from-${activeSeparatorColor}-500/5 to-transparent`
-        : '';
-
-      renderedItems.push(
-        <div key={t.id} className="relative flex flex-col mb-4">
-          <div className={cn("flex items-stretch gap-2 rounded-r-md transition-colors", brumaClass)}>
-            <div className="w-0.5 flex-shrink-0" style={{ backgroundColor: `var(--color-${color}-400, #94a3b8)` }}></div>
-            <div className="flex-1 w-full py-1 pr-1">
-              <TaskItem
-                task={t}
-                config={config}
-                allTasks={allTasks}
-                history={history}
-                onToggle={onToggleTask}
-                onDelete={() => onDeleteTask(t.id)}
-                onUpdate={onUpdateTask}
-                onAddTask={onAddTask}
-                onDeleteTask={onDeleteTask}
-                onDuplicateTask={onDuplicateTask}
-                onPauseTask={onPauseTask}
-                activeTimer={activeTimer}
-                onStartTimer={onStartTimer}
-                onNavigate={onNavigate}
-                context="today"
-                commitmentLabels={getCommitmentLabelsForTask(intentions, allTasks, t.id, formatDateOnly(new Date()), formatDateOnly(new Date()))}
-                durationSummary={habitDurationSummaries.get(t.id)}
-                routineDurationSummary={routineDurationSummaries.get(t.id)}
-              />
-            </div>
-          </div>
-        </div>
-      );
-
-      lastEndTimeMins = Math.max(lastEndTimeMins || 0, endMins);
-    }
-  }
-
-  return <>{renderedItems}</>;
 }

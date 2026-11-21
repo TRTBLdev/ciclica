@@ -42,11 +42,15 @@ export interface Config {
   updatedAt?: string;
 }
 
+export type MomentKind = 'time' | 'trigger';
+
 export interface Separator {
+  id?: string;
   hora: string;
   text: string;
   detalle: string;
   color?: string;
+  kind?: MomentKind;
   /** ISO weekdays: 1 = lunes, 7 = domingo. Undefined means every day. */
   weekdays?: number[];
 }
@@ -122,6 +126,12 @@ export interface AppTask {
   pauseIntervals?: PauseInterval[];
   /** Routine-cycle key owning the current child-habit checklist state. */
   checklistCycleStart?: string;
+  /** Explicit Momento/anchor ID inside HoyView. */
+  momentId?: string;
+  /** Optional override for ideal spacing (in cycle opportunities) between quota habit executions. */
+  idealSpacingDays?: number;
+  /** Pin this item in Omnibar quick-track launcher for spontaneous timing. */
+  quickTrack?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -198,6 +208,7 @@ export interface IntentionItem {
   // Para 'consistency':
   targetDays?: number;           // Días target en el período completo (ej. 90)
   targetPercent?: number;        // Porcentaje target de consistencia (ej. 80 para >=80%)
+  weeklyTarget?: number;         // Días objetivo por semana para evaluar riesgo semanal
   // Para 'counter' (libros, páginas, módulos):
   counterName?: string;          // Nombre descriptivo (ej. "Leer 'El infinito en un junco'")
   currentCount?: number;         // Avance actual acumulado (ej. 120)

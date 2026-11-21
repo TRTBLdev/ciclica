@@ -25,6 +25,7 @@ interface Props {
   activeTimer: any;
   onStartTimer: (taskId: string) => void;
   focusTaskId: string | null;
+  requestedTab?: 'areas' | 'proyectos' | 'rutinas' | 'pausados';
   onNavigate: (view: any, taskId?: string) => void;
 }
 
@@ -45,12 +46,17 @@ export default function EstrategiaView({
   activeTimer,
   onStartTimer,
   focusTaskId,
+  requestedTab,
   onNavigate,
 }: Props) {
-  // Tabs: 'areas' | 'proyectos' | 'rutinas'
-  const [activeTab, setActiveTab] = useState<'areas' | 'proyectos' | 'rutinas' | 'pausados'>('areas');
+  const [activeTab, setActiveTab] = useState<'areas' | 'proyectos' | 'rutinas' | 'pausados'>(requestedTab || 'areas');
 
-  // Automatically switch tab if there is a focusTaskId that matches a specific type
+  useEffect(() => {
+    if (requestedTab && !focusTaskId) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab, focusTaskId]);
+
   useEffect(() => {
     if (focusTaskId) {
       if (config?.areas && config.areas[focusTaskId]) {
@@ -81,7 +87,7 @@ export default function EstrategiaView({
       {/* Upper Navigation Tabs Bar */}
       <div className="p-6 md:p-10 relative">
         <div className="absolute bottom-0 left-6 right-6 h-[1px] bg-[var(--color-border-line)]" />
-        
+
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-2 mb-6">
           <h1 className="text-title leading-none flex items-center gap-3 shrink-0">
             <Layers className="w-6 h-6 text-text-main" /> Estrategia y Plan
@@ -106,8 +112,8 @@ export default function EstrategiaView({
                 onClick={() => setActiveTab(t.id as any)}
                 className={cn(
                   "flex items-center gap-1.5 cursor-pointer bg-transparent border-0 outline-none transition-colors pb-1",
-                  isActive 
-                    ? "text-primary border-b border-primary" 
+                  isActive
+                    ? "text-primary border-b border-primary"
                     : "text-text-dim hover:text-text-main"
                 )}
               >

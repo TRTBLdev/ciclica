@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, Package, Clock, Calendar as CalendarIcon, Edit3, Trash2, X, CalendarRange, Target } from 'lucide-react';
 import { AppTask, Config, HistoryRecord, Separator, Intention, ProgressSnapshot } from '../types';
 import { cn, timeToMins, minsToTime, getEffectiveAllocation, getAreaTextClasses } from '../lib/utils';
-import { getAppearanceDate, isAppearanceScheduledOnDate } from '../domain/appearance';
+import { getAppearanceDate, isAppearanceScheduledOnDate, isUnscheduledBacklogTask } from '../domain/appearance';
 import CategoryBadge from './ui/CategoryBadge';
 import AllocationBadge from './ui/AllocationBadge';
 import UniversalItemForm from './UniversalItemForm';
@@ -21,6 +21,8 @@ interface Props {
   onUpdateTask: (id: string, updates: Partial<AppTask>) => void;
   onAddTask?: (task: Partial<AppTask>) => void;
   onDeleteTask?: (id: string) => void;
+  openBacklogOnRequest?: boolean;
+  onBacklogOpened?: () => void;
   onNavigate?: (view: string, taskId?: string) => void;
 }
 
@@ -116,7 +118,7 @@ function getIsoWeekday(d: Date): number {
   return day === 0 ? 7 : day;
 }
 
-export default function AgendaView({ config, tasks, history = [], intentions = [], progressSnapshots = [], onUpdateTask, onAddTask, onDeleteTask, onNavigate }: Props) {
+export default function AgendaView({ config, tasks, history = [], intentions = [], progressSnapshots = [], onUpdateTask, onAddTask, onDeleteTask, openBacklogOnRequest, onBacklogOpened, onNavigate }: Props) {
   // --- Navigation ---
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
@@ -140,6 +142,17 @@ export default function AgendaView({ config, tasks, history = [], intentions = [
   const [openSlots, setOpenSlots] = useState<Record<number, boolean>>({});
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
+  const backlogSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openBacklogOnRequest) return;
+    setBacklogOpen(true);
+    const rafId = window.requestAnimationFrame(() => {
+      backlogSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    onBacklogOpened?.();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [openBacklogOnRequest, onBacklogOpened]);
 
   const ganttPeriod = useMemo(() => {
     const start = new Date(weekStart);
@@ -262,10 +275,10 @@ export default function AgendaView({ config, tasks, history = [], intentions = [
     });
   }, [eligibleTasks, weekDays]);
 
-  // Backlog Tasks (formerly Flexibles): No date, no hora
+  // Backlog Tasks (formerly Flexibles): Unscheduled items without date, hour, or moment
   const backlogTasks = useMemo(() => {
-    return eligibleTasks.filter(t => !t.hora && !getAppearanceDate(t));
-  }, [eligibleTasks]);
+    return tasks.filter(t => isUnscheduledBacklogTask(t, tasks));
+  }, [tasks]);
 
   // Scheduled Tasks for a specific date (has hora and scheduled on date)
   const getScheduledForDate = (date: Date) => {
@@ -755,7 +768,7 @@ export default function AgendaView({ config, tasks, history = [], intentions = [
         </div>
 
         {/* Bottom Drawer: Backlog (Unscheduled tasks) */}
-        <div className="border-t border-border-line/30 bg-base mt-auto">
+        <div ref={backlogSectionRef} className="border-t border-border-line/30 bg-base mt-auto">
           <button
             onClick={() => setBacklogOpen(!backlogOpen)}
             className="flex items-center justify-between w-full px-4 md:px-6 py-2.5 text-left hover:bg-base-dim/20 transition-colors border-0 cursor-pointer"

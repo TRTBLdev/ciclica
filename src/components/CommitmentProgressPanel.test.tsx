@@ -106,4 +106,43 @@ describe('CommitmentProgressPanel', () => {
     expect(successMarkup).toContain('text-emerald-600');
     expect(successMarkup).toContain('bg-emerald-600/80');
   });
+
+  it('renders pills variant with daily green completion and brief weekly risk badge separately', () => {
+    const summary: CommitmentPeriodSummary = {
+      id: 'int-1:item-1',
+      period: 'day',
+      title: 'Rutina Nocturna',
+      targetType: 'consistency',
+      actions: [],
+      actualHours: 0,
+      plannedHours: 0,
+      completedActions: 1,
+      plannedOccurrences: 1,
+      completedOccurrences: 1,
+      counterDelta: 0,
+      percent: 100,
+      tone: 'success',
+      displayValue: '1 / 1 hábito',
+      weeklyRisk: 'at-risk',
+      weeklyRiskLabel: '⚠ semana en riesgo',
+      intention: {} as CommitmentPeriodSummary['intention'],
+      item: {} as CommitmentPeriodSummary['item'],
+    };
+
+    const markup = renderToStaticMarkup(
+      <CommitmentProgressPanel
+        summaries={[summary]}
+        title="Compromisos de hoy"
+        variant="pills"
+        selectedCommitmentId={summary.id}
+        onToggleFilter={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain('100% hoy');
+    expect(markup).toContain('text-emerald-600');
+    expect(markup).toContain('⚠ semana en riesgo');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('Limpiar filtro');
+  });
 });

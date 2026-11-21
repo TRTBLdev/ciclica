@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTask, Config } from '../types';
-import { Plus, Target } from 'lucide-react';
+import { Plus, Target, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatRelativeCalendarDate } from '../domain/appearance';
 import { ProjectPresentation } from '../domain/projectPresentation';
@@ -44,6 +44,7 @@ interface Props {
   onNavigateToLocation?: () => void;
   onAddTask?: (task: Omit<AppTask, 'id'>) => void;
   allowInlineChild?: boolean;
+  onToggleQuickTrack?: () => void;
 }
 
 function FolderIcon({ completed = false }: { completed?: boolean }) {
@@ -87,14 +88,15 @@ function ProjectActions({
   onDuplicate,
   onPause,
   onResume,
+  onToggleQuickTrack,
   onUpdateNotes,
   onMoveUp,
   onMoveDown,
   canMoveUp,
   canMoveDown,
-}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onDuplicate' | 'onPause' | 'onResume' | 'onUpdateNotes' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
+}: Pick<Props, 'project' | 'onEdit' | 'onDelete' | 'onDuplicate' | 'onPause' | 'onResume' | 'onToggleQuickTrack' | 'onUpdateNotes' | 'onMoveUp' | 'onMoveDown' | 'canMoveUp' | 'canMoveDown'>) {
   const [open, setOpen] = useState(false);
-  if (!onEdit && !onDelete && !onDuplicate && !onPause && !onResume && !onMoveUp && !onMoveDown) return null;
+  if (!onEdit && !onDelete && !onDuplicate && !onPause && !onResume && !onToggleQuickTrack && !onMoveUp && !onMoveDown) return null;
 
   return (
     <nav className="relative" aria-label={`Acciones de ${project.text}`}>
@@ -119,7 +121,7 @@ function ProjectActions({
             className="fixed inset-0 z-40 cursor-default border-0 bg-transparent"
             onClick={() => setOpen(false)}
           />
-          <menu className="absolute right-0 top-full z-50 m-0 mt-1 w-40 list-none border border-border-line bg-base p-1">
+          <menu className="absolute right-0 top-full z-50 m-0 mt-1 w-44 list-none border border-border-line bg-base p-1">
             {onEdit && (
               <li>
                 <button
@@ -131,6 +133,21 @@ function ProjectActions({
                   className="w-full border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40"
                 >
                   Editar
+                </button>
+              </li>
+            )}
+            {onToggleQuickTrack && !project.completed && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleQuickTrack();
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left text-xs text-text-main hover:bg-base-dim/40 cursor-pointer"
+                >
+                  <Zap className={cn('h-3 w-3', project.quickTrack ? 'text-primary' : 'text-text-dim')} />
+                  <span>{project.quickTrack ? 'Quitar rápido' : 'Acceso rápido'}</span>
                 </button>
               </li>
             )}
@@ -247,6 +264,7 @@ export default function ProjectCard({
   onNavigateToLocation,
   onAddTask,
   allowInlineChild = false,
+  onToggleQuickTrack,
 }: Props) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskText, setNewTaskText] = useState('');
@@ -299,9 +317,18 @@ export default function ProjectCard({
                 {project.text}
               </button>
             </h3>
+            {project.quickTrack && !project.completed && (
+              <span
+                className="inline-flex shrink-0 items-center text-primary"
+                title="Fijado en acceso rápido"
+                aria-label="En acceso rápido"
+              >
+                <Zap className="h-3 w-3" aria-hidden="true" />
+              </span>
+            )}
             {commitmentLabels.length > 0 && (
               <span
-                className="inline-flex shrink-0 items-center gap-1 border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
+                className="inline-flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary"
                 title={`Aporta a: ${commitmentLabels.join(', ')}`}
                 aria-label={`Aporta a: ${commitmentLabels.join(', ')}`}
               >
@@ -365,6 +392,7 @@ export default function ProjectCard({
               onDuplicate={onDuplicate}
               onPause={onPause}
               onResume={onResume}
+              onToggleQuickTrack={onToggleQuickTrack}
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
               canMoveUp={canMoveUp}

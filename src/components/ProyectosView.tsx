@@ -6,6 +6,8 @@ import SectionList from './ui/SectionList';
 import ViewHeader from './ui/ViewHeader';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
+import GroupDropdown from './ui/GroupDropdown';
+import CategoryBadge from './ui/CategoryBadge';
 import UniversalItemForm from './UniversalItemForm';
 import { cn, getAreaColorClasses } from '../lib/utils';
 import { getAppearanceDate, getDeadlineDate } from '../domain/appearance';
@@ -44,7 +46,10 @@ interface Props {
 
 export default function ProyectosView({ config, tasks, history, onToggleTask, onDeleteTask, onDuplicateTask, onPauseTask, onAddTask, onUpdateTask, activeTimer, onStartTimer, focusTaskId }: Props) {
   const [filterArea, setFilterArea] = useState('Todas');
+  const [filterSubCategory, setFilterSubCategory] = useState('Todas');
   const [filterAllocation, setFilterAllocation] = useState('Todas');
+  const [groupBy, setGroupBy] = useState<'type' | 'area'>('type');
+  const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -167,6 +172,9 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   if (filterArea !== 'Todas') {
     projects = projects.filter(p => p.category === filterArea);
   }
+  if (filterSubCategory !== 'Todas') {
+    projects = projects.filter(p => p.subCategory === filterSubCategory);
+  }
   if (filterAllocation !== 'Todas') {
     projects = projects.filter(p => projectMatchesEnergyFilter(p, tasks, filterAllocation));
   }
@@ -189,12 +197,70 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
   if (filterArea !== 'Todas') {
     standaloneTasks = standaloneTasks.filter(t => t.category === filterArea);
   }
+  if (filterSubCategory !== 'Todas') {
+    standaloneTasks = standaloneTasks.filter(t => t.subCategory === filterSubCategory);
+  }
   if (filterAllocation !== 'Todas') {
     standaloneTasks = standaloneTasks.filter(t => t.allocationType === filterAllocation);
   }
 
   const activeStandaloneTasks = sortTasks(standaloneTasks.filter(t => !t.completed && !isTaskEffectivelyPaused(t, tasks)), sortBy);
   const completedStandaloneTasks = sortTasks(standaloneTasks.filter(t => t.completed), sortBy);
+
+  const availableSubCategories: string[] = useMemo(() => {
+    if (filterArea === 'Todas') return [];
+    const areaCfg = config?.areas?.[filterArea];
+    if (!areaCfg || typeof areaCfg === 'string') return [];
+    return areaCfg.categories || [];
+  }, [config?.areas, filterArea]);
+
+  const areaGroupedData = useMemo(() => {
+    const allItems = [...activeProjs, ...activeStandaloneTasks];
+    const areaOrder = Object.keys(config?.areas || {});
+    allItems.forEach(item => {
+      if (item.category && !areaOrder.includes(item.category)) areaOrder.push(item.category);
+    });
+    const keys = [...areaOrder, '__none__'];
+
+    return keys
+      .map(areaKey => {
+        const matchArea = (item: AppTask) => (areaKey === '__none__' ? !item.category : item.category === areaKey);
+        const areaProjs = activeProjs.filter(matchArea);
+        const areaTasks = activeStandaloneTasks.filter(matchArea);
+        const total = areaProjs.length + areaTasks.length;
+        if (total === 0) return null;
+
+        const cfg = areaKey === '__none__' ? undefined : config?.areas?.[areaKey];
+        const configuredSubs = cfg && typeof cfg !== 'string' ? cfg.categories || [] : [];
+        const subOrder = [...configuredSubs];
+        [...areaProjs, ...areaTasks].forEach(item => {
+          if (item.subCategory && !subOrder.includes(item.subCategory)) subOrder.push(item.subCategory);
+        });
+
+        const subGroups = [...subOrder, '__none__']
+          .map(subKey => {
+            const matchSub = (item: AppTask) => (subKey === '__none__' ? !item.subCategory : item.subCategory === subKey);
+            const p = areaProjs.filter(matchSub);
+            const t = areaTasks.filter(matchSub);
+            if (p.length + t.length === 0) return null;
+            return {
+              key: subKey,
+              label: subKey === '__none__' ? 'Sin subcategoría' : subKey,
+              projects: p,
+              tasks: t,
+            };
+          })
+          .filter((g): g is NonNullable<typeof g> => !!g);
+
+        return {
+          key: areaKey,
+          label: areaKey === '__none__' ? 'Sin Área' : areaKey,
+          total,
+          subGroups,
+        };
+      })
+      .filter((g): g is NonNullable<typeof g> => !!g);
+  }, [config?.areas, activeProjs, activeStandaloneTasks]);
 
   const startEdit = (proj: AppTask) => {
     setEditProjForm({ 
@@ -338,6 +404,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         onDelete={() => onDeleteTask(proj.id)}
         onDuplicate={onDuplicateTask ? () => onDuplicateTask(proj.id) : undefined}
         onPause={onPauseTask && !proj.completed ? () => onPauseTask(proj.id) : undefined}
+        onToggleQuickTrack={!proj.completed ? () => onUpdateTask(proj.id, { quickTrack: !proj.quickTrack }) : undefined}
         onUpdateNotes={(notes) => onUpdateTask(proj.id, { notes })}
         onMoveUp={sortBy === 'manual' ? () => handleMoveProjUp(proj) : undefined}
         onMoveDown={sortBy === 'manual' ? () => handleMoveProjDown(proj) : undefined}
@@ -497,6 +564,18 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
                   ...Object.keys(config?.areas || {}).map(cat => ({ label: cat, value: cat }))
                 ]
               },
+              ...(availableSubCategories.length > 0
+                ? [
+                    {
+                      key: 'subCategory',
+                      label: 'Subcategoría',
+                      options: [
+                        { label: 'Todas las subcategorías', value: 'Todas' },
+                        ...availableSubCategories.map(sc => ({ label: sc, value: sc }))
+                      ]
+                    }
+                  ]
+                : []),
               {
                 key: 'allocation',
                 label: 'Inversión',
@@ -510,10 +589,15 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             ]}
             activeFilters={{
               area: filterArea,
+              ...(availableSubCategories.length > 0 ? { subCategory: filterSubCategory } : {}),
               allocation: filterAllocation
             }}
             onChange={(key, val) => {
-              if (key === 'area') setFilterArea(val);
+              if (key === 'area') {
+                setFilterArea(val);
+                setFilterSubCategory('Todas');
+              }
+              if (key === 'subCategory') setFilterSubCategory(val);
               if (key === 'allocation') setFilterAllocation(val);
             }}
           />
@@ -527,6 +611,16 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
             ]}
             currentValue={sortBy}
             onChange={(val) => setSortBy(val as any)}
+          />
+          <GroupDropdown
+            align="left"
+            options={[
+              { label: 'Por tipo', value: 'type' },
+              { label: 'Por área', value: 'area' },
+            ]}
+            currentValue={groupBy}
+            defaultValue="type"
+            onChange={val => setGroupBy(val as 'type' | 'area')}
           />
         </div>
         
@@ -658,6 +752,137 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
         </div>
       )}
 
+      {groupBy === 'area' ? (
+        <div className="flex flex-col gap-6">
+          {areaGroupedData.length === 0 ? (
+            <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+              No hay proyectos ni tareas activas que coincidan con los filtros actuales.
+            </div>
+          ) : (
+            areaGroupedData.map(areaGroup => {
+              const isAreaOpen = !collapsedAreas[areaGroup.key];
+              return (
+                <section key={areaGroup.key} className="border-b border-border-line/40 pb-6 last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedAreas(prev => ({ ...prev, [areaGroup.key]: isAreaOpen }))}
+                    aria-expanded={isAreaOpen}
+                    className="w-full flex items-center justify-between pb-2 cursor-pointer border-0 bg-transparent text-left border-b border-border-line/30"
+                  >
+                    <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-text-main font-bold">
+                      {isAreaOpen ? <ChevronDown className="w-3.5 h-3.5 text-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-text-dim" />}
+                      {areaGroup.label}
+                    </span>
+                    <span className="font-mono text-[10px] text-text-dim">{areaGroup.total}</span>
+                  </button>
+
+                  {isAreaOpen && (
+                    <div className="mt-4 flex flex-col gap-5 pl-2 md:pl-4">
+                      {areaGroup.subGroups.map(subGroup => (
+                        <div key={subGroup.key} className="flex flex-col gap-3">
+                          <div className="flex items-center gap-2">
+                            {subGroup.key !== '__none__' && areaGroup.key !== 'Sin Área' ? (
+                              <CategoryBadge area={areaGroup.key} subCategory={subGroup.label} config={config} hideArea />
+                            ) : (
+                              <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim">{subGroup.label}</span>
+                            )}
+                          </div>
+                          {subGroup.projects.length > 0 && renderProjBlock(subGroup.projects)}
+                          {subGroup.tasks.length > 0 && (
+                            <div className="flex flex-col gap-3">
+                              {subGroup.tasks.map(t => (
+                                <TaskItem
+                                  key={t.id}
+                                  task={t}
+                                  config={config}
+                                  allTasks={tasks}
+                                  history={history}
+                                  onToggle={onToggleTask}
+                                  onDelete={() => onDeleteTask(t.id)}
+                                  onUpdate={onUpdateTask}
+                                  onAddTask={onAddTask}
+                                  onDeleteTask={onDeleteTask}
+                                  onDuplicateTask={onDuplicateTask}
+                                  onPauseTask={onPauseTask}
+                                  activeTimer={activeTimer}
+                                  onStartTimer={onStartTimer}
+                                  showMoveArrows={sortBy === 'manual'}
+                                  context="project"
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })
+          )}
+
+          {/* Completados list in grouped mode */}
+          <div className="mt-4 border-t border-border-line/40 pt-4">
+            <div
+              onClick={() => setShowCompleted(!showCompleted)}
+              className="flex justify-between items-center pb-2 cursor-pointer select-none group"
+            >
+              <div className="flex items-center gap-2">
+                {showCompleted ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-text-dim group-hover:text-text-main transition-colors" />
+                )}
+                <span className="font-sans text-[10px] uppercase tracking-widest text-text-dim font-light group-hover:text-text-main transition-colors">
+                  Completados
+                </span>
+              </div>
+            </div>
+            {showCompleted && (
+              <div className="mt-4 animate-in fade-in duration-200 flex flex-col gap-6">
+                {compProjs.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-sans uppercase tracking-widest text-text-dim mb-4">Proyectos</h4>
+                    {renderProjBlock(compProjs)}
+                  </div>
+                )}
+                {completedStandaloneTasks.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-sans uppercase tracking-widest text-text-dim mb-4">Tareas Simples</h4>
+                    <div className="flex flex-col gap-3">
+                      {completedStandaloneTasks.map(t => (
+                        <TaskItem
+                          key={t.id}
+                          task={t}
+                          config={config}
+                          allTasks={tasks}
+                          history={history}
+                          onToggle={onToggleTask}
+                          onDelete={() => onDeleteTask(t.id)}
+                          onUpdate={onUpdateTask}
+                          onAddTask={onAddTask}
+                          onDeleteTask={onDeleteTask}
+                          onDuplicateTask={onDuplicateTask}
+                          onPauseTask={onPauseTask}
+                          activeTimer={activeTimer}
+                          onStartTimer={onStartTimer}
+                          showMoveArrows={sortBy === 'manual'}
+                          context="project"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {compProjs.length === 0 && completedStandaloneTasks.length === 0 && (
+                  <div className="text-center py-6 text-xs text-text-dim/60 font-light font-sans bg-base-dim/5 border border-dashed border-border-line/40">
+                    No hay elementos completados.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] xl:gap-8">
       {/* Activos list */}
       <div className="mb-6 min-w-0">
@@ -806,6 +1031,7 @@ export default function ProyectosView({ config, tasks, history, onToggleTask, on
       </div>
       </div>
       </div>
+      )}
 
     </div>
   );

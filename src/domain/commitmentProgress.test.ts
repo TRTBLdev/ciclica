@@ -158,8 +158,8 @@ describe('commitmentProgress', () => {
     expect(weekSummary.tone).toBe('danger');
   });
 
-  it('correlates daily commitment with weekly danger in Hoy view', () => {
-    // Friday 2026-10-16. Routine with 5 habits. User has 0% progress weekly and 0% today.
+  it('keeps daily tone neutral/in-progress/success while surfacing weeklyRisk separately', () => {
+    // Friday 2026-10-16. Routine starts Friday (3 remaining days in week, <20% progress -> at-risk).
     const routine = task({ id: 'routine-1', type: 'Rutina', fechaAparicion: '2026-10-16', appearanceMode: 'persistent' });
     const habit = task({ id: 'h1', text: 'Hábito 1', type: 'Hábito', parentId: routine.id });
     const intention: Intention = {
@@ -167,8 +167,60 @@ describe('commitmentProgress', () => {
       items: [{ id: 'item-routine', targetType: 'consistency', taskId: routine.id }],
     };
 
-    const [todaySummary] = getTodayCommitmentSummaries([intention], [routine, habit], [], [], '2026-10-16');
-    expect(todaySummary.tone).toBe('danger');
+    const [todayPending] = getTodayCommitmentSummaries([intention], [routine, habit], [], [], '2026-10-16');
+    expect(todayPending.tone).toBe('neutral');
+    expect(todayPending.weeklyRisk).toBe('at-risk');
+    expect(todayPending.weeklyRiskLabel).toBe('⚠ semana en riesgo');
+
+    // Completing today's action turns today's pill green ('success') even if weekly risk exists
+    const missedRoutine = task({ id: 'routine-missed', type: 'Rutina', fechaAparicion: '2026-10-12', appearanceMode: 'persistent' });
+    const missedHabit = task({ id: 'h-missed', text: 'Hábito 2', type: 'Hábito', parentId: missedRoutine.id });
+    const missedIntention: Intention = {
+      ...quarter,
+      items: [{ id: 'item-missed', targetType: 'consistency', taskId: missedRoutine.id, targetPercent: 75 }],
+    };
+    const fridayDone: HistoryRecord[] = [
+      { id: 'h-fri', userId: 'user', taskId: missedHabit.id, date: '2026-10-16T09:00:00', isCompletion: true, createdAt: '2026-10-16T09:00:00' },
+    ];
+    const [todayCompleted] = getTodayCommitmentSummaries([missedIntention], [missedRoutine, missedHabit], fridayDone, [], '2026-10-16');
+    expect(todayCompleted.percent).toBe(100);
+    expect(todayCompleted.tone).toBe('success');
+    expect(todayCompleted.weeklyRisk).toBe('missed');
+    expect(todayCompleted.weeklyRiskLabel).toBe('✕ semana perdida');
+  });
+
+  it('excludes covered quota habits and treats optional quota habits as non-penalizing credit in Hoy', () => {
+    const routine = task({
+      id: 'routine-quota',
+      type: 'Rutina',
+      appearanceMode: 'interval',
+      appearanceFrequency: 1,
+      appearanceFrequencyUnit: 'días',
+      fechaAparicion: '2026-10-12',
+      routineCycleFrequency: 1,
+      routineCycleUnit: 'semanas',
+    });
+    const dailyHabit = task({ id: 'h-daily', text: 'Diario', type: 'Hábito', parentId: routine.id, objetivoPorCiclo: 7 });
+    const weeklyOnce = task({ id: 'h-once', text: 'Semanal 1x', type: 'Hábito', parentId: routine.id, objetivoPorCiclo: 1 });
+    const floss3x = task({ id: 'h-floss', text: 'Floss 3x', type: 'Hábito', parentId: routine.id, objetivoPorCiclo: 3 });
+
+    const intention: Intention = {
+      ...quarter,
+      items: [{ id: 'item-routine', targetType: 'consistency', taskId: routine.id }],
+    };
+
+    // Monday: weeklyOnce + floss3x done. On Tuesday: weeklyOnce is covered, floss3x is optional, only dailyHabit is due!
+    const monHistory: HistoryRecord[] = [
+      { id: 'm1', userId: 'user', taskId: weeklyOnce.id, date: '2026-10-12T22:00:00', routineId: routine.id, routineCycleStart: '2026-10-12', routineAppearanceDate: '2026-10-12', isCompletion: true, createdAt: '2026-10-12T22:00:00' },
+      { id: 'm2', userId: 'user', taskId: floss3x.id, date: '2026-10-12T22:00:00', routineId: routine.id, routineCycleStart: '2026-10-12', routineAppearanceDate: '2026-10-12', isCompletion: true, createdAt: '2026-10-12T22:00:00' },
+      { id: 't1', userId: 'user', taskId: dailyHabit.id, date: '2026-10-13T22:00:00', routineId: routine.id, routineCycleStart: '2026-10-12', routineAppearanceDate: '2026-10-13', isCompletion: true, createdAt: '2026-10-13T22:00:00' },
+    ];
+
+    const [tueSummary] = getTodayCommitmentSummaries([intention], [routine, dailyHabit, weeklyOnce, floss3x], monHistory, [], '2026-10-13');
+    expect(tueSummary.plannedOccurrences).toBe(1);
+    expect(tueSummary.percent).toBe(100);
+    expect(tueSummary.tone).toBe('success');
+    expect(tueSummary.displayValue).toBe('1 / 1 hábito');
   });
 
   it('gives success tone when daily commitment is 100% completed', () => {

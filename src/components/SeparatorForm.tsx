@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Separator } from '../types';
+import { Clock, Anchor } from 'lucide-react';
+import { MomentKind, Separator } from '../types';
 import { APP_COLORS, cn } from '../lib/utils';
 
 const DAYS = [
@@ -19,24 +20,59 @@ export default function SeparatorForm({ initialValue, onSave, onCancel }: Props)
   const [name, setName] = useState(initialValue?.text || '');
   const [detail, setDetail] = useState(initialValue?.detalle || '');
   const [color, setColor] = useState(initialValue?.color || '');
+  const [kind, setKind] = useState<MomentKind>(initialValue?.kind || 'time');
   const [weekdays, setWeekdays] = useState<number[]>(initialValue?.weekdays || []);
 
   const save = (event: React.FormEvent) => {
     event.preventDefault();
     if (!hour || !name.trim()) return;
-    onSave({ hora: hour, text: name.trim(), detalle: detail.trim(), color: color || undefined, weekdays: weekdays.length ? weekdays : undefined });
+    const stableId = initialValue?.id || `mom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    onSave({
+      id: stableId,
+      hora: hour,
+      text: name.trim(),
+      detalle: detail.trim(),
+      color: color || undefined,
+      kind,
+      weekdays: weekdays.length ? weekdays : undefined,
+    });
   };
 
   return (
     <form onSubmit={save} className="flex flex-col gap-4 bg-base-dim/10 border border-border-line/60 p-4">
-      <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-mono uppercase text-text-dim mr-1">Tipo:</span>
+        <button
+          type="button"
+          onClick={() => setKind('time')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors',
+            kind === 'time' ? 'bg-base-dim text-text-main border-text-main/40 font-medium' : 'bg-transparent text-text-dim border-border-line hover:text-text-main',
+          )}
+        >
+          <Clock className="w-3 h-3" aria-hidden="true" />
+          Bloque horario
+        </button>
+        <button
+          type="button"
+          onClick={() => setKind('trigger')}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors',
+            kind === 'trigger' ? 'bg-base-dim text-text-main border-text-main/40 font-medium' : 'bg-transparent text-text-dim border-border-line hover:text-text-main',
+          )}
+        >
+          <Anchor className="w-3 h-3" aria-hidden="true" />
+          Gatillo / Ancla
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3">
         <label className="flex flex-col gap-1 text-[10px] font-mono uppercase text-text-dim">
-          Hora
+          {kind === 'trigger' ? 'Hora orientativa' : 'Hora'}
           <input required type="time" value={hour} onChange={event => setHour(event.target.value)} className="px-3 py-2 text-xs bg-base text-text-main border border-border-line" />
         </label>
         <label className="flex flex-col gap-1 text-[10px] font-mono uppercase text-text-dim">
           Nombre
-          <input required value={name} onChange={event => setName(event.target.value)} placeholder="Mañana" className="px-3 py-2 text-xs bg-base text-text-main border border-border-line" />
+          <input required value={name} onChange={event => setName(event.target.value)} placeholder={kind === 'trigger' ? 'Al despertar' : 'Mañana'} className="px-3 py-2 text-xs bg-base text-text-main border border-border-line" />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-[10px] font-mono uppercase text-text-dim">
@@ -60,7 +96,7 @@ export default function SeparatorForm({ initialValue, onSave, onCancel }: Props)
         <div className="flex flex-wrap gap-2">
           {DAYS.map(day => {
             const selected = weekdays.includes(day.value);
-            return <button key={day.value} type="button" onClick={() => setWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())} className={cn('px-3 py-1.5 rounded-full border text-[10px] cursor-pointer', selected ? 'bg-text-main text-base border-text-main' : 'bg-transparent text-text-dim border-border-line')}>{day.label}</button>;
+            return <button key={day.value} type="button" onClick={() => setWeekdays(prev => selected ? prev.filter(value => value !== day.value) : [...prev, day.value].sort())} className={cn('px-3 py-1.5 rounded-full border text-[10px] cursor-pointer', selected ? 'bg-text-main text-[var(--base-bg)] border-text-main' : 'bg-transparent text-text-dim border-border-line')}>{day.label}</button>;
           })}
         </div>
         <p className="mt-2 text-[10px] text-text-dim">{weekdays.length ? DAYS.filter(day => weekdays.includes(day.value)).map(day => day.label).join(' · ') : 'Todos los días'}</p>
