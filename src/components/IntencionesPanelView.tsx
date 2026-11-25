@@ -27,6 +27,7 @@ import { calculateItemProgress } from '../domain/intentionProgress';
 import { buildIntentionAreaWheel } from '../domain/areaWheel';
 import DedicationChart from './DedicationChart';
 import AreaWheelChart from './AreaWheelChart';
+import Select from './ui/Select';
 
 interface Props {
   config: Config | null;
@@ -823,26 +824,26 @@ export default function IntencionesPanelView({
                               <div className="space-y-3 pt-1 animate-in fade-in duration-150">
                                 <div className="space-y-1">
                                   <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Rutina o Hábito</label>
-                                  <select
+                                  <Select
+                                    variant="underline"
+                                    size="sm"
+                                    searchable={true}
+                                    ariaLabel="Seleccionar Rutina o Hábito"
                                     value={selectedRoutineHabitId || allHabitsAndRoutines[0]?.id || ''}
-                                    onChange={(e) => setSelectedRoutineHabitId(e.target.value)}
-                                    className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                  >
-                                    <optgroup label="Rutinas">
-                                      {routines.map(r => (
-                                        <option key={r.id} value={r.id}>
-                                          {r.text} ({r.category || 'Sin Área'})
-                                        </option>
-                                      ))}
-                                    </optgroup>
-                                    <optgroup label="Hábitos">
-                                      {tasks.filter(t => t.type === 'Hábito').map(h => (
-                                        <option key={h.id} value={h.id}>
-                                          {h.text} ({h.category || 'Sin Área'})
-                                        </option>
-                                      ))}
-                                    </optgroup>
-                                  </select>
+                                    onChange={setSelectedRoutineHabitId}
+                                    options={[
+                                      ...routines.map(r => ({
+                                        value: r.id,
+                                        label: `${r.text} (${r.category || 'Sin Área'})`,
+                                        group: 'Rutinas',
+                                      })),
+                                      ...tasks.filter(t => t.type === 'Hábito').map(h => ({
+                                        value: h.id,
+                                        label: `${h.text} (${h.category || 'Sin Área'})`,
+                                        group: 'Hábitos',
+                                      })),
+                                    ]}
+                                  />
                                 </div>
 
                                 <div className="space-y-1">
@@ -911,55 +912,64 @@ export default function IntencionesPanelView({
                                     {hoursTargetKind === 'area' ? 'Seleccionar Área' : hoursTargetKind === 'project' ? 'Seleccionar Proyecto' : 'Seleccionar Tarea o Hábito'}
                                   </label>
                                   {hoursTargetKind === 'area' && (
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Seleccionar Área"
                                       value={selectedHoursTargetId || areaNames[0] || ''}
-                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {areaNames.map(a => (
-                                        <option key={a} value={a}>{a}</option>
-                                      ))}
-                                    </select>
+                                      onChange={setSelectedHoursTargetId}
+                                      options={areaNames.map(a => ({ value: a, label: a }))}
+                                    />
                                   )}
                                   {hoursTargetKind === 'project' && (
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Seleccionar Proyecto"
                                       value={selectedHoursTargetId || projects[0]?.id || ''}
-                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {projects.map(p => (
-                                        <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
-                                      ))}
-                                    </select>
+                                      onChange={setSelectedHoursTargetId}
+                                      options={projects.map(p => ({
+                                        value: p.id,
+                                        label: `${p.text} (${p.category || 'Sin Área'})`,
+                                      }))}
+                                    />
                                   )}
                                   {hoursTargetKind === 'task' && (
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Seleccionar Tarea o Hábito"
                                       value={selectedHoursTargetId || trackableTasks[0]?.id || ''}
-                                      onChange={(e) => setSelectedHoursTargetId(e.target.value)}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {trackableTasks.map(t => (
-                                        <option key={t.id} value={t.id}>{t.text} ({t.type} · {t.category || 'Sin Área'})</option>
-                                      ))}
-                                    </select>
+                                      onChange={setSelectedHoursTargetId}
+                                      options={trackableTasks.map(t => ({
+                                        value: t.id,
+                                        label: `${t.text} (${t.type} · ${t.category || 'Sin Área'})`,
+                                      }))}
+                                    />
                                   )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">Modalidad de Meta</label>
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      ariaLabel="Modalidad de Meta"
                                       value={hoursPacing}
-                                      onChange={(e) => {
-                                        const p = e.target.value as 'weekly' | 'total';
+                                      onChange={(val) => {
+                                        const p = val as 'weekly' | 'total';
                                         setHoursPacing(p);
                                         setHoursValue(p === 'weekly' ? 4 : 50);
                                       }}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      <option value="weekly">Ritmo semanal (h/sem)</option>
-                                      <option value="total">Total en el período (h)</option>
-                                    </select>
+                                      options={[
+                                        { value: 'weekly', label: 'Ritmo semanal (h/sem)' },
+                                        { value: 'total', label: 'Total en el período (h)' },
+                                      ]}
+                                    />
                                   </div>
 
                                   <div className="space-y-1">
@@ -1007,31 +1017,35 @@ export default function IntencionesPanelView({
                                       />
                                       <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-mono text-text-dim uppercase">Área:</span>
-                                        <select
+                                        <Select
+                                          variant="underline"
+                                          size="sm"
+                                          searchable={true}
+                                          ariaLabel="Área de la nueva tarea"
                                           value={newCounterTaskCategory}
-                                          onChange={(e) => setNewCounterTaskCategory(e.target.value)}
-                                          className="bg-transparent border-b border-border-line/30 px-1 py-0.5 text-xs font-mono text-text-main"
-                                        >
-                                          {areaNames.map(a => (
-                                            <option key={a} value={a}>{a}</option>
-                                          ))}
-                                        </select>
+                                          onChange={setNewCounterTaskCategory}
+                                          options={areaNames.map(a => ({ value: a, label: a }))}
+                                          className="w-auto min-w-[120px] font-mono"
+                                        />
                                       </div>
                                     </div>
                                   ) : (
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Tarea o hábito asociado"
                                       value={counterTaskId || trackableTasks[0]?.id || ''}
-                                      onChange={(e) => {
-                                        setCounterTaskId(e.target.value);
-                                        const t = tasks.find(task => task.id === e.target.value);
+                                      onChange={(val) => {
+                                        setCounterTaskId(val);
+                                        const t = tasks.find(task => task.id === val);
                                         if (t) setCounterName(t.text);
                                       }}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {trackableTasks.map(t => (
-                                        <option key={t.id} value={t.id}>{t.text} ({t.category || 'Sin Área'})</option>
-                                      ))}
-                                    </select>
+                                      options={trackableTasks.map(t => ({
+                                        value: t.id,
+                                        label: `${t.text} (${t.category || 'Sin Área'})`,
+                                      }))}
+                                    />
                                   )}
                                 </div>
 
@@ -1104,17 +1118,18 @@ export default function IntencionesPanelView({
                                 {milestoneKind === 'standalone_task' && (
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Tarea Suelta</label>
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Seleccionar Tarea Suelta"
                                       value={selectedMilestoneTaskId || standaloneTasks[0]?.id || ''}
-                                      onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {standaloneTasks.map(t => (
-                                        <option key={t.id} value={t.id}>
-                                          {t.text} ({t.category || 'Sin Área'}) {t.completed ? '✓' : ''}
-                                        </option>
-                                      ))}
-                                    </select>
+                                      onChange={setSelectedMilestoneTaskId}
+                                      options={standaloneTasks.map(t => ({
+                                        value: t.id,
+                                        label: `${t.text} (${t.category || 'Sin Área'}) ${t.completed ? '✓' : ''}`.trim(),
+                                      }))}
+                                    />
                                   </div>
                                 )}
 
@@ -1122,32 +1137,36 @@ export default function IntencionesPanelView({
                                   <div className="space-y-3">
                                     <div className="space-y-1">
                                       <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Proyecto</label>
-                                      <select
+                                      <Select
+                                        variant="underline"
+                                        size="sm"
+                                        searchable={true}
+                                        ariaLabel="Seleccionar Proyecto"
                                         value={selectedProjectId || projects[0]?.id || ''}
-                                        onChange={(e) => {
-                                          setSelectedProjectId(e.target.value);
+                                        onChange={(val) => {
+                                          setSelectedProjectId(val);
                                           setSelectedMilestoneTaskId('');
                                         }}
-                                        className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                      >
-                                        {projects.map(p => (
-                                          <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
-                                        ))}
-                                      </select>
+                                        options={projects.map(p => ({
+                                          value: p.id,
+                                          label: `${p.text} (${p.category || 'Sin Área'})`,
+                                        }))}
+                                      />
                                     </div>
                                     <div className="space-y-1">
                                       <label className="text-[10px] font-mono text-text-dim uppercase">Tarea Clave / Hito del Proyecto</label>
-                                      <select
+                                      <Select
+                                        variant="underline"
+                                        size="sm"
+                                        searchable={true}
+                                        ariaLabel="Tarea Clave / Hito del Proyecto"
                                         value={selectedMilestoneTaskId || projectTasks[0]?.id || ''}
-                                        onChange={(e) => setSelectedMilestoneTaskId(e.target.value)}
-                                        className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                      >
-                                        {projectTasks.map(m => (
-                                          <option key={m.id} value={m.id}>
-                                            {m.text} {m.completed ? '(Completada)' : ''}
-                                          </option>
-                                        ))}
-                                      </select>
+                                        onChange={setSelectedMilestoneTaskId}
+                                        options={projectTasks.map(m => ({
+                                          value: m.id,
+                                          label: `${m.text} ${m.completed ? '(Completada)' : ''}`.trim(),
+                                        }))}
+                                      />
                                     </div>
                                   </div>
                                 )}
@@ -1155,15 +1174,18 @@ export default function IntencionesPanelView({
                                 {milestoneKind === 'project_complete' && (
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-mono text-text-dim uppercase">Seleccionar Proyecto</label>
-                                    <select
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Seleccionar Proyecto"
                                       value={selectedProjectId || projects[0]?.id || ''}
-                                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                                      className="w-full bg-transparent border-b border-border-line/40 rounded-none py-1.5 text-xs font-sans text-text-main focus:outline-none focus:border-text-main"
-                                    >
-                                      {projects.map(p => (
-                                        <option key={p.id} value={p.id}>{p.text} ({p.category || 'Sin Área'})</option>
-                                      ))}
-                                    </select>
+                                      onChange={setSelectedProjectId}
+                                      options={projects.map(p => ({
+                                        value: p.id,
+                                        label: `${p.text} (${p.category || 'Sin Área'})`,
+                                      }))}
+                                    />
                                   </div>
                                 )}
                               </div>

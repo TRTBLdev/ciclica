@@ -10,6 +10,7 @@ import {
 } from '../domain/calendarExport';
 import { useToast } from './ToastProvider';
 import SeparatorForm from './SeparatorForm';
+import Select from './ui/Select';
 
 type ExportDataType = 'all' | 'ciclos' | 'habitos' | 'tareas' | 'intenciones';
 
@@ -417,10 +418,13 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                   Personalizado: define libremente el inicio y fin de cada cuarto.
                 </span>
               </div>
-              <select
+              <Select
+                variant="box"
+                size="sm"
+                ariaLabel="Definición de Cuartos"
                 value={config?.quarterConfig?.type || 'calendar'}
-                onChange={(e) => {
-                  const val = e.target.value as 'calendar' | 'personal';
+                onChange={(nextVal) => {
+                  const val = nextVal as 'calendar' | 'personal';
                   onUpdateConfig({
                     quarterConfig: {
                       type: val,
@@ -431,11 +435,12 @@ export default function ConfiguracionView({ config, onUpdateConfig, tasks, histo
                     }
                   });
                 }}
-                className="bg-base border border-border-line text-xs font-mono px-3 py-1.5 rounded focus:outline-none cursor-pointer uppercase text-text-main"
-              >
-                <option value="calendar">Calendario Estándar</option>
-                <option value="personal">Cuartos Personalizados</option>
-              </select>
+                options={[
+                  { value: 'calendar', label: 'Calendario Estándar' },
+                  { value: 'personal', label: 'Cuartos Personalizados' },
+                ]}
+                className="w-auto min-w-[200px] font-mono uppercase"
+              />
             </div>
 
             {config?.quarterConfig?.type === 'personal' && (
@@ -834,37 +839,40 @@ function MonthDaySelect({
   ];
 
   return (
-    <div className="flex gap-1 items-center font-mono mt-1">
-      <select
-        value={month}
+    <div className="flex gap-1.5 items-center font-mono mt-1">
+      <Select
+        variant="box"
+        size="sm"
+        ariaLabel="Mes"
+        value={String(month)}
         disabled={disabled}
-        onChange={(e) => {
-          const newM = parseInt(e.target.value, 10);
+        onChange={(val) => {
+          const newM = parseInt(val, 10);
           const newMStr = newM.toString().padStart(2, '0');
           const newDStr = day.toString().padStart(2, '0');
           onChange(`${newMStr}-${newDStr}`);
         }}
-        className="bg-base border border-border-line text-xs px-2 py-1 rounded focus:outline-none cursor-pointer uppercase text-text-main"
-      >
-        {months.map(m => (
-          <option key={m.v} value={m.v}>{m.l}</option>
-        ))}
-      </select>
-      <select
-        value={day}
+        options={months.map(m => ({ value: String(m.v), label: m.l }))}
+        className="w-20 font-mono uppercase"
+      />
+      <Select
+        variant="box"
+        size="sm"
+        ariaLabel="Día"
+        value={String(day)}
         disabled={disabled}
-        onChange={(e) => {
-          const newD = parseInt(e.target.value, 10);
+        onChange={(val) => {
+          const newD = parseInt(val, 10);
           const newMStr = month.toString().padStart(2, '0');
           const newDStr = newD.toString().padStart(2, '0');
           onChange(`${newMStr}-${newDStr}`);
         }}
-        className="bg-base border border-border-line text-xs px-2 py-1 rounded focus:outline-none cursor-pointer text-text-main"
-      >
-        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-          <option key={d} value={d}>{d.toString().padStart(2, '0')}</option>
-        ))}
-      </select>
+        options={Array.from({ length: 31 }, (_, i) => i + 1).map(d => ({
+          value: String(d),
+          label: d.toString().padStart(2, '0'),
+        }))}
+        className="w-16 font-mono"
+      />
     </div>
   );
 }

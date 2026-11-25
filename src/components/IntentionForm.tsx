@@ -4,7 +4,7 @@ import { Config, AppTask, HistoryRecord, Intention, IntentionItem, IntentionScal
 import { cn } from '../lib/utils';
 import { getCurrentPeriod, findIntentionForPeriod, parseLocalDate } from '../domain/periodUtils';
 import { calculateItemProgress } from '../domain/intentionProgress';
-import Combobox from './Combobox';
+import Select from './ui/Select';
 import GanttChart from './GanttChart';
 
 interface IntentionFormProps {
@@ -361,26 +361,31 @@ export default function IntentionForm({
                                 {/* Selectors Wrapper: inline grid/flex on mobile, display contents on desktop */}
                                 <div className="flex flex-wrap sm:grid sm:grid-cols-[110px_110px_1fr] md:contents gap-2 items-center w-full">
                                   {/* Type dropdown */}
-                                  <div className="relative flex items-center w-[110px] sm:w-auto">
-                                    <select
+                                  <div className="w-[110px] sm:w-auto">
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      ariaLabel="Tipo de meta"
                                       value={item.targetType}
-                                      onChange={(e) => handleUpdateItem(item.id, { targetType: e.target.value as any })}
+                                      onChange={(val) => handleUpdateItem(item.id, { targetType: val as any })}
                                       disabled={isPastPeriod}
-                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                    >
-                                      <option value="hours">Horas</option>
-                                      <option value="consistency">Consistencia</option>
-                                      <option value="completion">Completación</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                      options={[
+                                        { value: 'hours', label: 'Horas' },
+                                        { value: 'consistency', label: 'Consistencia' },
+                                        { value: 'completion', label: 'Completación' },
+                                      ]}
+                                      className="font-mono"
+                                    />
                                   </div>
 
                                   {/* Bind level selector */}
-                                  <div className="relative flex items-center w-[110px] sm:w-auto">
-                                    <select
+                                  <div className="w-[110px] sm:w-auto">
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      ariaLabel="Nivel de vínculo"
                                       value={bindLevel}
-                                      onChange={(e) => {
-                                        const lvl = e.target.value;
+                                      onChange={(lvl) => {
                                         if (lvl === 'area') {
                                           handleUpdateItem(item.id, { areaName: areaNames[0] || '', subCategory: undefined, projectId: undefined, taskId: undefined });
                                         } else if (lvl === 'subCategory') {
@@ -394,89 +399,98 @@ export default function IntentionForm({
                                         }
                                       }}
                                       disabled={isPastPeriod}
-                                      className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                    >
-                                      <option value="area">Área</option>
-                                      <option value="subCategory">Categoría</option>
-                                      <option value="project">Proyecto</option>
-                                      <option value="task">Tarea/Hábito</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                      options={[
+                                        { value: 'area', label: 'Área' },
+                                        { value: 'subCategory', label: 'Categoría' },
+                                        { value: 'project', label: 'Proyecto' },
+                                        { value: 'task', label: 'Tarea/Hábito' },
+                                      ]}
+                                      className="font-mono"
+                                    />
                                   </div>
 
                                   {/* Target selection values */}
                                   <div className="flex items-center gap-2 flex-grow flex-1 min-w-[150px] sm:w-auto">
                                     {bindLevel === 'area' && (
-                                      <div className="relative flex-1 flex items-center">
-                                        <select
+                                      <div className="flex-1 min-w-0">
+                                        <Select
+                                          variant="underline"
+                                          size="sm"
+                                          searchable={true}
+                                          ariaLabel="Área"
                                           value={item.areaName || ''}
-                                          onChange={(e) => handleUpdateItem(item.id, { areaName: e.target.value })}
+                                          onChange={(val) => handleUpdateItem(item.id, { areaName: val })}
                                           disabled={isPastPeriod}
-                                          className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                        >
-                                          {areaNames.map(name => (
-                                            <option key={name} value={name}>{name}</option>
-                                          ))}
-                                        </select>
-                                        <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                          options={areaNames.map(name => ({ value: name, label: name }))}
+                                          className="font-mono"
+                                        />
                                       </div>
                                     )}
 
                                     {bindLevel === 'subCategory' && (
                                       <>
-                                        <div className="relative flex-1 flex items-center">
-                                          <select
+                                        <div className="flex-1 min-w-0">
+                                          <Select
+                                            variant="underline"
+                                            size="sm"
+                                            searchable={true}
+                                            ariaLabel="Área"
                                             value={item.areaName || ''}
-                                            onChange={(e) => {
-                                              const area = e.target.value;
+                                            onChange={(area) => {
                                               const cats = getAreaCategories(area);
                                               handleUpdateItem(item.id, { areaName: area, subCategory: cats[0] || '' });
                                             }}
                                             disabled={isPastPeriod}
-                                            className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                          >
-                                            {areaNames.map(name => (
-                                              <option key={name} value={name}>{name}</option>
-                                            ))}
-                                          </select>
-                                          <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                            options={areaNames.map(name => ({ value: name, label: name }))}
+                                            className="font-mono"
+                                          />
                                         </div>
-                                        <div className="relative flex-1 flex items-center">
-                                          <select
+                                        <div className="flex-1 min-w-0">
+                                          <Select
+                                            variant="underline"
+                                            size="sm"
+                                            searchable={true}
+                                            ariaLabel="Categoría"
                                             value={item.subCategory || ''}
-                                            onChange={(e) => handleUpdateItem(item.id, { subCategory: e.target.value })}
+                                            onChange={(val) => handleUpdateItem(item.id, { subCategory: val })}
                                             disabled={isPastPeriod}
-                                            className="appearance-none w-full bg-transparent text-text-main text-xs font-mono border-b border-border-line focus:border-primary px-0 py-1.5 focus:outline-none cursor-pointer pr-4 disabled:opacity-70 transition-colors"
-                                          >
-                                            {getAreaCategories(item.areaName || '').map(cat => (
-                                              <option key={cat} value={cat}>{cat}</option>
-                                            ))}
-                                          </select>
-                                          <ChevronDown className="absolute right-0 w-3 h-3 text-text-dim pointer-events-none" />
+                                            options={getAreaCategories(item.areaName || '').map(cat => ({ value: cat, label: cat }))}
+                                            className="font-mono"
+                                          />
                                         </div>
                                       </>
                                     )}
 
                                     {bindLevel === 'project' && (
-                                      <div className="relative flex-1 flex items-center w-full min-w-[150px]">
-                                        <Combobox
+                                      <div className="flex-1 w-full min-w-[150px]">
+                                        <Select
+                                          variant="underline"
+                                          size="sm"
+                                          searchable={true}
+                                          ariaLabel="Proyecto"
                                           value={item.projectId || ''}
                                           onChange={(val) => handleUpdateItem(item.id, { projectId: val })}
                                           disabled={isPastPeriod}
                                           placeholder={projects.length === 0 ? "No hay proyectos" : "Seleccionar proyecto..."}
                                           options={projects.map(p => ({ value: p.id, label: p.text }))}
+                                          className="font-mono"
                                         />
                                       </div>
                                     )}
 
                                     {bindLevel === 'task' && (
-                                      <div className="relative flex-1 flex items-center w-full min-w-[150px]">
-                                        <Combobox
+                                      <div className="flex-1 w-full min-w-[150px]">
+                                        <Select
+                                          variant="underline"
+                                          size="sm"
+                                          searchable={true}
+                                          ariaLabel="Tarea o Hábito"
                                           value={item.taskId || ''}
                                           onChange={(val) => handleUpdateItem(item.id, { taskId: val })}
                                           disabled={isPastPeriod}
                                           placeholder={taskOptions.length === 0 ? "No hay tareas" : "Seleccionar tarea..."}
                                           options={taskOptions.map(t => ({ value: t.id, label: `[${t.type}] ${t.text}` }))}
+                                          className="font-mono"
                                         />
                                       </div>
                                     )}
@@ -559,15 +573,18 @@ export default function IntentionForm({
                                 </div>
                               </div>
 
-                              {/* Upper scale linking dropdown */}
+                                {/* Upper scale linking dropdown */}
                               {parentIntention && (
                                 <div className="flex items-center gap-2 pt-2 font-mono text-[9px] w-full text-left">
                                   <span className="text-text-dim uppercase">Vincular a norte superior:</span>
-                                  <div className="relative flex items-center">
-                                    <select
+                                  <div className="max-w-[250px] min-w-[160px]">
+                                    <Select
+                                      variant="underline"
+                                      size="sm"
+                                      searchable={true}
+                                      ariaLabel="Vincular a norte superior"
                                       value={linkedItems.find(l => l.childItemId === item.id)?.parentItemId || ''}
-                                      onChange={(e) => {
-                                        const pItemId = e.target.value;
+                                      onChange={(pItemId) => {
                                         if (pItemId) {
                                           const exists = linkedItems.some(l => l.childItemId === item.id);
                                           if (exists) {
@@ -586,26 +603,24 @@ export default function IntentionForm({
                                         }
                                       }}
                                       disabled={isPastPeriod}
-                                      className="appearance-none bg-transparent text-text-main text-[9px] font-mono border-b border-border-line px-0 py-0.5 focus:outline-none focus:border-primary cursor-pointer pr-4 max-w-[250px] truncate transition-colors"
-                                    >
-                                      <option value="">Ninguno</option>
-                                      {parentIntention.items.map(parentIt => {
-                                        let label = `[${parentIt.targetType === 'hours' ? 'hrs' : parentIt.targetType === 'consistency' ? 'días' : 'hito'}] `;
-                                        if (parentIt.projectId) {
-                                          label += tasks.find(t => t.id === parentIt.projectId)?.text || 'Proyecto';
-                                        } else if (parentIt.taskId) {
-                                          label += tasks.find(t => t.id === parentIt.taskId)?.text || 'Tarea';
-                                        } else if (parentIt.subCategory) {
-                                          label += `${parentIt.areaName} ➔ ${parentIt.subCategory}`;
-                                        } else if (parentIt.areaName) {
-                                          label += parentIt.areaName;
-                                        }
-                                        return (
-                                          <option key={parentIt.id} value={parentIt.id}>{label}</option>
-                                        );
-                                      })}
-                                    </select>
-                                    <ChevronDown className="absolute right-0 w-2.5 h-2.5 text-text-dim pointer-events-none" />
+                                      options={[
+                                        { value: '', label: 'Ninguno' },
+                                        ...parentIntention.items.map(parentIt => {
+                                          let label = `[${parentIt.targetType === 'hours' ? 'hrs' : parentIt.targetType === 'consistency' ? 'días' : 'hito'}] `;
+                                          if (parentIt.projectId) {
+                                            label += tasks.find(t => t.id === parentIt.projectId)?.text || 'Proyecto';
+                                          } else if (parentIt.taskId) {
+                                            label += tasks.find(t => t.id === parentIt.taskId)?.text || 'Tarea';
+                                          } else if (parentIt.subCategory) {
+                                            label += `${parentIt.areaName} ➔ ${parentIt.subCategory}`;
+                                          } else if (parentIt.areaName) {
+                                            label += parentIt.areaName;
+                                          }
+                                          return { value: parentIt.id, label };
+                                        }),
+                                      ]}
+                                      className="text-[9px] font-mono"
+                                    />
                                   </div>
                                 </div>
                               )}

@@ -6,6 +6,7 @@ import { calculateItemProgress, getActiveAreaCommitments, getIntentionItemLabel,
 import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import GroupDropdown from './ui/GroupDropdown';
+import Select from './ui/Select';
 import { buildHabitDurationSummaryIndex, buildRoutineDurationSummaryIndex } from '../domain/habitDuration';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import { isTaskEffectivelyPaused } from '../domain/pause';
@@ -140,13 +141,14 @@ function AreasList({
               </div>
               <div>
                 <label className="text-label block mb-2">INDEX COLOR</label>
-                <select 
-                  className="w-full bg-base border border-border-line rounded-xl px-4 py-2 text-sm focus:outline-none uppercase text-text-main"
+                <Select
+                  variant="box"
+                  ariaLabel="Index color"
                   value={editForm.color}
-                  onChange={e => setEditForm({ ...editForm, color: e.target.value })}
-                >
-                  {APP_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  onChange={val => setEditForm({ ...editForm, color: val })}
+                  options={APP_COLORS.map(c => ({ value: c, label: c.toUpperCase() }))}
+                  className="uppercase"
+                />
               </div>
             </div>
 

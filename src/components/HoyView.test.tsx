@@ -27,7 +27,7 @@ describe('HoyView', () => {
       '<label for="manual-cycle-phase" class="sr-only">Ajustar fase actual manualmente</label>',
     );
     expect(markup).toMatch(
-      /<select id="manual-cycle-phase" name="manualCyclePhase"[^>]*title="Ajustar fase actual manualmente"/,
+      /<button[^>]*id="manual-cycle-phase"[^>]*data-name="manualCyclePhase"[^>]*role="combobox"[^>]*title="Ajustar fase actual manualmente"/,
     );
   });
 

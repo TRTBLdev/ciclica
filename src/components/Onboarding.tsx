@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Config, AppTask, CycleTrackingType, BiologicalPhase } from '../types';
 import { Target, Shapes, Compass, BookOpen, Lock, Sparkles, Check, ChevronRight, ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
+import Select from './ui/Select';
 
 interface Props {
   config: Config | null;
@@ -257,16 +258,20 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
               {trackingType === 'none' && (
                 <div className="flex flex-col gap-1 p-4 bg-base/50 border border-border-line rounded-xl animate-in slide-in-from-top-2 duration-200">
                   <label className="text-[9px] uppercase tracking-wider font-mono text-text-dim">Elige tu fase energética de inicio:</label>
-                  <select
+                  <Select
+                    variant="box"
+                    size="sm"
+                    ariaLabel="Elige tu fase energética de inicio"
                     value={manualPhase}
-                    onChange={e => setManualPhase(e.target.value as BiologicalPhase)}
-                    className="text-xs bg-base border border-border-line text-text-main px-3 py-2 rounded-lg outline-none font-bold cursor-pointer"
-                  >
-                    <option value="dinamica">Oro (Fase Dinámica - 12h)</option>
-                    <option value="expresiva">Coral (Fase Expresiva - 10h)</option>
-                    <option value="creativa">Turquesa (Fase Creativa - 8h)</option>
-                    <option value="reflexiva">Azul Lino (Fase Reflexiva - 5h)</option>
-                  </select>
+                    onChange={val => setManualPhase(val as BiologicalPhase)}
+                    options={[
+                      { value: 'dinamica', label: 'Oro (Fase Dinámica - 12h)' },
+                      { value: 'expresiva', label: 'Coral (Fase Expresiva - 10h)' },
+                      { value: 'creativa', label: 'Turquesa (Fase Creativa - 8h)' },
+                      { value: 'reflexiva', label: 'Azul Lino (Fase Reflexiva - 5h)' },
+                    ]}
+                    className="font-bold"
+                  />
                 </div>
               )}
             </div>
@@ -353,16 +358,20 @@ export default function Onboarding({ config, onUpdateConfig, onAddTask, onClose,
             </div>
 
             <form onSubmit={handleAddDumpTask} className="flex flex-col sm:flex-row gap-2">
-              <select
+              <Select
+                variant="box"
+                size="md"
+                ariaLabel="Área"
                 value={addingArea}
-                onChange={e => setAddingArea(e.target.value)}
-                className="px-3 py-2 text-xs bg-base border border-border-line text-text-main rounded-full outline-none cursor-pointer shrink-0"
-              >
-                <option value="HOME">🏠 HOME</option>
-                <option value="BODY">🌿 BODY</option>
-                <option value="MIND">🧠 MIND</option>
-                <option value="FINANCE">💰 FINANCE</option>
-              </select>
+                onChange={setAddingArea}
+                options={[
+                  { value: 'HOME', label: '🏠 HOME' },
+                  { value: 'BODY', label: '🌿 BODY' },
+                  { value: 'MIND', label: '🧠 MIND' },
+                  { value: 'FINANCE', label: '💰 FINANCE' },
+                ]}
+                className="w-full sm:w-40 shrink-0"
+              />
 
               <input 
                 autoFocus

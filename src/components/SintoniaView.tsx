@@ -5,6 +5,7 @@ import { calculateBiologicalPhase, getCyclePeriods, parseLocalDate, getCycleProj
 import { getLunarArchetype, getLunarDetailsForDate } from '../domain/lunar';
 import { cn } from '../lib/utils';
 import SyllabusView from './SyllabusView';
+import Select from './ui/Select';
 
 
 
@@ -697,12 +698,12 @@ function CycleTrendChart({ projections }: { projections: CycleProjections }) {
 function CycleCalendar({ config, onUpdateConfig, projections }: { config: Config | null; onUpdateConfig: (c: Partial<Config>) => void; projections: CycleProjections | null }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), parseInt(e.target.value), 1));
+  const handleMonthChange = (val: string) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), parseInt(val, 10), 1));
   };
 
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setCurrentMonth(new Date(parseInt(e.target.value), currentMonth.getMonth(), 1));
+  const handleYearChange = (val: string) => {
+    setCurrentMonth(new Date(parseInt(val, 10), currentMonth.getMonth(), 1));
   };
 
   const prevMonth = () => {
@@ -791,26 +792,31 @@ function CycleCalendar({ config, onUpdateConfig, projections }: { config: Config
         <div className="flex items-center bg-base-dim/5 p-1 rounded-sm gap-1 border border-border-line/40">
           <button onClick={prevMonth} className="p-1.5 text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 hover:bg-base-dim/10 rounded transition-colors"><ChevronLeft className="w-4 h-4" /></button>
           
-          <select 
-            value={month} 
+          <Select
+            variant="ghost"
+            size="sm"
+            ariaLabel="Mes"
+            value={String(month)}
             onChange={handleMonthChange}
-            className="text-xs font-mono font-bold uppercase bg-transparent border-0 text-text-main py-1 outline-none cursor-pointer appearance-none text-center hover:bg-base-dim/10 rounded px-2 transition-colors"
-          >
-            {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
-              <option key={i} value={i} className="bg-base">{m}</option>
-            ))}
-          </select>
+            options={['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => ({
+              value: String(i),
+              label: m,
+            }))}
+            className="w-auto font-mono font-bold uppercase"
+          />
           
-          <select 
-            value={year} 
+          <Select
+            variant="ghost"
+            size="sm"
+            ariaLabel="Año"
+            value={String(year)}
             onChange={handleYearChange}
-            className="text-xs font-mono font-bold uppercase bg-transparent border-0 text-text-main py-1 outline-none cursor-pointer appearance-none text-center hover:bg-base-dim/10 rounded px-2 transition-colors"
-          >
-            {Array.from({ length: 11 }).map((_, i) => {
+            options={Array.from({ length: 11 }).map((_, i) => {
               const y = new Date().getFullYear() - 5 + i;
-              return <option key={y} value={y} className="bg-base">{y}</option>;
+              return { value: String(y), label: String(y) };
             })}
-          </select>
+            className="w-auto font-mono font-bold uppercase"
+          />
 
           <button onClick={nextMonth} className="p-1.5 text-text-dim hover:text-text-main cursor-pointer bg-transparent border-0 hover:bg-base-dim/10 rounded transition-colors"><ChevronRight className="w-4 h-4" /></button>
         </div>

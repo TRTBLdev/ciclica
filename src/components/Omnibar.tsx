@@ -139,6 +139,20 @@ export default function Omnibar({
       : null);
   }, [activeTimer?.taskId, tasks]);
 
+  useEffect(() => {
+    if (mode !== 'createTask' && mode !== 'editTask') return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (event.defaultPrevented) return;
+      if (document.querySelector('[data-ciclica-select-open="true"]')) return;
+      event.preventDefault();
+      setMode('search');
+      setEditingTask(null);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [mode]);
+
   const filteredTasks = useMemo(() => {
     return getOmnibarSearchResults(tasks, history, search);
   }, [history, tasks, search]);
@@ -949,10 +963,10 @@ export default function Omnibar({
       )}
 
       {mode === 'editTask' && editingTask && (
-        <div className="flex flex-col animate-in fade-in flex-1 overflow-y-auto pr-2 no-scrollbar mb-4 mt-2">
-          <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col animate-in fade-in flex-1 min-h-0 overflow-y-auto pr-2 mb-2 mt-2">
+          <div className="flex items-center justify-between mb-2 shrink-0">
              <h3 className="text-[11px] uppercase tracking-widest text-text-dim font-mono">Editar Ítem</h3>
-             <button onClick={() => setMode('search')} className="p-1.5 hover:bg-base-dim/40 rounded-lg transition-colors cursor-pointer bg-transparent border border-border-line/50 outline-none text-text-dim hover:text-text-main flex items-center gap-2">
+             <button onClick={() => { setMode('search'); setEditingTask(null); }} className="p-1.5 hover:bg-base-dim/40 rounded-lg transition-colors cursor-pointer bg-transparent border border-border-line/50 outline-none text-text-dim hover:text-text-main flex items-center gap-2">
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Volver</span>
              </button>
@@ -976,8 +990,8 @@ export default function Omnibar({
       )}
 
       {mode === 'createTask' && (
-        <div className="flex flex-col animate-in fade-in flex-1 overflow-y-auto pr-2 no-scrollbar mb-4 mt-2">
-          <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col animate-in fade-in flex-1 min-h-0 overflow-y-auto pr-2 mb-2 mt-2">
+          <div className="flex items-center justify-between mb-2 shrink-0">
              <h3 className="text-[11px] uppercase tracking-widest text-text-dim font-mono">Crear Ítem</h3>
              <button onClick={() => setMode('search')} className="p-1.5 hover:bg-base-dim/40 rounded-lg transition-colors cursor-pointer bg-transparent border border-border-line/50 outline-none text-text-dim hover:text-text-main flex items-center gap-2">
                 <ArrowLeft className="w-3.5 h-3.5" />

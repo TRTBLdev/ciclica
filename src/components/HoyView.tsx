@@ -30,6 +30,7 @@ import TaskItem from './TaskItem';
 import CategoryBadge from './ui/CategoryBadge';
 import FilterDropdown from './ui/FilterDropdown';
 import SortDropdown from './ui/SortDropdown';
+import Select from './ui/Select';
 import TemporalIndicator from './ui/TemporalIndicator';
 import { formatDateOnly, isRoutineConfigured } from '../domain/recurrenceProgress';
 import {
@@ -664,13 +665,15 @@ export default function HoyView({
             <label htmlFor="manual-cycle-phase" className="sr-only">
               Ajustar fase actual manualmente
             </label>
-            <select
+            <Select
               id="manual-cycle-phase"
               name="manualCyclePhase"
-              className="appearance-none bg-transparent text-[10px] font-mono text-[#a2b29f] hover:text-text-main cursor-pointer outline-none transition-colors border-b border-transparent hover:border-[#a2b29f]"
+              variant="ghost"
+              size="sm"
+              title="Ajustar fase actual manualmente"
+              ariaLabel="Ajustar fase actual manualmente"
               value={config?.cycleConfig?.currentManualPhase || 'none'}
-              onChange={(e) => {
-                const val = e.target.value;
+              onChange={(val) => {
                 onUpdateConfig?.({
                   cycleConfig: {
                     ...config?.cycleConfig,
@@ -679,14 +682,15 @@ export default function HoyView({
                   },
                 });
               }}
-              title="Ajustar fase actual manualmente"
-            >
-              <option value="none">🔄 Auto</option>
-              <option value="dinamica">Folicular (Dinámica)</option>
-              <option value="expresiva">Ovulatoria (Expresiva)</option>
-              <option value="creativa">Lútea (Creativa)</option>
-              <option value="reflexiva">Menstrual (Reflexiva)</option>
-            </select>
+              options={[
+                { value: 'none', label: '🔄 Auto' },
+                { value: 'dinamica', label: 'Folicular (Dinámica)' },
+                { value: 'expresiva', label: 'Ovulatoria (Expresiva)' },
+                { value: 'creativa', label: 'Lútea (Creativa)' },
+                { value: 'reflexiva', label: 'Menstrual (Reflexiva)' },
+              ]}
+              className="w-auto text-[10px] font-mono text-[#a2b29f]"
+            />
           </div>
 
           {/* Right: Date + Compact Energy Meter + Filter */}
@@ -1182,39 +1186,52 @@ export default function HoyView({
                                 placeholder="un."
                               />
                             </div>
-                            <div className="flex gap-1 flex-wrap">
-                              <select
-                                className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                value={editPulsoForm.polaridad}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, polaridad: e.target.value })}
+                            <div className="flex gap-1.5 flex-wrap">
+                              <Select
+                                variant="box"
+                                size="sm"
                                 title="Polaridad"
-                              >
-                                <option value="Reforzar">Reforzar</option>
-                                <option value="Abandonar">Abandonar</option>
-                              </select>
-                              <select
-                                className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                value={editPulsoForm.category}
-                                onChange={e => setEditPulsoForm({ ...editPulsoForm, category: e.target.value, subCategory: '' })}
+                                ariaLabel="Polaridad"
+                                value={editPulsoForm.polaridad}
+                                onChange={val => setEditPulsoForm({ ...editPulsoForm, polaridad: val })}
+                                options={[
+                                  { value: 'Reforzar', label: 'Reforzar' },
+                                  { value: 'Abandonar', label: 'Abandonar' },
+                                ]}
+                                className="w-auto min-w-[100px] font-mono text-[10px]"
+                              />
+                              <Select
+                                variant="box"
+                                size="sm"
+                                searchable={true}
                                 title="Área"
-                              >
-                                <option value="">Sin Área</option>
-                                {Object.keys(config?.areas || {}).map(a => (
-                                  <option key={a} value={a}>{a}</option>
-                                ))}
-                              </select>
+                                ariaLabel="Área"
+                                value={editPulsoForm.category}
+                                onChange={val => setEditPulsoForm({ ...editPulsoForm, category: val, subCategory: '' })}
+                                options={[
+                                  { value: '', label: 'Sin Área' },
+                                  ...Object.keys(config?.areas || {}).map(a => ({ value: a, label: a })),
+                                ]}
+                                className="w-auto min-w-[110px] font-mono text-[10px]"
+                              />
                               {editPulsoForm.category && typeof config?.areas?.[editPulsoForm.category] !== 'string' && (config?.areas?.[editPulsoForm.category] as any)?.categories?.length > 0 && (
-                                <select
-                                  className="px-1.5 py-0.5 bg-base border border-border-line text-[9px] font-mono focus:outline-none text-text-main cursor-pointer"
-                                  value={editPulsoForm.subCategory}
-                                  onChange={e => setEditPulsoForm({ ...editPulsoForm, subCategory: e.target.value })}
+                                <Select
+                                  variant="box"
+                                  size="sm"
+                                  searchable={true}
                                   title="Categoría"
-                                >
-                                  <option value="">Sin Cat.</option>
-                                  {((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => (
-                                    <option key={sc} value={sc}>{sc}</option>
-                                  ))}
-                                </select>
+                                  ariaLabel="Categoría"
+                                  value={editPulsoForm.subCategory}
+                                  onChange={val => setEditPulsoForm({ ...editPulsoForm, subCategory: val })}
+                                  options={[
+                                    { value: '', label: 'Sin Cat.' },
+                                    ...((config?.areas?.[editPulsoForm.category] as any).categories || []).map((sc: string) => ({
+                                      value: sc,
+                                      label: sc,
+                                    })),
+                                  ]}
+                                  className="w-auto min-w-[110px] font-mono text-[10px]"
+                                />
                               )}
                             </div>
                           </div>

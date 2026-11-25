@@ -19,6 +19,7 @@ import ItemDetails from './ItemDetails';
 import { HabitDurationSummary, RoutineDurationSummary } from '../domain/habitDuration';
 import { ActivityDurationAverage, DurationComparison } from './DurationSummaryMetric';
 import { isTaskDirectlyPaused, isTaskEffectivelyPaused } from '../domain/pause';
+import Select from './ui/Select';
 
 
 const GripIcon = () => (
@@ -725,15 +726,17 @@ export default function TaskItem({
                   if (e.key === 'Escape') setIsEditing(false);
                 }}
               />
-              <div className="flex flex-wrap gap-2 text-left">
+              <div className="flex flex-wrap gap-2 text-left items-center">
                 {/* Selector de Tipo para conversión */}
-                <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-2 pr-1 relative" title="Convertir Tipo de Elemento">
+                <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-2 pr-1" title="Convertir Tipo de Elemento">
                   <span className="text-xs text-text-dim uppercase font-mono">Tipo:</span>
-                  <select
-                    className="appearance-none py-1 bg-base text-text-main text-xs font-bold border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6"
+                  <Select
+                    variant="box"
+                    size="sm"
+                    ariaLabel="Tipo de elemento"
                     value={editType}
-                    onChange={e => {
-                      const newType = e.target.value as TaskType;
+                    onChange={val => {
+                      const newType = val as TaskType;
                       setEditType(newType);
                       // Clear parentId if switching to top-level types
                       if (newType === 'Proyecto' || newType === 'Rutina') {
@@ -744,18 +747,19 @@ export default function TaskItem({
                         setEditParentId('');
                       }
                     }}
-                  >
-                    <option value="Tarea">📝 Tarea</option>
-                    <option value="Proyecto">📁 Proyecto</option>
-                    <option value="Rutina">🔁 Rutina</option>
-                    <option value="Hábito">🌱 Hábito</option>
-                    <option value="Pulso">💓 Pulso (Multi-Diario)</option>
-                  </select>
-                  <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+                    options={[
+                      { value: 'Tarea', label: '📝 Tarea' },
+                      { value: 'Proyecto', label: '📁 Proyecto' },
+                      { value: 'Rutina', label: '🔁 Rutina' },
+                      { value: 'Hábito', label: '🌱 Hábito' },
+                      { value: 'Pulso', label: '💓 Pulso (Multi-Diario)' },
+                    ]}
+                    className="w-auto min-w-[120px] font-bold"
+                  />
                 </div>
 
                 {(editType === 'Hábito' || editType === 'Rutina') && (
-                  <div className="flex items-center gap-1 bg-transparent rounded-md pl-2 pr-1 relative">
+                  <div className="flex items-center gap-1.5 bg-transparent rounded-md pl-2 pr-1">
                     <span className="text-xs text-text-dim font-mono">Cada</span>
                     <input
                       type="number"
@@ -764,16 +768,19 @@ export default function TaskItem({
                       value={editFrecuencia}
                       onChange={e => setEditFrecuencia(Number(e.target.value))}
                     />
-                    <select
-                      className="appearance-none py-1 bg-base text-text-main text-xs font-medium border border-border-line px-2.5 py-1.5 rounded-full focus:outline-none cursor-pointer pr-6"
+                    <Select
+                      variant="box"
+                      size="sm"
+                      ariaLabel="Unidad de frecuencia"
                       value={editFrecuenciaUnidad}
-                      onChange={e => setEditFrecuenciaUnidad(e.target.value)}
-                    >
-                      <option value="días">días</option>
-                      <option value="semanas">semanas</option>
-                      <option value="meses">meses</option>
-                    </select>
-                    <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
+                      onChange={setEditFrecuenciaUnidad}
+                      options={[
+                        { value: 'días', label: 'días' },
+                        { value: 'semanas', label: 'semanas' },
+                        { value: 'meses', label: 'meses' },
+                      ]}
+                      className="w-auto min-w-[96px] font-medium"
+                    />
                   </div>
                 )}
 
@@ -787,73 +794,78 @@ export default function TaskItem({
                         <>
                           <input
                             type="time"
-                            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono outline-none"
+                            className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-xl text-text-main font-mono outline-none"
                             value={editHora}
                             onChange={e => setEditHora(e.target.value)}
                           />
                           {(editType === 'Tarea' || editType === 'Pulso') && (
-                            <div className="relative flex items-center bg-transparent rounded-md">
-                              <select
-                                className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none"
-                                value={editView}
-                                onChange={e => setEditView(e.target.value)}
-                              >
-                                <option value="Hoy">☀️ Hoy</option>
-                                <option value="Backlog">📥 Backlog</option>
-                              </select>
-                              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                            </div>
+                            <Select
+                              variant="box"
+                              size="sm"
+                              ariaLabel="Vista"
+                              value={editView}
+                              onChange={setEditView}
+                              options={[
+                                { value: 'Hoy', label: '☀️ Hoy' },
+                                { value: 'Backlog', label: '📥 Backlog' },
+                              ]}
+                              className="w-auto min-w-[110px]"
+                            />
                           )}
                         </>
                       )}
 
                       {(editType === 'Tarea' || editType === 'Proyecto') && (
-                        <div className="relative flex items-center bg-transparent rounded-md">
-                          <select
-                            className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none"
-                            value={editPriority}
-                            onChange={e => setEditPriority(e.target.value)}
-                          >
-                            <option value="Baja">🟢 Prioridad Baja</option>
-                            <option value="Media">🟡 Prioridad Media</option>
-                            <option value="Alta">🔥 Prioridad Alta</option>
-                          </select>
-                          <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                        </div>
+                        <Select
+                          variant="box"
+                          size="sm"
+                          ariaLabel="Prioridad"
+                          value={editPriority}
+                          onChange={setEditPriority}
+                          options={[
+                            { value: 'Baja', label: '🟢 Prioridad Baja' },
+                            { value: 'Media', label: '🟡 Prioridad Media' },
+                            { value: 'Alta', label: '🔥 Prioridad Alta' },
+                          ]}
+                          className="w-auto min-w-[140px]"
+                        />
                       )}
 
                       {(!isEditActualSubtask || editType === 'Hábito') && (
                         <div className="flex gap-2 items-center flex-wrap">
-                          <div className="relative flex items-center bg-transparent rounded-md">
-                            <select
-                              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full max-w-[150px] truncate focus:outline-none"
-                              value={editArea}
-                              onChange={e => { setEditArea(e.target.value); setEditSubCategory(''); }}
-                              title="Área"
-                            >
-                              <option value="">Sin Área</option>
-                              {Object.keys(config?.areas || {}).map(a => (
-                                <option key={a} value={a}>{a}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                          </div>
+                          <Select
+                            variant="box"
+                            size="sm"
+                            searchable={true}
+                            title="Área"
+                            ariaLabel="Área"
+                            value={editArea}
+                            onChange={val => { setEditArea(val); setEditSubCategory(''); }}
+                            options={[
+                              { value: '', label: 'Sin Área' },
+                              ...Object.keys(config?.areas || {}).map(a => ({ value: a, label: a })),
+                            ]}
+                            className="w-auto min-w-[120px] max-w-[180px]"
+                          />
 
                           {editArea && typeof config?.areas?.[editArea] !== 'string' && (config?.areas?.[editArea] as any)?.categories?.length > 0 && (
-                            <div className="relative flex items-center bg-transparent rounded-md">
-                              <select
-                                className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full max-w-[150px] truncate focus:outline-none"
-                                value={editSubCategory}
-                                onChange={e => setEditSubCategory(e.target.value)}
-                                title="Categoría"
-                              >
-                                <option value="">Sin Categoría</option>
-                                {((config?.areas?.[editArea] as any)?.categories || []).map((sc: string) => (
-                                  <option key={sc} value={sc}>{sc}</option>
-                                ))}
-                              </select>
-                              <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                            </div>
+                            <Select
+                              variant="box"
+                              size="sm"
+                              searchable={true}
+                              title="Categoría"
+                              ariaLabel="Categoría"
+                              value={editSubCategory}
+                              onChange={setEditSubCategory}
+                              options={[
+                                { value: '', label: 'Sin Categoría' },
+                                ...((config?.areas?.[editArea] as any)?.categories || []).map((sc: string) => ({
+                                  value: sc,
+                                  label: sc,
+                                })),
+                              ]}
+                              className="w-auto min-w-[120px] max-w-[180px]"
+                            />
                           )}
 
 
@@ -861,14 +873,14 @@ export default function TaskItem({
                           {(editType === 'Hábito' || editType === 'Rutina' || editType === 'Pulso') && (
                             <input
                               type="date"
-                              className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-full text-text-main font-mono w-[120px]"
+                              className="px-3 py-1.5 text-xs bg-base border border-border-line rounded-xl text-text-main font-mono w-[125px]"
                               value={editFechaPlanificada}
                               onChange={e => setEditFechaPlanificada(e.target.value)}
                               title="Fecha Planificada"
                             />
                           )}
                           {(editType === 'Tarea' || editType === 'Hábito') && (
-                            <div className="flex items-center gap-1 bg-base border border-border-line rounded-full px-3 py-1.5" title="Duración estimada (horas)">
+                            <div className="flex items-center gap-1 bg-base border border-border-line rounded-xl px-3 py-1.5" title="Duración estimada (horas)">
                               <input
                                 type="number"
                                 min={0}
@@ -884,18 +896,20 @@ export default function TaskItem({
                         </div>
                       )}
                       {/* Asignación Energética — SIEMPRE visible, incluso para subtareas */}
-                      <div className="relative flex items-center bg-transparent rounded-md" title="Asignación Energética">
-                        <select
-                          className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-base text-text-main border border-border-line rounded-full focus:outline-none cursor-pointer"
-                          value={editAllocationType}
-                          onChange={e => setEditAllocationType(e.target.value as any)}
-                        >
-                          <option value="growth">⚡ Inversión</option>
-                          <option value="fixed">🛡️ Soporte Vital</option>
-                          <option value="mixed">☯️ Mixto</option>
-                        </select>
-                        <ChevronDown className="absolute right-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                      </div>
+                      <Select
+                        variant="box"
+                        size="sm"
+                        title="Asignación Energética"
+                        ariaLabel="Asignación Energética"
+                        value={editAllocationType}
+                        onChange={val => setEditAllocationType(val as any)}
+                        options={[
+                          { value: 'growth', label: '⚡ Inversión' },
+                          { value: 'fixed', label: '🛡️ Soporte Vital' },
+                          { value: 'mixed', label: '☯️ Mixto' },
+                        ]}
+                        className="w-auto min-w-[135px]"
+                      />
                     </>
                   );
                 })()}

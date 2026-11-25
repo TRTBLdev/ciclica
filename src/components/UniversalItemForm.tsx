@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AppTask, AppearanceMode, Config, TaskType, ChecklistItem, QuotaPeriodUnit, RecurrenceUnit } from '../types';
-import { ChevronDown, Plus, X, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, X, CheckCircle2, Circle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Reorder } from 'motion/react';
 import LinkedText from './ui/LinkedText';
+import Select from './ui/Select';
 import { formatDateOnly, getCalendarCycleRange } from '../domain/recurrenceProgress';
 import { normalizePulsePolarity } from '../domain/trackingProgress';
 import { canConfigureOwnAppearance, getAppearanceDate, getAppearanceMode, getDeadlineDate, getIdealHabitSpacing, getMinimumRoutineOpportunityCount } from '../domain/appearance';
@@ -92,7 +93,6 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialData?.checklist || []);
   const [newChecklistItemText, setNewChecklistItemText] = useState('');
-  const [depSearch, setDepSearch] = useState('');
 
   const [editingChecklistItemId, setEditingChecklistItemId] = useState<string | null>(null);
   const [editingChecklistItemText, setEditingChecklistItemText] = useState('');
@@ -220,7 +220,6 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
   };
 
   const fieldClass = 'h-10 w-full border-0 border-b border-border-line bg-transparent px-0 text-xs text-text-main outline-none transition-colors placeholder:text-text-dim/50 focus:border-text-main';
-  const selectClass = `${fieldClass} appearance-none pr-7`;
   const numberClass = `${fieldClass} text-center`;
 
   return (
@@ -239,7 +238,11 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         value={text}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Escape') onCancel();
+          if (e.key === 'Escape') {
+            if (e.defaultPrevented || document.querySelector('[data-ciclica-select-open="true"]')) return;
+            e.stopPropagation();
+            onCancel();
+          }
         }}
       />
       <section className="grid grid-cols-1 gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
@@ -247,12 +250,13 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         {!initialData && (
           <label className="flex flex-col gap-1.5" title="Tipo de elemento">
             <span className="text-[10px] text-text-dim uppercase font-mono tracking-[0.14em]">Tipo</span>
-            <div className="relative">
-            <select
-              className={cn(selectClass, 'font-medium')}
+            <Select
+              variant="underline"
+              className="font-medium"
+              ariaLabel="Tipo de elemento"
               value={type}
-              onChange={e => {
-                const newType = e.target.value as TaskType;
+              onChange={val => {
+                const newType = val as TaskType;
                 setType(newType);
                 if (newType === 'Hábito' || newType === 'Rutina') {
                   setAppearanceMode('interval');
@@ -268,15 +272,14 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                   setParentId('');
                 }
               }}
-            >
-              <option value="Tarea">Tarea</option>
-              <option value="Proyecto">Proyecto</option>
-              <option value="Rutina">Rutina</option>
-              <option value="Hábito">Hábito</option>
-              <option value="Pulso">Pulso (contador)</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
-            </div>
+              options={[
+                { value: 'Tarea', label: 'Tarea' },
+                { value: 'Proyecto', label: 'Proyecto' },
+                { value: 'Rutina', label: 'Rutina' },
+                { value: 'Hábito', label: 'Hábito' },
+                { value: 'Pulso', label: 'Pulso (contador)' },
+              ]}
+            />
           </label>
         )}
 
@@ -287,17 +290,19 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
             </legend>
             <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
               Frecuencia
-              <select
-                className={selectClass}
+              <Select
+                variant="underline"
+                ariaLabel="Frecuencia"
                 value={appearanceMode}
-                onChange={event => setAppearanceMode(event.target.value as AppearanceMode | '')}
-              >
-                {(type === 'Tarea' || type === 'Proyecto') && <option value="">Sin aparición</option>}
-                {type === 'Tarea' && <option value="persistent">Fija hasta completar</option>}
-                <option value="interval">Cada intervalo</option>
-                <option value="weekdays">Días específicos</option>
-                {type === 'Hábito' && <option value="quota">Cuota flexible</option>}
-              </select>
+                onChange={val => setAppearanceMode(val as AppearanceMode | '')}
+                options={[
+                  ...((type === 'Tarea' || type === 'Proyecto') ? [{ value: '', label: 'Sin aparición' }] : []),
+                  ...(type === 'Tarea' ? [{ value: 'persistent', label: 'Fija hasta completar' }] : []),
+                  { value: 'interval', label: 'Cada intervalo' },
+                  { value: 'weekdays', label: 'Días específicos' },
+                  ...(type === 'Hábito' ? [{ value: 'quota', label: 'Cuota flexible' }] : []),
+                ]}
+              />
             </label>
             {appearanceMode && (
               <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
@@ -316,9 +321,18 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 Intervalo
                 <div className="grid grid-cols-[72px_1fr] gap-2">
                 <input type="number" min={1} className={numberClass} value={frecuencia} onChange={e => setFrecuencia(Math.max(1, Number(e.target.value)))} />
-                <select className={cn(selectClass, 'normal-case')} value={frecuenciaUnidad} onChange={e => setFrecuenciaUnidad(e.target.value)}>
-                  <option value="días">días</option><option value="semanas">semanas</option><option value="meses">meses</option>
-                </select>
+                <Select
+                  variant="underline"
+                  className="normal-case"
+                  ariaLabel="Unidad de intervalo"
+                  value={frecuenciaUnidad}
+                  onChange={setFrecuenciaUnidad}
+                  options={[
+                    { value: 'días', label: 'días' },
+                    { value: 'semanas', label: 'semanas' },
+                    { value: 'meses', label: 'meses' },
+                  ]}
+                />
                 </div>
               </label>
             )}
@@ -338,9 +352,16 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 <div className="grid grid-cols-[72px_auto_1fr] items-center gap-2 text-xs text-text-dim">
                   <input type="number" min={1} className={numberClass} value={quotaTarget} onChange={event => setQuotaTarget(Math.max(1, Number(event.target.value)))} />
                   <span>veces por</span>
-                  <select className={selectClass} value={quotaPeriodUnit} onChange={event => setQuotaPeriodUnit(event.target.value as QuotaPeriodUnit)}>
-                    <option value="semanas">semana</option><option value="meses">mes</option>
-                  </select>
+                  <Select
+                    variant="underline"
+                    ariaLabel="Período de cuota"
+                    value={quotaPeriodUnit}
+                    onChange={val => setQuotaPeriodUnit(val as QuotaPeriodUnit)}
+                    options={[
+                      { value: 'semanas', label: 'semana' },
+                      { value: 'meses', label: 'mes' },
+                    ]}
+                  />
                 </div>
                 <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
                   Espaciado ideal (días)
@@ -425,15 +446,18 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                 value={routineCycleFrequency}
                 onChange={event => setRoutineCycleFrequency(Math.max(1, Number(event.target.value)))}
               />
-              <select
-                className={cn(selectClass, 'font-medium normal-case')}
+              <Select
+                variant="underline"
+                className="font-medium normal-case"
+                ariaLabel="Unidad de ciclo de rutina"
                 value={routineCycleUnit}
-                onChange={event => setRoutineCycleUnit(event.target.value as RecurrenceUnit)}
-              >
-                <option value="días">días</option>
-                <option value="semanas">semanas</option>
-                <option value="meses">meses</option>
-              </select>
+                onChange={val => setRoutineCycleUnit(val as RecurrenceUnit)}
+                options={[
+                  { value: 'días', label: 'días' },
+                  { value: 'semanas', label: 'semanas' },
+                  { value: 'meses', label: 'meses' },
+                ]}
+              />
               </div>
             </label>
             <p className="self-end pb-2 text-[10px] font-mono text-text-dim sm:col-span-1 lg:col-span-2">
@@ -467,17 +491,18 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
               />
               </div>
             </label>
-            <div className="relative flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Dirección</span>
-              <select 
-                className={selectClass}
-                value={polaridad} 
-                onChange={e => setPolaridad(e.target.value as any)}
-              >
-                 <option value="Reforzar">Reforzar</option>
-                 <option value="Abandonar">Abandonar</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+              <Select
+                variant="underline"
+                ariaLabel="Dirección"
+                value={polaridad}
+                onChange={val => setPolaridad(val as 'Reforzar' | 'Abandonar')}
+                options={[
+                  { value: 'Reforzar', label: 'Reforzar' },
+                  { value: 'Abandonar', label: 'Abandonar' },
+                ]}
+              />
             </div>
           </>
         )}
@@ -500,21 +525,21 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           || ((type === 'Tarea' || type === 'Rutina' || type === 'Hábito') && !isActualSubtask && !inheritsProjectContext)
         ) && (
           <div className="flex flex-col gap-1.5">
-            <label className="relative flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
+            <label className="flex flex-col gap-1.5 text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">
               Momento del día
-              <select
-                className={selectClass}
+              <Select
+                variant="underline"
+                ariaLabel="Momento del día"
                 value={momentId}
-                onChange={e => setMomentId(e.target.value)}
-              >
-                <option value="">Cuando pueda (sin momento)</option>
-                {allMoments.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.kind === 'trigger' ? `⚓ ${m.text} (~${m.hora})` : `${m.hora} · ${m.text}`}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+                onChange={setMomentId}
+                options={[
+                  { value: '', label: 'Cuando pueda (sin momento)' },
+                  ...allMoments.map(m => ({
+                    value: m.id,
+                    label: m.kind === 'trigger' ? `⚓ ${m.text} (~${m.hora})` : `${m.hora} · ${m.text}`,
+                  })),
+                ]}
+              />
             </label>
             {!showSpecificHour ? (
               <button
@@ -552,35 +577,41 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
         {/* Área / Categoría (Todos excepto Subtareas) */}
         {(!isActualSubtask || type === 'Hábito') && !inheritsProjectContext && (
           <div className="col-span-full grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="relative flex flex-col gap-1.5">
+            <label className="flex flex-col gap-1.5">
               <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Área</span>
-              <select 
-                className={selectClass}
-                value={area} 
-                onChange={e => { setArea(e.target.value); setSubCategory(''); }}
-              >
-                <option value="">Sin Área</option>
-                {Object.keys(config?.areas || {}).map(a => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+              <Select
+                variant="underline"
+                searchable={true}
+                ariaLabel="Área"
+                value={area}
+                onChange={val => {
+                  setArea(val);
+                  setSubCategory('');
+                }}
+                options={[
+                  { value: '', label: 'Sin Área' },
+                  ...Object.keys(config?.areas || {}).map(a => ({ value: a, label: a })),
+                ]}
+              />
             </label>
             
             {area && typeof config?.areas?.[area] !== 'string' && (config?.areas?.[area] as any)?.categories?.length > 0 && (
-              <label className="relative flex flex-col gap-1.5">
+              <label className="flex flex-col gap-1.5">
                 <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Categoría</span>
-                <select 
-                  className={selectClass}
+                <Select
+                  variant="underline"
+                  searchable={true}
+                  ariaLabel="Categoría"
                   value={subCategory}
-                  onChange={e => setSubCategory(e.target.value)}
-                >
-                  <option value="">Sin Categoría</option>
-                  {((config?.areas?.[area] as any)?.categories || []).map((sc: string) => (
-                    <option key={sc} value={sc}>{sc}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+                  onChange={setSubCategory}
+                  options={[
+                    { value: '', label: 'Sin Categoría' },
+                    ...((config?.areas?.[area] as any)?.categories || []).map((sc: string) => ({
+                      value: sc,
+                      label: sc,
+                    })),
+                  ]}
+                />
               </label>
             )}
           </div>
@@ -597,18 +628,19 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
 
         {/* Asignación Energética (Tarea/Proyecto) */}
         {type === 'Tarea' && (
-          <label className="relative flex flex-col gap-1.5">
+          <label className="flex flex-col gap-1.5">
             <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-dim">Asignación</span>
-            <select 
-              className={selectClass}
-              value={allocationType} 
-              onChange={e => setAllocationType(e.target.value as any)}
-            >
-               <option value="growth">Inversión</option>
-               <option value="fixed">Soporte vital</option>
-               <option value="mixed">Mixto</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-3.5 w-3.5 text-text-dim" />
+            <Select
+              variant="underline"
+              ariaLabel="Asignación"
+              value={allocationType}
+              onChange={val => setAllocationType(val as 'fixed' | 'growth' | 'mixed')}
+              options={[
+                { value: 'growth', label: 'Inversión' },
+                { value: 'fixed', label: 'Soporte vital' },
+                { value: 'mixed', label: 'Mixto' },
+              ]}
+            />
           </label>
         )}
       </section>
@@ -619,33 +651,29 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           <label htmlFor={`parent-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-wider text-text-dim">
             {type === 'Hábito' ? 'Rutina asociada:' : 'Proyecto asociado:'}
           </label>
-          <section className="relative max-w-md">
-            <select
+          <div className="max-w-md">
+            <Select
               id={`parent-${initialData?.id || 'new'}`}
-              className={selectClass}
+              variant="underline"
+              searchable={true}
               value={parentId}
-              onChange={e => {
-                setParentId(e.target.value);
-              }}
-            >
-              <option value="">(Ninguno) Raíz</option>
-              {allTasks
-                .filter(t => {
-                  if (type === 'Hábito') {
-                    return t.type === 'Rutina';
-                  }
-                  if (type === 'Tarea') {
-                    return t.type === 'Proyecto';
-                  }
-                  return (t.type === 'Proyecto' || t.type === 'Rutina' || (t.type === 'Tarea' && t.id !== initialData?.id && t.parentId !== initialData?.id));
-                })
-                .map(t => (
-                  <option key={t.id} value={t.id}>{t.text}</option>
-                ))
-              }
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
-          </section>
+              onChange={setParentId}
+              options={[
+                { value: '', label: '(Ninguno) Raíz' },
+                ...allTasks
+                  .filter(t => {
+                    if (type === 'Hábito') {
+                      return t.type === 'Rutina';
+                    }
+                    if (type === 'Tarea') {
+                      return t.type === 'Proyecto';
+                    }
+                    return (t.type === 'Proyecto' || t.type === 'Rutina' || (t.type === 'Tarea' && t.id !== initialData?.id && t.parentId !== initialData?.id));
+                  })
+                  .map(t => ({ value: t.id, label: t.text })),
+              ]}
+            />
+          </div>
         </section>
       )}
 
@@ -682,48 +710,22 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
       {type === 'Tarea' && (
         <section className="flex w-full flex-col gap-1.5 border-t border-border-line/60 pt-4 text-left">
           <label htmlFor={`dependency-${initialData?.id || 'new'}`} className="text-[10px] font-mono uppercase tracking-wider text-text-dim">Depende de (prerrequisito)</label>
-          <section className="relative max-w-sm">
-            <input 
+          <div className="max-w-sm">
+            <Select
               id={`dependency-${initialData?.id || 'new'}`}
-              type="text"
-              placeholder="Buscar tarea compañera..."
-              className={fieldClass}
-              value={depSearch}
-              onChange={e => setDepSearch(e.target.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') event.preventDefault();
-              }}
+              variant="underline"
+              searchable={true}
+              placeholder="(Ninguno)"
+              value={dependencyId}
+              onChange={setDependencyId}
+              options={[
+                { value: '', label: '(Ninguno)' },
+                ...allTasks
+                  .filter(t => (t.type === 'Tarea' || t.type === 'Hábito' || t.type === 'Rutina') && t.id !== initialData?.id)
+                  .map(t => ({ value: t.id, label: t.text })),
+              ]}
             />
-            {depSearch && (
-              <ul className="absolute top-full z-10 m-0 mt-1 max-h-40 w-full list-none overflow-y-auto border border-border-line bg-base p-0">
-                {allTasks
-                  .filter(t => (t.type === 'Tarea' || t.type === 'Hábito' || t.type === 'Rutina') && t.id !== initialData?.id && t.text.toLowerCase().includes(depSearch.toLowerCase()))
-                  .map(t => (
-                    <li key={t.id} className="border-b border-border-line/40 last:border-b-0">
-                      <button
-                        type="button"
-                        className="w-full truncate border-0 bg-transparent px-3 py-2 text-left text-xs hover:bg-base-dim/40"
-                        onClick={() => {
-                          setDependencyId(t.id);
-                          setDepSearch('');
-                        }}
-                      >
-                        {t.text}
-                      </button>
-                    </li>
-                  ))
-                }
-              </ul>
-            )}
-            {dependencyId && (
-              <p className="mt-1 flex items-center gap-2">
-                <output className="flex-1 truncate text-xs font-medium text-amber-600">
-                  {allTasks.find(t => t.id === dependencyId)?.text || 'Tarea desconocida'}
-                </output>
-                <button type="button" onClick={() => setDependencyId('')} className="cursor-pointer border-0 bg-transparent text-xs text-red-500 hover:underline">Quitar</button>
-              </p>
-            )}
-          </section>
+          </div>
         </section>
       )}
 
@@ -787,7 +789,10 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
                                   e.preventDefault();
                                   handleSaveChecklistItemText(item.id);
                                 }
-                                if (e.key === 'Escape') setEditingChecklistItemId(null);
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation();
+                                  setEditingChecklistItemId(null);
+                                }
                               }}
                             />
                           ) : (
@@ -867,7 +872,7 @@ export default function UniversalItemForm({ initialData, defaultType = 'Tarea', 
           {validationError}
         </p>
       )}
-      <footer className="flex items-center gap-3 border-t border-border-line/60 pt-4">
+      <footer className="sticky bottom-0 z-10 flex items-center gap-3 border-t border-border-line/60 bg-base/95 backdrop-blur-sm py-3">
         <button type="submit" className="h-10 border-0 bg-text-main px-4 text-xs font-bold uppercase tracking-[0.16em] text-base outline-none transition-colors hover:bg-text-main/85 active:scale-[0.98] cursor-pointer">
           Guardar
         </button>

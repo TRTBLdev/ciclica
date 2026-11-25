@@ -28,6 +28,7 @@ import { getHistoryDateKey, getProjectForTask } from '../domain/workTracking';
 import { formatDateOnly } from '../domain/recurrenceProgress';
 import { buildDedicationAreaWheel } from '../domain/areaWheel';
 import AreaWheelChart from './AreaWheelChart';
+import Select from './ui/Select';
 import DailyFocusLineChart from './DailyFocusLineChart';
 
 interface Props {
@@ -747,18 +748,23 @@ SORT date DESC
             ))}
           </div>
 
-          <div className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 flex items-center pr-6 bg-base">
-            <select
+          <div className="pb-1 flex items-center bg-base">
+            <Select
+              variant="ghost"
+              size="sm"
+              searchable={true}
+              ariaLabel="Filtrar reportes por área"
               value={areaFilter}
-              onChange={(e) => setAreaFilter(e.target.value)}
-              className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 bg-base border-0"
-            >
-              <option value="Todas">Todas las áreas</option>
-              {Object.keys(config?.areas || {}).map(cat => (
-                <option key={cat} value={cat}>{cat.toUpperCase()}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-0 w-3.5 h-3.5 text-text-main pointer-events-none" />
+              onChange={setAreaFilter}
+              options={[
+                { value: 'Todas', label: 'Todas las áreas' },
+                ...Object.keys(config?.areas || {}).map(cat => ({
+                  value: cat,
+                  label: cat.toUpperCase(),
+                })),
+              ]}
+              className="w-auto font-mono uppercase tracking-wider"
+            />
           </div>
         </div>
 

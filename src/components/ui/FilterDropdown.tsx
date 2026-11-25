@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, ChevronDown } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import Select from './Select';
 
 export interface FilterConfig {
   key: string;
@@ -29,6 +30,10 @@ export default function FilterDropdown({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Element | null;
+      if (target?.closest?.('[data-ciclica-select-portal="true"]')) {
+        return;
+      }
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -36,6 +41,19 @@ export default function FilterDropdown({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (event.defaultPrevented) return;
+      if (document.querySelector('[data-ciclica-select-open="true"]')) return;
+      event.preventDefault();
+      setIsOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const hasActiveFilters = configs.some(config => {
     const val = activeFilters[config.key];
@@ -75,23 +93,19 @@ export default function FilterDropdown({
             <div className="flex flex-col gap-2.5">
               {configs.map(config => {
                 const val = activeFilters[config.key] || config.defaultValue || 'Todas';
+                const forceSearchable = /categor|área|area|proyect|rutin|intenci/i.test(config.label);
                 return (
                   <div key={config.key} className="flex flex-col gap-1">
                     <span className="text-[9px] text-text-dim font-mono uppercase tracking-wide">{config.label}:</span>
-                    <div className="relative w-full">
-                      <select
-                        className="w-full appearance-none pl-3 pr-8 py-1 text-xs bg-base text-text-main border border-border-line rounded-xl focus:outline-none cursor-pointer truncate"
-                        value={val}
-                        onChange={e => onChange(config.key, e.target.value)}
-                      >
-                        {config.options.map(opt => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-2 w-3.5 h-3.5 text-text-dim pointer-events-none" />
-                    </div>
+                    <Select
+                      variant="box"
+                      size="sm"
+                      ariaLabel={config.label}
+                      value={val}
+                      onChange={nextVal => onChange(config.key, nextVal)}
+                      options={config.options}
+                      searchable={forceSearchable ? true : 'auto'}
+                    />
                   </div>
                 );
               })}

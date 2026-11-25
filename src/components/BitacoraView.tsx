@@ -8,6 +8,7 @@ import CompletadasView from './CompletadasView';
 import IntencionesPanelView from './IntencionesPanelView';
 import SeguimientoView from './SeguimientoView';
 import { useToast } from './ToastProvider';
+import Select from './ui/Select';
 
 const parseLocalDate = (dateStr: string) => {
   const parts = dateStr.split('-');
@@ -662,15 +663,19 @@ export default function BitacoraView({
                         </div>
                         <div>
                           <label className="text-[9px] font-mono text-text-dim h-12 flex items-end mb-1">Flujo Promedio</label>
-                          <select
-                            className="h-9 w-full bg-transparent border-b border-border-line focus:border-[var(--color-text-main)] py-2 text-xs outline-none text-text-main font-mono cursor-pointer"
-                            value={histIntensity}
-                            onChange={e => setHistIntensity(Number(e.target.value))}
-                          >
-                            <option value={1}>🩸 Ligero</option>
-                            <option value={2}>🩸🩸 Moderado</option>
-                            <option value={3}>🩸🩸🩸 Abundante</option>
-                          </select>
+                          <Select
+                            variant="underline"
+                            size="sm"
+                            ariaLabel="Flujo Promedio"
+                            value={String(histIntensity)}
+                            onChange={val => setHistIntensity(Number(val))}
+                            options={[
+                              { value: '1', label: '🩸 Ligero' },
+                              { value: '2', label: '🩸🩸 Moderado' },
+                              { value: '3', label: '🩸🩸🩸 Abundante' },
+                            ]}
+                            className="font-mono"
+                          />
                         </div>
                       </div>
                       <div className="flex justify-end mt-2">
@@ -812,15 +817,19 @@ export default function BitacoraView({
                     </div>
                     <div>
                       <label className="text-[9px] font-mono text-text-dim h-12 flex items-end mb-1">Flujo Promedio</label>
-                      <select
-                        className="h-9 w-full bg-transparent border-b border-border-line focus:border-[var(--color-text-main)] py-2 text-xs outline-none text-text-main font-mono cursor-pointer"
-                        value={histIntensity}
-                        onChange={e => setHistIntensity(Number(e.target.value))}
-                      >
-                        <option value={1}>🩸 Ligero</option>
-                        <option value={2}>🩸🩸 Moderado</option>
-                        <option value={3}>🩸🩸🩸 Abundante</option>
-                      </select>
+                      <Select
+                        variant="underline"
+                        size="sm"
+                        ariaLabel="Flujo Promedio"
+                        value={String(histIntensity)}
+                        onChange={val => setHistIntensity(Number(val))}
+                        options={[
+                          { value: '1', label: '🩸 Ligero' },
+                          { value: '2', label: '🩸🩸 Moderado' },
+                          { value: '3', label: '🩸🩸🩸 Abundante' },
+                        ]}
+                        className="font-mono"
+                      />
                     </div>
                   </div>
                   <div className="flex justify-end mt-2">

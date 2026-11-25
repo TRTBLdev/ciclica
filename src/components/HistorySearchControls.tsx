@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, ChevronDown, Plus, Search, X } from 'lucide-react';
+import { CheckCircle2, Plus, Search, X } from 'lucide-react';
 import {
   HistoryPeriod,
   HistorySearchSuggestion,
 } from '../domain/historyPresentation';
+import Select from './ui/Select';
 
 interface Props {
   period: HistoryPeriod;
@@ -49,22 +50,25 @@ export default function HistorySearchControls({
           <CheckCircle2 className="w-6 h-6 text-text-main stroke-[2]" />
           Historial de sesiones
         </h2>
-        <label className="relative border-b border-transparent hover:border-[#a2b29f] transition-colors pb-1 pr-6 bg-base">
+        <label className="relative pb-1 bg-base">
           <small className="sr-only">Período del historial</small>
-          <select
+          <Select
+            variant="ghost"
+            size="sm"
+            ariaLabel="Período del historial"
             value={period}
-            onChange={event => onPeriodChange(event.target.value as HistoryPeriod)}
-            className="appearance-none bg-transparent text-text-main text-xs font-mono uppercase tracking-wider focus:outline-none cursor-pointer pr-4 border-0"
-          >
-            <option value="todas">Todo el historial</option>
-            <option value="hoy">Hoy</option>
-            <option value="semana">Esta semana</option>
-            <option value="7dias">Últimos 7 días</option>
-            <option value="mes">Este mes</option>
-            <option value="30dias">Últimos 30 días</option>
-            <option value="ciclo">Este ciclo</option>
-          </select>
-          <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-main pointer-events-none" />
+            onChange={val => onPeriodChange(val as HistoryPeriod)}
+            options={[
+              { value: 'todas', label: 'Todo el historial' },
+              { value: 'hoy', label: 'Hoy' },
+              { value: 'semana', label: 'Esta semana' },
+              { value: '7dias', label: 'Últimos 7 días' },
+              { value: 'mes', label: 'Este mes' },
+              { value: '30dias', label: 'Últimos 30 días' },
+              { value: 'ciclo', label: 'Este ciclo' },
+            ]}
+            className="w-auto font-mono uppercase tracking-wider"
+          />
         </label>
       </section>
 

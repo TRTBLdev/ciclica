@@ -52,7 +52,8 @@ describe('completed history view', () => {
       </ToastProvider>,
     );
 
-    expect(markup).toContain('value="7dias" selected=""');
+    expect(markup).toMatch(/role="combobox"[^>]*aria-label="Período del historial"/);
+    expect(markup).toContain('Últimos 7 días');
     expect(markup).toContain('Sesión reciente');
     expect(markup).not.toContain('Sesión antigua');
   });

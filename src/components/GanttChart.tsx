@@ -3,6 +3,7 @@ import { AppTask, Config, HistoryRecord } from '../types';
 import { cn } from '../lib/utils';
 import { Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { getAppearanceDate, getDeadlineDate, getProjectDateSummary, getTaskDateSummary } from '../domain/appearance';
+import Select from './ui/Select';
 
 interface GanttChartProps {
   config: Config | null;
@@ -264,19 +265,22 @@ export default function GanttChart({ config, tasks, history = [], onUpdateTask, 
         <div className="flex items-center gap-4 flex-wrap">
           {/* Area Filter Dropdown */}
           {config && (
-            <div className="relative flex items-center">
-              <select
-                value={selectedArea}
-                onChange={(e) => setSelectedArea(e.target.value)}
-                className="appearance-none bg-transparent text-text-dim hover:text-text-main text-[10px] font-mono border border-border-line/60 rounded-none px-3 py-1 pr-6 focus:outline-none focus:border-primary cursor-pointer transition-colors"
-              >
-                <option value="">Todas las Áreas</option>
-                {Object.keys(config.areas).map(areaKey => (
-                  <option key={areaKey} value={areaKey}>{areaKey}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 w-3 h-3 text-text-dim pointer-events-none" />
-            </div>
+            <Select
+              variant="box"
+              size="sm"
+              searchable={true}
+              ariaLabel="Filtrar cronograma por área"
+              value={selectedArea}
+              onChange={setSelectedArea}
+              options={[
+                { value: '', label: 'Todas las Áreas' },
+                ...Object.keys(config.areas).map(areaKey => ({
+                  value: areaKey,
+                  label: areaKey,
+                })),
+              ]}
+              className="w-auto min-w-[140px] font-mono text-[10px]"
+            />
           )}
 
           {/* Scale Switchers */}
